@@ -1,5 +1,25 @@
 # PROGRESS
 
+## 2026-07-02 — TASK_DOCS_001 (Architecture & Engineering Documentation)
+
+Сделано:
+- Создан `ARCHITECTURE.md` — источник архитектурной истины: общая модель и диаграмма (StudySession и AI Layer — **параллельные независимые потребители** публичного API `LearningEngine`, не звенья цепи), принципы, инварианты (INV-1…INV-7), описания LearningEngine/StudySession/Scheduler/EngineStore/Review Log, AI Layer как будущий потребитель, Future Architecture (направление, не контракт), открытый вопрос replay, правила обновления.
+- Создан `ENGINE.md` — введение в ядро для нового разработчика: назначение LearningEngine, ответственность StudySession (поток сессии, не расчёт памяти), Scheduler, EngineStore, CardState, Review Log, жизненный цикл карточки, поток данных, ключевые решения.
+- Создана папка `docs/adr/` + ADR-001 (Scheduler abstraction), ADR-002 (Review Log as Source of Truth), ADR-003 (StudySession separation, с SRP-анализом и Вариантом B-minimal из TASK_001) + `README.md`-индекс.
+- Завершён TASK_001 (Learning Steps) — зафиксирован официально в архитектурных документах.
+
+Решения и почему:
+- Документация фиксирует **только фактическое** состояние кода; терминология AI Layer/StudySession взята дословно из `PROJECT_CONSTITUTION.md` (commit 00972bb) и согласована во всех новых документах.
+- Код проекта не изменялся (задача сугубо документационная).
+
+Расхождение код ↔ документы (зафиксировано как открытый вопрос, не исправлялось):
+- Комментарии в `types.ts` заявляют lossless-replay Review Log → scheduling, но функции replay нет, а `Review` не хранит `reps/lapses/learningSteps/lastReview`. Восстановление возможно пересчётом через детерминированный Scheduler, не чтением полей. Это незакрытый стратегический инвариант (см. `ARCHITECTURE.md` §10, ADR-002), а не баг. Тех-долг ниже сохраняется.
+
+Следующий шаг:
+- Хоткеи в ReviewSession (1–4 / пробел); затем дневной лимит новых карт в StudySession и undo. Перед следующим релизом — закрыть открытый вопрос replay отдельной задачей.
+
+---
+
 ## 2026-07-02 — TASK_001 (Learning Steps)
 
 Сделано:
