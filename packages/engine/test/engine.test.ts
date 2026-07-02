@@ -91,14 +91,103 @@ describe('card lifecycle', () => {
     expect(state.due - clock.t).toBeGreaterThan(DAY); // real multi-day interval
   });
 
-  it('editing content never touches scheduling', async () => {
+  it('editing note content never touches scheduling', async () => {
     const { engine } = makeEngine();
     const card = await engine.addCard({ front: 'a', back: 'b' });
     const reviewed = (await engine.review(card.id, 'good')).card;
-    const edited = await engine.updateCardContent(card.id, { front: 'a2', back: 'b2' });
-    expect(edited.front).toBe('a2');
-    expect(edited.due).toBe(reviewed.due);
-    expect(edited.scheduling).toEqual(reviewed.scheduling);
+    await engine.updateNoteContent(card.noteId, { front: 'a2', back: 'b2' });
+    const view = await engine.getCardView(card.id);
+    expect(view?.front).toBe('a2');
+    expect(view?.card.due).toBe(reviewed.due);
+    expect(view?.card.scheduling).toEqual(reviewed.scheduling);
+  });
+});
+
+describe('notes and multi-card', () => {
+  it('addNote with forward+reverse yields two cards sharing one note', async () => {
+    const { engine } = makeEngine();
+    const { note, cards } = await engine.addNote({
+      front: 'der Hund',
+      back: 'собака',
+      directions: ['forward', 'reverse'],
+    });
+    expect(cards).toHaveLength(2);
+    expect(cards.every((c) => c.noteId === note.id)).toBe(true);
+    const [fwd, rev] = await Promise.all([
+      engine.getCardView(cards[0]!.id),
+      engine.getCardView(cards[1]!.id),
+    ]);
+    // forward: front→back as authored; reverse: sides swapped
+    expect(fwd).toMatchObject({ front: 'der Hund', back: 'собака' });
+    expect(rev).toMatchObject({ front: 'собака', back: 'der Hund' });
+  });
+
+  it('editing the note updates every sibling card at once (single source of truth)', async () => {
+    const { engine } = makeEngine();
+    const { note, cards } = await engine.addNote({
+      front: 'q',
+      back: 'a',
+      directions: ['forward', 'reverse'],
+    });
+    await engine.updateNoteContent(note.id, { front: 'Q', back: 'A' });
+    const views = await engine.listCardViews();
+    const fwd = views.find((v) => v.card.template === 'forward');
+    const rev = views.find((v) => v.card.template === 'reverse');
+    expect(fwd).toMatchObject({ front: 'Q', back: 'A' });
+    expect(rev).toMatchObject({ front: 'A', back: 'Q' });
+    expect(cards).toHaveLength(2);
+  });
+
+  it('sibling cards schedule independently', async () => {
+    const { engine, clock } = makeEngine();
+    const { cards } = await engine.addNote({ front: 'q', back: 'a', directions: ['forward', 'reverse'] });
+    const [c1, c2] = cards;
+    await engine.review(c1!.id, 'easy'); // graduate one
+    clock.t += 60_000;
+    const s1 = await engine.getCard(c1!.id);
+    const s2 = await engine.getCard(c2!.id);
+    expect(s1!.state).toBe('review');
+    expect(s2!.state).toBe('new'); // untouched
+    expect(s1!.due).not.toBe(s2!.due);
+  });
+
+  it('addNote defaults to a single forward card; addCard is 1:1 sugar', async () => {
+    const { engine } = makeEngine();
+    const { cards } = await engine.addNote({ front: 'x', back: 'y' });
+    expect(cards).toHaveLength(1);
+    expect(cards[0]!.template).toBe('forward');
+    const card = await engine.addCard({ front: 'p', back: 'q' });
+    const view = await engine.getCardView(card.id);
+    expect(view).toMatchObject({ front: 'p', back: 'q' });
+  });
+
+  it('deleting the last card of a note removes the orphan note; deleteNote cascades', async () => {
+    const { engine } = makeEngine();
+    const single = await engine.addCard({ front: 'a', back: 'b' });
+    const noteId = single.noteId;
+    await engine.deleteCard(single.id);
+    expect(await engine.getNote(noteId)).toBeUndefined();
+
+    const { note, cards } = await engine.addNote({ front: 'q', back: 'a', directions: ['forward', 'reverse'] });
+    await engine.deleteNote(note.id);
+    expect(await engine.getNote(note.id)).toBeUndefined();
+    for (const c of cards) expect(await engine.getCard(c.id)).toBeUndefined();
+  });
+
+  it('updateCardContent (deprecated) only allows a forward card with no siblings', async () => {
+    const { engine } = makeEngine();
+    // forward 1:1 → allowed
+    const solo = await engine.addCard({ front: 'a', back: 'b' });
+    await engine.updateCardContent(solo.id, { front: 'a2', back: 'b2' });
+    expect((await engine.getCardView(solo.id))?.front).toBe('a2');
+
+    // has a sibling → rejected
+    const { cards } = await engine.addNote({ front: 'q', back: 'a', directions: ['forward', 'reverse'] });
+    const fwd = cards.find((c) => c.template === 'forward')!;
+    const rev = cards.find((c) => c.template === 'reverse')!;
+    await expect(engine.updateCardContent(fwd.id, { front: 'x', back: 'y' })).rejects.toThrow();
+    // reverse card → rejected
+    await expect(engine.updateCardContent(rev.id, { front: 'x', back: 'y' })).rejects.toThrow();
   });
 });
 

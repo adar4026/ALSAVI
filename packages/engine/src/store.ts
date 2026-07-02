@@ -1,4 +1,4 @@
-import type { Card, CardId, Review } from './types.js';
+import type { Card, CardId, Note, NoteId, Review } from './types.js';
 
 /**
  * Storage port of the Engine. The Engine depends only on this interface;
@@ -6,6 +6,9 @@ import type { Card, CardId, Review } from './types.js';
  * outside the scheduling logic. Reviews are append-only.
  */
 export interface EngineStore {
+  getNote(id: NoteId): Promise<Note | undefined>;
+  putNote(note: Note): Promise<void>;
+  deleteNote(id: NoteId): Promise<void>;
   getCard(id: CardId): Promise<Card | undefined>;
   putCard(card: Card): Promise<void>;
   deleteCard(id: CardId): Promise<void>;

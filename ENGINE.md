@@ -18,13 +18,33 @@
 (сегодня UI, позже AI Layer), работает с картами и планированием **только**
 через этот класс. Ядро полностью автономно: ни сети, ни AI.
 
-Ответственность ядра: хранить карточки, применять ответы пользователя к
-расписанию (через `Scheduler`), вести журнал повторений (Review Log) и считать
+Ответственность ядра: хранить заметки и карточки, применять ответы пользователя
+к расписанию (через `Scheduler`), вести журнал повторений (Review Log) и считать
 статистику. Ядро **не** решает, какую карту показать следующей в сессии — это
 ответственность `StudySession` (см. §2).
 
-Публичный API: `addCard`, `updateCardContent`, `deleteCard`, `getCard`,
-`listCards`, `getDueCards`, `review`, `previewIntervals`, `getStats`.
+Публичный API: `addNote`, `addCard` (сахар 1:1), `updateNoteContent`,
+`deleteNote`, `deleteCard`, `getNote`, `getCard`, `getCardView`, `listCards`,
+`listCardViews`, `getDueCards`, `review`, `previewIntervals`, `getStats`.
+`updateCardContent` — `@deprecated` мостик (только forward-карта без сестёр,
+иначе бросает ошибку; в UI не используется).
+
+### Note → Card (1:N)
+
+**`Note` — единственный источник истины для контента.** Одна заметка порождает
+одну или несколько карт (`addNote({front, back, directions})`,
+`directions: ('forward'|'reverse')[]`). Карта **не хранит** свой `front/back` —
+они вычисляются из заметки чистой функцией `renderCard(card, template)`
+(`forward` → как есть; `reverse` → стороны меняются местами). Поэтому:
+
+- редактирование через `updateNoteContent(noteId, …)` мгновенно отражается на
+  всех картах-сёстрах — рассинхронизация контента структурно невозможна;
+- у каждой карты заметки **своё независимое** планирование и `state`;
+- UI получает готовый к показу контент через `getCardView(id)` /
+  `listCardViews()` — логика рендера живёт в одном месте (ядро).
+
+`Deck` (сейчас `deckId` — строка) и `CardType` (система шаблонов) **не**
+реализованы — `template` пока ограниченный enum. См. ADR/ARCHITECTURE.
 
 Зависимости внедряются через конструктор (`EngineOptions`): `store`
 (обязателен), `scheduler` (по умолчанию `FsrsScheduler`), `now()` и `newId()`
@@ -78,9 +98,16 @@ interface Scheduler {
 - `MemoryStore` (`src/memory-store.ts`) — in-memory, для тестов и как эталон;
 - `DexieStore` (`apps/web/src/dexie-store.ts`) — IndexedDB для веба.
 
-Ключевое: `appendReview` — только добавление; `listReviews` — по возрастанию
-времени. При `deleteCard` журнал повторений намеренно **не** удаляется. См.
+Методы: `getNote/putNote/deleteNote`, `getCard/putCard/deleteCard`, `listCards`,
+`listDueCards`, `appendReview`, `listReviews`. `appendReview` — только
+добавление; `listReviews` — по возрастанию времени. При `deleteCard` журнал
+повторений намеренно **не** удаляется. См.
 [ADR-002](docs/adr/ADR-002-review-log-source-of-truth.md).
+
+`DexieStore` версионирует схему: `version(2)` вводит таблицу `notes` и индекс
+`noteId` на `cards`; автоматическая `upgrade`-миграция создаёт синтетическую
+заметку 1:1 для каждой карты v1 (контент → поля заметки, `template='forward'`),
+сохраняя планирование и Review Log. Миграция non-breaking, без потери данных.
 
 ## 5. CardState
 
@@ -105,14 +132,16 @@ Append-only журнал ответов — **source of truth**. `SchedulingStat
 ## 7. Жизненный цикл карточки
 
 ```
-addCard()            → state=new,        due=now              (в очереди сессии сразу)
+addNote({directions})→ Note + 1..N Card, каждая state=new, due=now
+addCard()            → state=new,        due=now              (сахар: Note 1:1 forward)
 review(Again)        → state=learning,   due≈+1m              +1 Review в лог
 review(Hard/Good)    → state=learning,   due≈+6m / +10m       (проходит шаги)
 review(Good) ×N      → state=review,     due=+дни             («выпуск»)
 review(Easy) на new  → state=review,     due=+дни             (сразу выпуск)
 review(Again) в review → state=relearning, due≈+10m           lapses++, relearning-шаги
-updateCardContent()  → контент меняется, due/scheduling НЕ меняются
-deleteCard()         → карта удалена, Review Log сохранён
+updateNoteContent()  → контент всех карт-сестёр меняется, due/scheduling НЕ меняются
+deleteCard()         → карта удалена (+ заметка, если это была последняя); Review Log сохранён
+deleteNote()         → заметка и все её карты удалены; Review Log сохранён
 ```
 
 Точные интервалы задаёт FSRS; конкретные минуты выше — иллюстративны.
@@ -128,12 +157,13 @@ UI (ReviewSession)
        └─ store.appendReview(review)                 // append в source of truth
 ```
 
-Выбор следующей карты (UI → поток сессии → ядро):
+Выбор следующей карты + её контент (UI → поток сессии → ядро):
 ```
 UI (ReviewSession)
-  └─ studySession.nextCard()
-       └─ engine.listCards()          // только публичный API
-          → политика: due<=now по due; иначе learning/relearning в окне learn-ahead
+  ├─ studySession.nextCard()          // какую карту показать (due/state)
+  │    └─ engine.listCards()          // только публичный API
+  │       → политика: due<=now по due; иначе learning/relearning в learn-ahead
+  └─ engine.getCardView(card.id)      // контент карты, отрисованный из её заметки
 ```
 
 UI одновременно вызывает и `StudySession` (что показать), и `LearningEngine`

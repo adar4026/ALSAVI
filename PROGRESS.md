@@ -1,5 +1,31 @@
 # PROGRESS
 
+## 2026-07-02 — TASK_003 (Data Model: Note + Multi-Card)
+
+Сделано:
+- Введена сущность **`Note`** — единственный источник истины для контента. `Card` больше **не хранит** `front/back`: карта несёт `noteId + template ('forward'|'reverse')`, а контент вычисляется чистой функцией `renderCard(card, note)` (`packages/engine/src/render.ts`). Дрейф контента между сёстрами структурно невозможен.
+- API движка: `addNote({front, back, directions})` → Note + 1..N карт; `addCard` сохранён как сахар (Note 1:1 forward); `updateNoteContent` — основной путь редактирования; `deleteNote` (каскад), `deleteCard` (удаляет заметку, если карта была последней); `getNote`, `getCardView`, `listCardViews`. `updateCardContent` — `@deprecated` мостик: только forward-карта без сестёр, иначе бросает ошибку; **в UI-путях не используется**.
+- `EngineStore` + `MemoryStore`: добавлены `getNote/putNote/deleteNote`.
+- `DexieStore`: схема `version(2)` (таблица `notes`, индекс `noteId`) + **автоматическая non-breaking миграция** — каждой v1-карте создаётся синтетическая Note 1:1 (контент → поля заметки, `template='forward'`), планирование и Review Log сохранены. Проверено вживую: v1-карта «das Wort» мигрировала без потери данных (state=learning, reps=1, 1 review).
+- UI: `ReviewSession` показывает контент через `getCardView`; `CardManager` — чекбокс «Создать также обратную карточку» (`addNote(['forward','reverse'])`) + `listCardViews`. Проверено: «der Tag» с галочкой → 2 карты одной заметки (прямая и обратная).
+- Тесты: +6 в `engine.test.ts` (forward+reverse, редактирование заметки → все сёстры, независимое планирование сестёр, дефолт/сахар, каскад удаления, guard `updateCardContent`); тест редактирования переориентирован на `updateNoteContent`; фикстура `study-session.test.ts` обновлена. Всего 32, зелёные.
+
+Решения и почему:
+- **Контент — только в Note** (по корректировке основателя): без дублирования `front/back` на карте, единая точка истины; `updateNoteContent` ничего не «перерисовывает» — карты рендерят из заметки на чтении.
+- **SRP сохранён**: Scheduler/Review Log работают пер-карта (Note им невидим); StudySession читает `due/state` (не менялся по сути, только фикстура теста); LearningEngine получил CRUD заметок — та же его ответственность (контент+карты).
+- **Deck/CardType сознательно не реализованы**: `deckId` — строка, `template` — ограниченный enum, не движок шаблонов. Модель допускает их позже без ре-миграции Note.
+- Документы обновлены: `ENGINE.md`, `ARCHITECTURE.md` (Note-модель, INV-8, API/EngineStore, миграция).
+
+Тех-долг (обновление):
+- `listCardViews()` — N+1 чтений (карта→заметка); для MVP ок, позже — джойн/кэш.
+- «bury siblings» (разнесение карт одной заметки) — сознательно отложено; кандидат на будущую политику StudySession.
+- Открытый вопрос replay Review Log → scheduling — остаётся (ARCHITECTURE §10).
+
+Следующий шаг:
+- Хоткеи в ReviewSession (1–4 / пробел); затем «bury siblings» и/или закрытие replay отдельной задачей.
+
+---
+
 ## 2026-07-02 — TASK_002 (dueNow counter vs learn-ahead)
 
 Сделано:

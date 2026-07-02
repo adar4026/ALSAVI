@@ -1,20 +1,38 @@
 import { FsrsScheduler } from './fsrs-scheduler.js';
+import { renderCard } from './render.js';
 import type { Scheduler } from './scheduler.js';
 import type { EngineStore } from './store.js';
 import {
   DEFAULT_DECK_ID,
   type Card,
   type CardId,
+  type CardTemplate,
+  type CardView,
   type EngineStats,
   type IntervalPreview,
+  type Note,
+  type NoteId,
   type Rating,
   type Review,
 } from './types.js';
+
+export interface AddNoteInput {
+  front: string;
+  back: string;
+  deckId?: string;
+  /** Which cards to generate. Defaults to a single forward card. */
+  directions?: CardTemplate[];
+}
 
 export interface AddCardInput {
   front: string;
   back: string;
   deckId?: string;
+}
+
+export interface NoteResult {
+  note: Note;
+  cards: Card[];
 }
 
 export interface ReviewResult {
@@ -50,46 +68,130 @@ export class LearningEngine {
     this.newId = options.newId ?? (() => crypto.randomUUID());
   }
 
-  async addCard(input: AddCardInput): Promise<Card> {
+  /**
+   * Create a note and its card(s). A note owns the content; each requested
+   * direction produces one card with its own independent scheduling.
+   */
+  async addNote(input: AddNoteInput): Promise<NoteResult> {
     const front = input.front.trim();
     const back = input.back.trim();
     if (!front || !back) {
-      throw new Error('Card must have non-empty front and back');
+      throw new Error('Note must have non-empty front and back');
+    }
+    const directions = dedupe(input.directions ?? DEFAULT_DIRECTIONS);
+    if (directions.length === 0) {
+      throw new Error('Note must produce at least one card');
     }
     const now = this.now();
-    const card: Card = {
-      id: this.newId(),
-      deckId: input.deckId ?? DEFAULT_DECK_ID,
-      front,
-      back,
-      createdAt: now,
-      ...this.scheduler.initialSchedule(now),
-    };
-    await this.store.putCard(card);
-    return card;
+    const note: Note = { id: this.newId(), front, back };
+    await this.store.putNote(note);
+    const cards: Card[] = [];
+    for (const template of directions) {
+      const card: Card = {
+        id: this.newId(),
+        noteId: note.id,
+        template,
+        deckId: input.deckId ?? DEFAULT_DECK_ID,
+        createdAt: now,
+        ...this.scheduler.initialSchedule(now),
+      };
+      await this.store.putCard(card);
+      cards.push(card);
+    }
+    return { note, cards };
   }
 
-  /** Edits content only — scheduling state is never touched by an edit. */
-  async updateCardContent(id: CardId, content: { front: string; back: string }): Promise<Card> {
-    const card = await this.mustGetCard(id);
-    const updated: Card = { ...card, front: content.front.trim(), back: content.back.trim() };
+  /** Convenience: a single forward card from inline content (one 1:1 note). */
+  async addCard(input: AddCardInput): Promise<Card> {
+    const { cards } = await this.addNote({
+      front: input.front,
+      back: input.back,
+      ...(input.deckId !== undefined ? { deckId: input.deckId } : {}),
+      directions: ['forward'],
+    });
+    return cards[0]!;
+  }
+
+  /**
+   * Edit a note's content — the primary content-editing API. Content is the
+   * note's single source of truth, so this updates every sibling card at once;
+   * scheduling is never touched.
+   */
+  async updateNoteContent(noteId: NoteId, content: { front: string; back: string }): Promise<Note> {
+    const note = await this.store.getNote(noteId);
+    if (!note) throw new Error(`Note not found: ${noteId}`);
+    const updated: Note = { ...note, front: content.front.trim(), back: content.back.trim() };
     if (!updated.front || !updated.back) {
-      throw new Error('Card must have non-empty front and back');
+      throw new Error('Note must have non-empty front and back');
     }
-    await this.store.putCard(updated);
+    await this.store.putNote(updated);
     return updated;
   }
 
+  /**
+   * @deprecated Compatibility bridge only — use {@link updateNoteContent}.
+   * Restricted to a forward card that has no siblings (a 1:1 note); throws
+   * otherwise. Not used by any UI path; kept for legacy call sites/tests.
+   */
+  async updateCardContent(id: CardId, content: { front: string; back: string }): Promise<Note> {
+    const card = await this.mustGetCard(id);
+    if (card.template !== 'forward') {
+      throw new Error('updateCardContent supports only forward cards; use updateNoteContent');
+    }
+    const siblings = (await this.store.listCards()).filter((c) => c.noteId === card.noteId);
+    if (siblings.length > 1) {
+      throw new Error('updateCardContent supports only single-card notes; use updateNoteContent');
+    }
+    return this.updateNoteContent(card.noteId, content);
+  }
+
+  /** Deletes a card; if it was the last card of its note, removes the note too. */
   async deleteCard(id: CardId): Promise<void> {
+    const card = await this.store.getCard(id);
     await this.store.deleteCard(id);
+    if (card) {
+      const remaining = (await this.store.listCards()).filter((c) => c.noteId === card.noteId);
+      if (remaining.length === 0) await this.store.deleteNote(card.noteId);
+    }
+  }
+
+  /** Deletes a note and all its cards. The review log is kept. */
+  async deleteNote(noteId: NoteId): Promise<void> {
+    const cards = (await this.store.listCards()).filter((c) => c.noteId === noteId);
+    for (const c of cards) await this.store.deleteCard(c.id);
+    await this.store.deleteNote(noteId);
   }
 
   async getCard(id: CardId): Promise<Card | undefined> {
     return this.store.getCard(id);
   }
 
+  async getNote(id: NoteId): Promise<Note | undefined> {
+    return this.store.getNote(id);
+  }
+
   async listCards(): Promise<Card[]> {
     return this.store.listCards();
+  }
+
+  /** A card with its content rendered from its note. */
+  async getCardView(id: CardId): Promise<CardView | undefined> {
+    const card = await this.store.getCard(id);
+    if (!card) return undefined;
+    const note = await this.store.getNote(card.noteId);
+    if (!note) return undefined;
+    return { card, ...renderCard(card, note) };
+  }
+
+  /** All cards with their content rendered from their notes. */
+  async listCardViews(): Promise<CardView[]> {
+    const cards = await this.store.listCards();
+    const views: CardView[] = [];
+    for (const card of cards) {
+      const note = await this.store.getNote(card.noteId);
+      if (note) views.push({ card, ...renderCard(card, note) });
+    }
+    return views;
   }
 
   async getDueCards(limit?: number): Promise<Card[]> {
@@ -146,6 +248,12 @@ export class LearningEngine {
     if (!card) throw new Error(`Card not found: ${id}`);
     return card;
   }
+}
+
+const DEFAULT_DIRECTIONS: CardTemplate[] = ['forward'];
+
+function dedupe<T>(items: T[]): T[] {
+  return [...new Set(items)];
 }
 
 function startOfLocalDay(epochMs: number): number {

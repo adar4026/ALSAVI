@@ -11,9 +11,9 @@ const MIN = 60_000;
 function cardFixture(id: string, dueOffsetMin: number, state: CardState = 'learning'): Card {
   return {
     id,
+    noteId: `note-${id}`,
+    template: 'forward',
     deckId: 'default',
-    front: id,
-    back: id,
     createdAt: T0,
     due: T0 + dueOffsetMin * MIN,
     state,

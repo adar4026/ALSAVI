@@ -216,6 +216,22 @@ body {
   flex: 1;
 }
 
+.reverse-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.reverse-toggle input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
 .card-list {
   display: flex;
   flex-direction: column;

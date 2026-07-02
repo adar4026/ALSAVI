@@ -89,8 +89,8 @@ Engine **только через публичный интерфейс** — н�
   `layer boundary` в `engine.test.ts`).
 - **INV-2.** Планирование детерминировано; изменение планирования допускается
   только с тестом на регрессию расписания.
-- **INV-3.** Редактирование контента карточки (`updateCardContent`) **никогда**
-  не изменяет scheduling-состояние (enforced тестом).
+- **INV-3.** Редактирование контента (`updateNoteContent`) **никогда** не
+  изменяет scheduling-состояние (enforced тестом).
 - **INV-4.** Review Log — append-only, source of truth. Scheduling-состояние
   карточки — кэш.
 - **INV-5.** `CardState` фиксируется в каждом `Review` (`stateBefore`/
@@ -99,6 +99,9 @@ Engine **только через публичный интерфейс** — н�
   API; StudySession не рассчитывает расписание и не пишет в хранилище.
 - **INV-7.** Если AI Layer недоступен — Engine и StudySession работают в полном
   объёме.
+- **INV-8.** Контент принадлежит `Note` (единственный источник истины); `Card`
+  не хранит `front/back`, а рендерит их из заметки. Редактирование контента
+  никогда не изменяет scheduling (обновлённая форма INV-3).
 
 ## 5. LearningEngine (`packages/engine/src/engine.ts`)
 
@@ -107,10 +110,14 @@ Engine **только через публичный интерфейс** — н�
 
 | Метод | Назначение |
 |---|---|
-| `addCard({front, back, deckId?})` | создать карту (due сразу, state `new`) |
-| `updateCardContent(id, {front, back})` | правка контента, scheduling не трогается |
-| `deleteCard(id)` | удалить карту (лог сохраняется в хранилище) |
-| `getCard(id)` / `listCards()` | чтение |
+| `addNote({front, back, directions?})` | создать заметку + 1..N карт (due сразу, `new`) |
+| `addCard({front, back, deckId?})` | сахар: одна forward-карта (Note 1:1) |
+| `updateNoteContent(noteId, {front, back})` | правка контента заметки → все сёстры; scheduling не трогается |
+| `updateCardContent(id, …)` | `@deprecated` мостик: только forward без сестёр, иначе ошибка |
+| `deleteCard(id)` | удалить карту (+ заметку, если последняя); лог сохраняется |
+| `deleteNote(id)` | удалить заметку и её карты; лог сохраняется |
+| `getNote(id)` / `getCard(id)` / `listCards()` | чтение |
+| `getCardView(id)` / `listCardViews()` | карта(ы) с контентом, отрисованным из заметки |
 | `getDueCards(limit?)` | карты с `due <= now`, по возрастанию `due` |
 | `review(cardId, rating)` | записать ответ: пересчёт + append в Review Log |
 | `previewIntervals(cardId)` | due-даты для каждого рейтинга (для кнопок) |
@@ -119,6 +126,24 @@ Engine **только через публичный интерфейс** — н�
 Зависимости внедряются: `store: EngineStore`, `scheduler?` (по умолчанию
 `FsrsScheduler`), `now?()`, `newId?()` — часы и генератор id инъектируются ради
 детерминизма/тестируемости.
+
+## 5a. Note → Card (модель контента)
+
+`Note` (`packages/engine/src/types.ts`) — **единственный источник истины для
+контента**. Одна заметка порождает одну или несколько карт (`forward`/`reverse`
+через `addNote({directions})`). `Card` **не хранит** свой `front/back`: они
+вычисляются из заметки чистой функцией `renderCard(card, note)`
+(`render.ts`). Следствия:
+
+- редактирование `updateNoteContent` мгновенно отражается на всех картах-сёстрах
+  — дрейф контента структурно невозможен;
+- у каждой карты заметки **своё независимое** планирование и `state` (Scheduler и
+  Review Log работают пер-карта — Note им невидим);
+- UI берёт готовый контент через `getCardView`/`listCardViews` (рендер — в ядре).
+
+`Deck` (пока строка `deckId` на карте) и `CardType` (система шаблонов) как
+сущности **не** реализованы: `template` — ограниченный enum `forward|reverse`.
+Модель допускает их добавление позже без ре-миграции Note.
 
 ## 6. StudySession (`packages/engine/src/study-session.ts`)
 
@@ -161,10 +186,12 @@ steps (`1m`, `10m`) и переходы состояний обеспечива�
 - `MemoryStore` (`memory-store.ts`) — референс-реализация для тестов;
 - `DexieStore` (`apps/web/src/dexie-store.ts`) — IndexedDB для веба.
 
-Методы: `getCard`, `putCard`, `deleteCard`, `listCards`, `listDueCards`,
-`appendReview`, `listReviews`. Reviews — append-only. При удалении карты лог
-повторений намеренно сохраняется (история, статистика, будущий re-fit
-параметров).
+Методы: `getNote/putNote/deleteNote`, `getCard/putCard/deleteCard`, `listCards`,
+`listDueCards`, `appendReview`, `listReviews`. Reviews — append-only. При
+удалении карты лог повторений намеренно сохраняется (история, статистика,
+будущий re-fit параметров). `DexieStore` версионирует схему: `version(2)`
+вводит таблицу `notes` и non-breaking `upgrade`-миграцию (синтетическая заметка
+1:1 для каждой карты v1), без потери данных.
 
 ## 9. Review Log
 

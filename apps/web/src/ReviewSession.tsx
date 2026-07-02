@@ -1,6 +1,6 @@
 import type {
-  Card,
   CardState,
+  CardView,
   IntervalPreview,
   LearningEngine,
   Rating,
@@ -32,7 +32,7 @@ interface Props {
 }
 
 export function ReviewSession({ engine, session, onReviewed }: Props) {
-  const [current, setCurrent] = useState<Card | null>(null);
+  const [current, setCurrent] = useState<CardView | null>(null);
   const [preview, setPreview] = useState<IntervalPreview | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -40,7 +40,8 @@ export function ReviewSession({ engine, session, onReviewed }: Props) {
   const loadNext = useCallback(async () => {
     setLoading(true);
     const card = await session.nextCard();
-    setCurrent(card);
+    const view = card ? ((await engine.getCardView(card.id)) ?? null) : null;
+    setCurrent(view);
     setPreview(card ? await engine.previewIntervals(card.id) : null);
     setRevealed(false);
     setLoading(false);
@@ -52,7 +53,7 @@ export function ReviewSession({ engine, session, onReviewed }: Props) {
 
   async function answer(rating: Rating) {
     if (!current) return;
-    await engine.review(current.id, rating);
+    await engine.review(current.card.id, rating);
     onReviewed();
     await loadNext();
   }
@@ -79,8 +80,8 @@ export function ReviewSession({ engine, session, onReviewed }: Props) {
   return (
     <div>
       <div className="card-panel">
-        <span className={`state-badge state-${current.state}`}>
-          {STATE_LABELS[current.state]}
+        <span className={`state-badge state-${current.card.state}`}>
+          {STATE_LABELS[current.card.state]}
         </span>
         <div className="card-front">{current.front}</div>
         {revealed ? (

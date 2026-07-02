@@ -1,10 +1,23 @@
 import type { EngineStore } from './store.js';
-import type { Card, CardId, Review } from './types.js';
+import type { Card, CardId, Note, NoteId, Review } from './types.js';
 
 /** Reference EngineStore implementation. Used in tests and as adapter spec. */
 export class MemoryStore implements EngineStore {
+  private notes = new Map<NoteId, Note>();
   private cards = new Map<CardId, Card>();
   private reviews: Review[] = [];
+
+  async getNote(id: NoteId): Promise<Note | undefined> {
+    return this.notes.get(id);
+  }
+
+  async putNote(note: Note): Promise<void> {
+    this.notes.set(note.id, structuredClone(note));
+  }
+
+  async deleteNote(id: NoteId): Promise<void> {
+    this.notes.delete(id);
+  }
 
   async getCard(id: CardId): Promise<Card | undefined> {
     return this.cards.get(id);
