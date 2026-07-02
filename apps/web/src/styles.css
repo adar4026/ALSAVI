@@ -76,6 +76,7 @@ body {
 }
 
 .card-panel {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -87,6 +88,32 @@ body {
   justify-content: center;
   text-align: center;
   gap: 24px;
+}
+
+.state-badge {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.state-badge.state-learning,
+.state-badge.state-relearning {
+  color: #b45309;
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.state-badge.state-review {
+  color: #15803d;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
 }
 
 .card-front {

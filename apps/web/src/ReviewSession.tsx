@@ -1,5 +1,6 @@
-import type { Card, IntervalPreview, LearningEngine, Rating } from '@alsavi/engine';
-import { useCallback, useEffect, useState } from 'react';
+import type { Card, CardState, IntervalPreview, LearningEngine, Rating } from '@alsavi/engine';
+import { StudySession } from '@alsavi/engine';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatInterval } from './format';
 
 const RATING_LABELS: Record<Rating, string> = {
@@ -11,12 +12,20 @@ const RATING_LABELS: Record<Rating, string> = {
 
 const RATINGS: Rating[] = ['again', 'hard', 'good', 'easy'];
 
+const STATE_LABELS: Record<CardState, string> = {
+  new: 'новая',
+  learning: 'изучается',
+  review: 'на повторении',
+  relearning: 'переучивается',
+};
+
 interface Props {
   engine: LearningEngine;
   onReviewed: () => void;
 }
 
 export function ReviewSession({ engine, onReviewed }: Props) {
+  const session = useMemo(() => new StudySession(engine), [engine]);
   const [current, setCurrent] = useState<Card | null>(null);
   const [preview, setPreview] = useState<IntervalPreview | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -24,13 +33,12 @@ export function ReviewSession({ engine, onReviewed }: Props) {
 
   const loadNext = useCallback(async () => {
     setLoading(true);
-    const due = await engine.getDueCards(1);
-    const card = due[0] ?? null;
+    const card = await session.nextCard();
     setCurrent(card);
     setPreview(card ? await engine.previewIntervals(card.id) : null);
     setRevealed(false);
     setLoading(false);
-  }, [engine]);
+  }, [engine, session]);
 
   useEffect(() => {
     void loadNext();
@@ -65,6 +73,9 @@ export function ReviewSession({ engine, onReviewed }: Props) {
   return (
     <div>
       <div className="card-panel">
+        <span className={`state-badge state-${current.state}`}>
+          {STATE_LABELS[current.state]}
+        </span>
         <div className="card-front">{current.front}</div>
         {revealed ? (
           <div className="card-back">{current.back}</div>

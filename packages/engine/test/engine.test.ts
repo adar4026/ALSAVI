@@ -52,6 +52,45 @@ describe('card lifecycle', () => {
     expect(lapsed.card.scheduling.lapses).toBe(1);
   });
 
+  it('learning steps: each rating on a new card lands in the expected state', async () => {
+    const cases: Array<{ rating: Rating; state: string }> = [
+      { rating: 'again', state: 'learning' },
+      { rating: 'hard', state: 'learning' },
+      { rating: 'good', state: 'learning' },
+      { rating: 'easy', state: 'review' },
+    ];
+    for (const { rating, state } of cases) {
+      const { engine } = makeEngine();
+      const card = await engine.addCard({ front: 'a', back: 'b' });
+      const { card: after } = await engine.review(card.id, rating);
+      expect(after.state, `new + ${rating}`).toBe(state);
+      expect(after.due, `new + ${rating} schedules ahead`).toBeGreaterThan(T0);
+    }
+  });
+
+  it('learning steps: "again" keeps the card in a short intraday step', async () => {
+    const { engine } = makeEngine();
+    const card = await engine.addCard({ front: 'a', back: 'b' });
+    const { card: after } = await engine.review(card.id, 'again');
+    // sub-day step, not a multi-day review interval
+    expect(after.due - T0).toBeLessThan(DAY);
+    expect(after.scheduling.scheduledDays).toBe(0);
+  });
+
+  it('learning steps: card graduates Learning → Review after enough "good"s', async () => {
+    const { engine, clock } = makeEngine();
+    const card = await engine.addCard({ front: 'a', back: 'b' });
+    let state = (await engine.review(card.id, 'good')).card;
+    expect(state.state).toBe('learning'); // still stepping
+    // answer again at its due moment until it graduates
+    for (let i = 0; i < 5 && state.state === 'learning'; i++) {
+      clock.t = state.due;
+      state = (await engine.review(card.id, 'good')).card;
+    }
+    expect(state.state).toBe('review');
+    expect(state.due - clock.t).toBeGreaterThan(DAY); // real multi-day interval
+  });
+
   it('editing content never touches scheduling', async () => {
     const { engine } = makeEngine();
     const card = await engine.addCard({ front: 'a', back: 'b' });
