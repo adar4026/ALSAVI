@@ -264,6 +264,43 @@ describe('stats', () => {
   });
 });
 
+describe('listCardViews batching (TASK_006)', () => {
+  it('batches note loads (no N+1) and matches per-card getCardView', async () => {
+    class CountingStore extends MemoryStore {
+      counts = { getNote: 0, getNotesByIds: 0 };
+      lastIds: string[] = [];
+      override async getNote(id: string) {
+        this.counts.getNote++;
+        return super.getNote(id);
+      }
+      override async getNotesByIds(ids: string[]) {
+        this.counts.getNotesByIds++;
+        this.lastIds = ids;
+        return super.getNotesByIds(ids);
+      }
+    }
+    const store = new CountingStore();
+    let seq = 0;
+    const engine = new LearningEngine(store, { now: () => T0, newId: () => `id-${seq++}` });
+    // note X → 2 sibling cards; note Y → 1 card. 3 cards, 2 notes.
+    await engine.addNote({ front: 'a', back: '1', directions: ['forward', 'reverse'] });
+    await engine.addCard({ front: 'b', back: '2' });
+
+    // Reference via per-card getCardView (which reads notes one by one).
+    const cards = await engine.listCards();
+    const reference = [];
+    for (const c of cards) reference.push(await engine.getCardView(c.id));
+
+    store.counts = { getNote: 0, getNotesByIds: 0 };
+    const views = await engine.listCardViews();
+
+    expect(views).toEqual(reference); // identical output, incl. sibling cards
+    expect(store.counts.getNote).toBe(0); // no per-card note reads
+    expect(store.counts.getNotesByIds).toBe(1); // single batch call
+    expect(store.lastIds.length).toBe(2); // deduped: 2 notes for 3 cards
+  });
+});
+
 describe('review log replay (CardState reconstruction)', () => {
   const histories: Rating[][] = [
     ['again', 'again', 'good', 'good', 'easy'],

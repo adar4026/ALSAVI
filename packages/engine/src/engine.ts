@@ -184,12 +184,19 @@ export class LearningEngine {
     return { card, ...renderCard(card, note) };
   }
 
-  /** All cards with their content rendered from their notes. */
+  /**
+   * All cards with their content rendered from their notes. Notes are loaded in
+   * one batch and deduplicated, so sibling cards of the same note never trigger
+   * a repeated read (no N+1).
+   */
   async listCardViews(): Promise<CardView[]> {
     const cards = await this.store.listCards();
+    const noteIds = [...new Set(cards.map((c) => c.noteId))];
+    const notes = await this.store.getNotesByIds(noteIds);
+    const byId = new Map(notes.map((n) => [n.id, n]));
     const views: CardView[] = [];
     for (const card of cards) {
-      const note = await this.store.getNote(card.noteId);
+      const note = byId.get(card.noteId);
       if (note) views.push({ card, ...renderCard(card, note) });
     }
     return views;
@@ -197,6 +204,16 @@ export class LearningEngine {
 
   async getDueCards(limit?: number): Promise<Card[]> {
     return this.store.listDueCards(this.now(), limit);
+  }
+
+  /**
+   * Cards with `due <= threshold`, ordered by `due` ascending. A thin,
+   * indexed scheduling-fact query (backed by `EngineStore.listDueCards`) that
+   * StudySession uses for its learn-ahead horizon — avoiding a full `listCards`
+   * scan. Session policy (windowing, ordering, partitioning) stays in the caller.
+   */
+  async getCardsDueBy(threshold: number): Promise<Card[]> {
+    return this.store.listDueCards(threshold);
   }
 
   /** Records the user's answer: reschedules the card and appends to the review log. */

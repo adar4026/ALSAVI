@@ -1,5 +1,27 @@
 # PROGRESS
 
+## 2026-07-02 — TASK_006 (Indexed reads: due-horizon + Card/Note join)
+
+Сделано (оптимизация, наблюдаемое поведение не менялось):
+- **Due-horizon:** `StudySession.selectEligible` больше не сканирует все карты (`listCards()`), а использует индексированный range-запрос через новый публичный метод ядра `LearningEngine.getCardsDueBy(threshold)` → `store.listDueCards(threshold)` (индекс `due` уже был). Policy (learn-ahead, сортировка due→id, партиционирование) осталась в StudySession без изменений. **Публичный API-метод согласован отдельно** (форма `getCardsDueBy(threshold)`).
+- **N+1 в CardView:** `engine.listCardViews()` вместо поэлементных `getNote()` делает один батч `EngineStore.getNotesByIds(ids)` с дедупликацией noteId (заметки-сёстры читаются один раз). `getCardView()` (одна карта) не менялся.
+- `EngineStore` расширен одним batch-примитивом `getNotesByIds` (Dexie `bulkGet`, Memory — map-лукапы) — остаётся хранилищем, не query-построителем.
+- **Миграция не потребовалась**: индекс `due` и таблица `notes` уже существовали (TASK_003). Схема Dexie не менялась; проверено вживую — существующие локальные данные (3 карты / 2 заметки / 3 повторения) целы, сессия/счётчик/список работают идентично.
+- Тесты (+4, всего 40): `getCardsDueBy` == фильтр `listCards(due<=threshold)`; сессия == прежнее full-scan-поведение; инструментированный store — `nextCard/dueCount` не зовут `listCards`, зовут `listDueCards`; `listCardViews` == per-card `getCardView`, `getNote` не вызывается, `getNotesByIds` один раз с дедуплицированными id.
+
+Решения и почему:
+- Индексный запрос отдан StudySession через **публичный API ядра** (`getCardsDueBy`), а не прямым доступом к хранилищу — граница ADR-003 сохранена. Это факт-запрос той же природы, что `getDueCards`; policy остаётся в сессии.
+- Отдельного теста производительности на больших объёмах нет — в проекте нет bench-инфраструктуры; эквивалентность и отсутствие полного скана/N+1 доказаны инструментированными счётчиками вызовов store.
+
+Тех-долг (обновление статуса):
+- ~~Due-horizon: `listCards()` full scan в StudySession~~ — **закрыто (TASK_006)**.
+- ~~N+1 чтений заметок в `listCardViews`~~ — **закрыто (TASK_006)**.
+
+Следующий шаг:
+- «bury siblings» для карт одной заметки; либо экспорт/импорт данных пользователя.
+
+---
+
 ## 2026-07-02 — TASK_005 (Review Log Replay / CardState reconstruction)
 
 Сделано:

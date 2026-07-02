@@ -69,11 +69,12 @@ export class StudySession {
    * priority) and `dueCount()` (their total) derive from one predicate.
    */
   private async selectEligible(now: number): Promise<{ dueNow: Card[]; learningSoon: Card[] }> {
-    const cards = await this.engine.listCards();
-    const dueNow = cards.filter((c) => c.due <= now).sort(byDueThenId);
     const horizon = now + this.learnAheadMs;
+    // Indexed range query (due <= horizon) instead of scanning every card.
+    const cards = await this.engine.getCardsDueBy(horizon);
+    const dueNow = cards.filter((c) => c.due <= now).sort(byDueThenId);
     const learningSoon = cards
-      .filter((c) => isLearning(c) && c.due > now && c.due <= horizon)
+      .filter((c) => isLearning(c) && c.due > now)
       .sort(byDueThenId);
     return { dueNow, learningSoon };
   }

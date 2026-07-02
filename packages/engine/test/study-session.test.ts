@@ -32,6 +32,89 @@ function setup(clock: { t: number } = { t: T0 }, learnAheadMinutes = 20) {
   return { engine, session, clock };
 }
 
+/** MemoryStore that counts how selection reads the store. */
+class CountingStore extends MemoryStore {
+  calls = { listCards: 0, listDueCards: 0 };
+  override async listCards(): Promise<Card[]> {
+    this.calls.listCards++;
+    return super.listCards();
+  }
+  override async listDueCards(now: number, limit?: number): Promise<Card[]> {
+    this.calls.listDueCards++;
+    return super.listDueCards(now, limit);
+  }
+}
+
+const byDueThenId = (a: Card, b: Card): number =>
+  a.due - b.due || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+describe('StudySession — indexed due-horizon (TASK_006)', () => {
+  it('nextCard/dueCount use the indexed due query, not a full listCards scan', async () => {
+    const store = new CountingStore();
+    const clock = { t: T0 };
+    let seq = 0;
+    const engine = new LearningEngine(store, { now: () => clock.t, newId: () => `id-${seq++}` });
+    const session = new StudySession(engine, { now: () => clock.t, learnAheadMinutes: 20 });
+    await store.putCard(cardFixture('a', -1, 'review')); // due now
+    await store.putCard(cardFixture('b', 5, 'learning')); // learn-ahead
+    await store.putCard(cardFixture('c', 45, 'learning')); // beyond horizon
+
+    store.calls = { listCards: 0, listDueCards: 0 };
+    await session.nextCard();
+    await session.dueCount();
+
+    expect(store.calls.listCards).toBe(0); // no full scan
+    expect(store.calls.listDueCards).toBeGreaterThan(0); // indexed range query used
+  });
+
+  it('getCardsDueBy returns exactly what a listCards(due<=threshold) filter would', async () => {
+    const store = new MemoryStore();
+    const engine = new LearningEngine(store, { now: () => T0 });
+    for (const off of [-10, 0, 5, 19, 20, 21, 60]) {
+      await store.putCard(cardFixture(`c${off}`, off, 'learning'));
+    }
+    const threshold = T0 + 20 * MIN;
+    const reference = (await store.listCards())
+      .filter((c) => c.due <= threshold)
+      .map((c) => c.id)
+      .sort();
+    const indexed = (await engine.getCardsDueBy(threshold)).map((c) => c.id).sort();
+    expect(indexed).toEqual(reference);
+  });
+
+  it('session results match the previous full-scan filtering (behavior unchanged)', async () => {
+    const store = new MemoryStore();
+    const clock = { t: T0 };
+    let seq = 0;
+    const engine = new LearningEngine(store, { now: () => clock.t, newId: () => `id-${seq++}` });
+    const session = new StudySession(engine, { now: () => clock.t, learnAheadMinutes: 20 });
+    const specs: Array<[number, CardState]> = [
+      [-5, 'review'],
+      [-1, 'learning'],
+      [3, 'learning'],
+      [10, 'relearning'],
+      [19, 'review'],
+      [25, 'learning'],
+    ];
+    for (let i = 0; i < specs.length; i++) {
+      const [off, st] = specs[i]!;
+      await store.putCard(cardFixture(`k${i}`, off, st));
+    }
+
+    const now = clock.t;
+    const horizon = now + 20 * MIN;
+    const all = await store.listCards();
+    const refDue = all.filter((c) => c.due <= now).sort(byDueThenId);
+    const refLearn = all
+      .filter((c) => (c.state === 'learning' || c.state === 'relearning') && c.due > now && c.due <= horizon)
+      .sort(byDueThenId);
+    const refNext = refDue[0] ?? refLearn[0] ?? null;
+
+    expect(await session.dueCount()).toBe(refDue.length + refLearn.length);
+    expect((await session.nextCard())?.id ?? null).toBe(refNext?.id ?? null);
+  });
+});
+
 describe('StudySession — in-session flow', () => {
   it('returns a due (new) card, null when nothing is due or learning-soon', async () => {
     const { engine, session } = setup();

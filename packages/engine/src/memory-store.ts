@@ -11,6 +11,15 @@ export class MemoryStore implements EngineStore {
     return this.notes.get(id);
   }
 
+  async getNotesByIds(ids: NoteId[]): Promise<Note[]> {
+    const out: Note[] = [];
+    for (const id of ids) {
+      const note = this.notes.get(id);
+      if (note) out.push(note);
+    }
+    return out;
+  }
+
   async putNote(note: Note): Promise<void> {
     this.notes.set(note.id, structuredClone(note));
   }

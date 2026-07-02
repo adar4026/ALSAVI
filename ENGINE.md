@@ -25,9 +25,9 @@
 
 Публичный API: `addNote`, `addCard` (сахар 1:1), `updateNoteContent`,
 `deleteNote`, `deleteCard`, `getNote`, `getCard`, `getCardView`, `listCards`,
-`listCardViews`, `getDueCards`, `review`, `previewIntervals`, `getStats`.
-`updateCardContent` — `@deprecated` мостик (только forward-карта без сестёр,
-иначе бросает ошибку; в UI не используется).
+`listCardViews`, `getDueCards`, `getCardsDueBy`, `rebuildCardState`, `review`,
+`previewIntervals`, `getStats`. `updateCardContent` — `@deprecated` мостик
+(только forward-карта без сестёр, иначе бросает ошибку; в UI не используется).
 
 ### Note → Card (1:N)
 
@@ -67,9 +67,11 @@
 B-minimal: отдельный `StudySession`; B-full: фреймворк режимов) —
 в [ADR-003](docs/adr/ADR-003-studysession-separation.md). Выбран B-minimal.
 
-Контракт: `StudySession` обращается к ядру только через публичный
-`engine.listCards()`, ничего не пишет в хранилище, не трогает scheduling.
-Единственный метод — `nextCard(): Promise<Card | null>`.
+Контракт: `StudySession` обращается к ядру только через публичный API — для
+выборки использует индексированный `engine.getCardsDueBy(now + learnAheadMs)`
+(range-запрос по `due`), а не полный скан; ничего не пишет в хранилище, не
+трогает scheduling. Методы — `nextCard(): Promise<Card | null>` и
+`dueCount(): Promise<number>`.
 
 ## 3. Scheduler
 
@@ -98,10 +100,12 @@ interface Scheduler {
 - `MemoryStore` (`src/memory-store.ts`) — in-memory, для тестов и как эталон;
 - `DexieStore` (`apps/web/src/dexie-store.ts`) — IndexedDB для веба.
 
-Методы: `getNote/putNote/deleteNote`, `getCard/putCard/deleteCard`, `listCards`,
-`listDueCards`, `appendReview`, `listReviews`. `appendReview` — только
-добавление; `listReviews` — по возрастанию времени. При `deleteCard` журнал
-повторений намеренно **не** удаляется. См.
+Методы: `getNote/getNotesByIds/putNote/deleteNote`, `getCard/putCard/deleteCard`,
+`listCards`, `listDueCards`, `appendReview`, `listReviews`. `getNotesByIds` —
+batch-примитив (bulk get по ключам) для загрузки заметок без N+1;
+`listDueCards(threshold)` — индексированный range-запрос по `due`. `appendReview`
+— только добавление; `listReviews` — по возрастанию времени. При `deleteCard`
+журнал повторений намеренно **не** удаляется. См.
 [ADR-002](docs/adr/ADR-002-review-log-source-of-truth.md).
 
 `DexieStore` версионирует схему: `version(2)` вводит таблицу `notes` и индекс
@@ -159,10 +163,10 @@ UI (ReviewSession)
 Выбор следующей карты + её контент (UI → поток сессии → ядро):
 ```
 UI (ReviewSession)
-  ├─ studySession.nextCard()          // какую карту показать (due/state)
-  │    └─ engine.listCards()          // только публичный API
+  ├─ studySession.nextCard()               // какую карту показать (due/state)
+  │    └─ engine.getCardsDueBy(now+window)  // индексированный range-запрос по due
   │       → политика: due<=now по due; иначе learning/relearning в learn-ahead
-  └─ engine.getCardView(card.id)      // контент карты, отрисованный из её заметки
+  └─ engine.getCardView(card.id)           // контент карты, отрисованный из её заметки
 ```
 
 UI одновременно вызывает и `StudySession` (что показать), и `LearningEngine`

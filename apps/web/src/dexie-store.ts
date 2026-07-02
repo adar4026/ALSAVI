@@ -56,6 +56,11 @@ export class DexieStore implements EngineStore {
     return this.db.notes.get(id);
   }
 
+  async getNotesByIds(ids: NoteId[]): Promise<Note[]> {
+    const found = await this.db.notes.bulkGet(ids);
+    return found.filter((n): n is Note => n !== undefined);
+  }
+
   async putNote(note: Note): Promise<void> {
     await this.db.notes.put(note);
   }

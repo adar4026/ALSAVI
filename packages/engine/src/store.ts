@@ -7,6 +7,9 @@ import type { Card, CardId, Note, NoteId, Review } from './types.js';
  */
 export interface EngineStore {
   getNote(id: NoteId): Promise<Note | undefined>;
+  /** Batch primitive: fetch many notes by id at once. Missing ids are skipped;
+   *  order and duplicates are not guaranteed — callers key by `note.id`. */
+  getNotesByIds(ids: NoteId[]): Promise<Note[]>;
   putNote(note: Note): Promise<void>;
   deleteNote(id: NoteId): Promise<void>;
   getCard(id: CardId): Promise<Card | undefined>;

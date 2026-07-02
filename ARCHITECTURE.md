@@ -117,8 +117,9 @@ Engine **только через публичный интерфейс** — н�
 | `deleteCard(id)` | удалить карту (+ заметку, если последняя); лог сохраняется |
 | `deleteNote(id)` | удалить заметку и её карты; лог сохраняется |
 | `getNote(id)` / `getCard(id)` / `listCards()` | чтение |
-| `getCardView(id)` / `listCardViews()` | карта(ы) с контентом, отрисованным из заметки |
+| `getCardView(id)` / `listCardViews()` | карта(ы) с контентом из заметки (список — batch-загрузка заметок) |
 | `getDueCards(limit?)` | карты с `due <= now`, по возрастанию `due` |
+| `getCardsDueBy(threshold)` | индексированный факт-запрос `due <= threshold` (для learn-ahead StudySession) |
 | `review(cardId, rating)` | записать ответ: пересчёт + append в Review Log |
 | `previewIntervals(cardId)` | due-даты для каждого рейтинга (для кнопок) |
 | `getStats()` | totalCards, newCards, dueNow, reviewsToday, accuracy, streak |
@@ -150,13 +151,14 @@ Engine **только через публичный интерфейс** — н�
 **Детерминированный слой учебного потока.** Отвечает за то, *какую карточку
 показать следующей*, — но не за то, *как считать память*.
 
-- Единственный публичный метод: `nextCard(): Promise<Card | null>`.
+- Публичные методы: `nextCard(): Promise<Card | null>`, `dueCount(): Promise<number>`.
 - Политика выборки: сначала реально due-карточки (`due <= now`, порядок по
   `due`, tie-break по `id`); иначе — learning/relearning-карточка в окне
   learn-ahead (`learnAheadMinutes`, по умолчанию 20). Не-due review/new карты
   досрочно не показываются.
-- Использует **только** публичный `engine.listCards()`. Не пишет в хранилище,
-  не рассчитывает расписание, не изменяет карты.
+- Источник данных — индексированный `engine.getCardsDueBy(now + learnAheadMs)`
+  (range-запрос по `due`), а не полный скан. Использует **только** публичный API
+  движка; не пишет в хранилище, не рассчитывает расписание, не изменяет карты.
 - Детерминирован: при заданном `now` результат воспроизводим.
 - `learnAheadMinutes` — **эргономический** knob (не когнитивная константа):
   не даёт «хвостовой» learning-карточке упереться в экран «Готово». Значимая
@@ -186,12 +188,20 @@ steps (`1m`, `10m`) и переходы состояний обеспечива�
 - `MemoryStore` (`memory-store.ts`) — референс-реализация для тестов;
 - `DexieStore` (`apps/web/src/dexie-store.ts`) — IndexedDB для веба.
 
-Методы: `getNote/putNote/deleteNote`, `getCard/putCard/deleteCard`, `listCards`,
-`listDueCards`, `appendReview`, `listReviews`. Reviews — append-only. При
-удалении карты лог повторений намеренно сохраняется (история, статистика,
+Методы: `getNote/getNotesByIds/putNote/deleteNote`, `getCard/putCard/deleteCard`,
+`listCards`, `listDueCards`, `appendReview`, `listReviews`. Reviews — append-only.
+При удалении карты лог повторений намеренно сохраняется (история, статистика,
 будущий re-fit параметров). `DexieStore` версионирует схему: `version(2)`
 вводит таблицу `notes` и non-breaking `upgrade`-миграцию (синтетическая заметка
 1:1 для каждой карты v1), без потери данных.
+
+Индексы и батч-чтение (TASK_006): поле `due` индексировано (`cards: 'id, due,
+deckId, noteId'`), поэтому `listDueCards(threshold)` — индексированный
+range-запрос (`due <= threshold`, sorted), а не полный скан. `getNotesByIds(ids)`
+— простой batch-примитив (bulk get по ключам, Dexie `bulkGet`), чтобы избежать
+N+1 при построении списков; это остаётся хранилищем, а не query-построителем.
+Миграция для TASK_006 не потребовалась — индекс `due` и таблица `notes` уже
+существовали.
 
 ## 9. Review Log
 
@@ -257,8 +267,6 @@ steps (`1m`, `10m`) и переходы состояний обеспечива�
 - Дополнительные учебные режимы — как **новые независимые потребители**
   ядра / стратегии StudySession, а не как ветки внутри ядра.
 - Дневные лимиты новых карт и interleaving — как политика StudySession.
-- Индексированный запрос горизонта для StudySession (сейчас `listCards()` на
-  каждый `nextCard()` — O(n)).
 
 Всё перечисленное — направление, а не обязательство и не проектная спецификация.
 
