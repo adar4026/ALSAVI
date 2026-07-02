@@ -2,10 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { LearningEngine } from '../src/engine.js';
 import { MemoryStore } from '../src/memory-store.js';
 import { StudySession } from '../src/study-session.js';
-import type { Rating } from '../src/types.js';
+import type { Card, CardState, Rating } from '../src/types.js';
 
 const T0 = new Date('2026-07-01T10:00:00Z').getTime();
 const MIN = 60_000;
+
+/** Fixture card with a precise due offset and state, for boundary tests. */
+function cardFixture(id: string, dueOffsetMin: number, state: CardState = 'learning'): Card {
+  return {
+    id,
+    deckId: 'default',
+    front: id,
+    back: id,
+    createdAt: T0,
+    due: T0 + dueOffsetMin * MIN,
+    state,
+    scheduling: { stability: 1, difficulty: 5, reps: 1, lapses: 0, scheduledDays: 0, learningSteps: 0 },
+  };
+}
 
 /** Engine + session sharing one injectable clock, deterministic ids. */
 function setup(clock: { t: number } = { t: T0 }, learnAheadMinutes = 20) {
@@ -79,6 +93,51 @@ describe('StudySession — in-session flow', () => {
     await session.nextCard();
     await session.nextCard();
     expect((await engine.getStats()).reviewsToday).toBe(0);
+  });
+});
+
+describe('StudySession — dueCount (learn-ahead aware)', () => {
+  it('counts a learning card 5m out but not one 30m out (learnAhead=20)', async () => {
+    const store = new MemoryStore();
+    const engine = new LearningEngine(store, { now: () => T0 });
+    const session = new StudySession(engine, { now: () => T0, learnAheadMinutes: 20 });
+    await store.putCard(cardFixture('in', 5, 'learning')); // within window → counts
+    await store.putCard(cardFixture('out', 30, 'learning')); // beyond window → excluded
+    expect(await session.dueCount()).toBe(1);
+    expect((await session.nextCard())?.id).toBe('in');
+  });
+
+  it('a not-yet-due review card in the window is NOT counted (only learning is pulled ahead)', async () => {
+    const store = new MemoryStore();
+    const engine = new LearningEngine(store, { now: () => T0 });
+    const session = new StudySession(engine, { now: () => T0, learnAheadMinutes: 20 });
+    await store.putCard(cardFixture('rev', 5, 'review')); // future review → not pulled ahead
+    expect(await session.dueCount()).toBe(0);
+    expect(await session.nextCard()).toBeNull();
+  });
+
+  it('counts due-now cards plus learn-ahead learning cards together', async () => {
+    const store = new MemoryStore();
+    const engine = new LearningEngine(store, { now: () => T0 });
+    const session = new StudySession(engine, { now: () => T0, learnAheadMinutes: 20 });
+    await store.putCard(cardFixture('due', -1, 'review')); // due already
+    await store.putCard(cardFixture('soon', 10, 'learning')); // learn-ahead
+    await store.putCard(cardFixture('later', 45, 'learning')); // beyond window
+    expect(await session.dueCount()).toBe(2);
+  });
+
+  it('dueCount stays in sync with nextCard: 0 exactly when nextCard is null', async () => {
+    const { engine, session } = setup();
+    expect(await session.dueCount()).toBe(0);
+    expect(await session.nextCard()).toBeNull();
+
+    const card = await engine.addCard({ front: 'a', back: 'b' });
+    expect(await session.dueCount()).toBe(1);
+
+    // "Again" keeps the card in the session (learning within learn-ahead)
+    await engine.review(card.id, 'again');
+    expect(await session.dueCount()).toBe(1);
+    expect(await session.nextCard()).not.toBeNull();
   });
 });
 

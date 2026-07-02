@@ -48,17 +48,34 @@ export class StudySession {
    *     cards are never pulled ahead.
    */
   async nextCard(): Promise<Card | null> {
-    const now = this.now();
+    const { dueNow, learningSoon } = await this.selectEligible(this.now());
+    return dueNow[0] ?? learningSoon[0] ?? null;
+  }
+
+  /**
+   * How many cards the session still has to show: exactly the set that
+   * `nextCard()` will present over the session — due cards plus learning/
+   * relearning cards inside the learn-ahead window. Shares the same selector
+   * as `nextCard()`, so the counter can never desync from what is shown.
+   */
+  async dueCount(): Promise<number> {
+    const { dueNow, learningSoon } = await this.selectEligible(this.now());
+    return dueNow.length + learningSoon.length;
+  }
+
+  /**
+   * Single source of truth for session selection. `dueNow` and `learningSoon`
+   * are disjoint (due <= now vs due > now), so both `nextCard()` (first by
+   * priority) and `dueCount()` (their total) derive from one predicate.
+   */
+  private async selectEligible(now: number): Promise<{ dueNow: Card[]; learningSoon: Card[] }> {
     const cards = await this.engine.listCards();
-
     const dueNow = cards.filter((c) => c.due <= now).sort(byDueThenId);
-    if (dueNow.length > 0) return dueNow[0]!;
-
     const horizon = now + this.learnAheadMs;
     const learningSoon = cards
       .filter((c) => isLearning(c) && c.due > now && c.due <= horizon)
       .sort(byDueThenId);
-    return learningSoon[0] ?? null;
+    return { dueNow, learningSoon };
   }
 }
 

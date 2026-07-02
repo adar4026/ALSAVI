@@ -1,4 +1,4 @@
-import { LearningEngine, type EngineStats } from '@alsavi/engine';
+import { LearningEngine, StudySession, type EngineStats } from '@alsavi/engine';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CardManager } from './CardManager';
 import { DexieStore } from './dexie-store';
@@ -8,12 +8,19 @@ type View = 'review' | 'cards';
 
 export function App() {
   const engine = useMemo(() => new LearningEngine(new DexieStore()), []);
+  const session = useMemo(() => new StudySession(engine), [engine]);
   const [view, setView] = useState<View>('review');
   const [stats, setStats] = useState<EngineStats | null>(null);
+  // "К повторению" reflects the session queue (due + learn-ahead), so it stays
+  // in sync with what StudySession.nextCard() will actually show — not the
+  // strict `stats.dueNow` engine counter.
+  const [dueCount, setDueCount] = useState<number | null>(null);
 
   const refreshStats = useCallback(async () => {
-    setStats(await engine.getStats());
-  }, [engine]);
+    const [nextStats, nextDue] = await Promise.all([engine.getStats(), session.dueCount()]);
+    setStats(nextStats);
+    setDueCount(nextDue);
+  }, [engine, session]);
 
   useEffect(() => {
     void refreshStats();
@@ -36,7 +43,7 @@ export function App() {
         {stats && (
           <>
             <span>
-              К повторению: <strong>{stats.dueNow}</strong>
+              К повторению: <strong>{dueCount ?? stats.dueNow}</strong>
             </span>
             <span>
               Всего: <strong>{stats.totalCards}</strong>
@@ -58,7 +65,7 @@ export function App() {
         )}
       </div>
       {view === 'review' ? (
-        <ReviewSession engine={engine} onReviewed={() => void refreshStats()} />
+        <ReviewSession engine={engine} session={session} onReviewed={() => void refreshStats()} />
       ) : (
         <CardManager engine={engine} onChanged={() => void refreshStats()} />
       )}

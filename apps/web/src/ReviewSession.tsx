@@ -1,6 +1,12 @@
-import type { Card, CardState, IntervalPreview, LearningEngine, Rating } from '@alsavi/engine';
-import { StudySession } from '@alsavi/engine';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import type {
+  Card,
+  CardState,
+  IntervalPreview,
+  LearningEngine,
+  Rating,
+  StudySession,
+} from '@alsavi/engine';
+import { useCallback, useEffect, useState } from 'react';
 import { formatInterval } from './format';
 
 const RATING_LABELS: Record<Rating, string> = {
@@ -21,11 +27,11 @@ const STATE_LABELS: Record<CardState, string> = {
 
 interface Props {
   engine: LearningEngine;
+  session: StudySession;
   onReviewed: () => void;
 }
 
-export function ReviewSession({ engine, onReviewed }: Props) {
-  const session = useMemo(() => new StudySession(engine), [engine]);
+export function ReviewSession({ engine, session, onReviewed }: Props) {
   const [current, setCurrent] = useState<Card | null>(null);
   const [preview, setPreview] = useState<IntervalPreview | null>(null);
   const [revealed, setRevealed] = useState(false);
