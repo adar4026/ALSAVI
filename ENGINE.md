@@ -118,9 +118,8 @@ interface Scheduler {
 - `review` — «выпущена», интервалы измеряются днями.
 - `relearning` — провалена после review (Again), проходит relearning-шаги.
 
-Состояние фиксируется в каждом `Review` (`stateBefore`/`stateAfter`), поэтому
-последовательность состояний воспроизводима из журнала (об ограничениях
-полного replay — §9 и `ARCHITECTURE.md` §10).
+Состояние фиксируется в каждом `Review` (`stateBefore`/`stateAfter`) и полностью
+воспроизводимо из журнала методом `rebuildCardState` (§9 и `ARCHITECTURE.md` §10).
 
 ## 6. Review Log
 
@@ -178,9 +177,10 @@ UI одновременно вызывает и `StudySession` (что пока�
   заменяемыми без изменения контракта ядра.
 - **Review Log как source of truth**, scheduling — кэш ([ADR-002]).
 - **StudySession отделён от ядра** по осям изменения ([ADR-003]).
-- **Открытый вопрос:** явный replay Review Log → scheduling ещё не реализован
-  (`ARCHITECTURE.md` §10) — журнал сегодня восстанавливается пересчётом через
-  детерминированный `Scheduler`, отдельной функции `rebuild` и её теста пока нет.
+- **Replay реализован:** `LearningEngine.rebuildCardState(cardId)` пересчитывает
+  `CardState` из лога через детерминированный `Scheduler`
+  (`replayCardState`, `src/replay.ts`); покрыт тестом эквивалентности, включая
+  случай повреждённого кэша (`ARCHITECTURE.md` §10). Схема лога не менялась.
 
 ## 10. Команды
 

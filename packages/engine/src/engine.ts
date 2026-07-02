@@ -1,5 +1,6 @@
 import { FsrsScheduler } from './fsrs-scheduler.js';
 import { renderCard } from './render.js';
+import { replayCardState } from './replay.js';
 import type { Scheduler } from './scheduler.js';
 import type { EngineStore } from './store.js';
 import {
@@ -219,6 +220,20 @@ export class LearningEngine {
     await this.store.putCard(updatedCard);
     await this.store.appendReview(review);
     return { card: updatedCard, review };
+  }
+
+  /**
+   * Reconstruct a card's scheduling state from its review log alone, ignoring
+   * the stored scheduling cache. Proves (and can repair) the invariant that the
+   * Review Log is the source of truth. A pure read/compute operation: it does
+   * not mutate the log or persist the result. Returns `undefined` if the card
+   * does not exist. See {@link replayCardState}.
+   */
+  async rebuildCardState(cardId: CardId): Promise<Card | undefined> {
+    const card = await this.store.getCard(cardId);
+    if (!card) return undefined;
+    const reviews = await this.store.listReviews(cardId);
+    return replayCardState(card, reviews, this.scheduler);
   }
 
   /** Due dates the card would get for each answer — for interval labels on buttons. */

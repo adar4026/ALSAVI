@@ -264,6 +264,85 @@ describe('stats', () => {
   });
 });
 
+describe('review log replay (CardState reconstruction)', () => {
+  const histories: Rating[][] = [
+    ['again', 'again', 'good', 'good', 'easy'],
+    ['good', 'good', 'again', 'hard', 'good'],
+    ['easy'],
+    ['again', 'again', 'again'],
+    ['hard', 'good', 'again', 'good', 'good', 'easy'],
+  ];
+
+  it('rebuildCardState reproduces the cached state for varied histories', async () => {
+    for (const ratings of histories) {
+      const clock = { t: T0 };
+      const { engine } = makeEngine(clock);
+      const card = await engine.addCard({ front: 'q', back: 'a' });
+      for (const rating of ratings) {
+        const { card: u } = await engine.review(card.id, rating);
+        clock.t = Math.max(clock.t + 60_000, u.due); // answer when due
+      }
+      const stored = await engine.getCard(card.id);
+      const rebuilt = await engine.rebuildCardState(card.id);
+      expect(rebuilt!.state, ratings.join(',')).toBe(stored!.state);
+      expect(rebuilt!.due, ratings.join(',')).toBe(stored!.due);
+      expect(rebuilt!.scheduling, ratings.join(',')).toEqual(stored!.scheduling);
+    }
+  });
+
+  it('a never-reviewed card rebuilds to its initial (new) state', async () => {
+    const { engine } = makeEngine();
+    const card = await engine.addCard({ front: 'a', back: 'b' });
+    const stored = await engine.getCard(card.id);
+    const rebuilt = await engine.rebuildCardState(card.id);
+    expect(rebuilt!.state).toBe('new');
+    expect(rebuilt!.due).toBe(stored!.due);
+    expect(rebuilt!.scheduling).toEqual(stored!.scheduling);
+  });
+
+  it('rebuilds purely from the log even when the cached scheduling is corrupted', async () => {
+    const clock = { t: T0 };
+    let seq = 0;
+    const store = new MemoryStore();
+    const engine = new LearningEngine(store, { now: () => clock.t, newId: () => `id-${seq++}` });
+
+    const card = await engine.addCard({ front: 'q', back: 'a' });
+    for (const rating of ['again', 'good', 'good', 'easy'] as Rating[]) {
+      const { card: u } = await engine.review(card.id, rating);
+      clock.t = Math.max(clock.t + 60_000, u.due);
+    }
+    const truth = await engine.rebuildCardState(card.id);
+
+    // Deliberately trash the stored scheduling cache (but not identity/log).
+    const good = (await engine.getCard(card.id))!;
+    await store.putCard({
+      ...good,
+      due: 0,
+      state: 'new',
+      scheduling: {
+        stability: -999,
+        difficulty: -999,
+        reps: -1,
+        lapses: -1,
+        scheduledDays: -1,
+        learningSteps: -1,
+        lastReview: 0,
+      },
+    });
+
+    const rebuilt = await engine.rebuildCardState(card.id);
+    // Reconstruction ignores the corrupted cache and matches the log-derived truth.
+    expect(rebuilt).toEqual(truth);
+    expect(rebuilt!.state).not.toBe('new');
+    expect(rebuilt!.scheduling.stability).toBeGreaterThan(0);
+  });
+
+  it('rebuildCardState returns undefined for a missing card', async () => {
+    const { engine } = makeEngine();
+    expect(await engine.rebuildCardState('nope')).toBeUndefined();
+  });
+});
+
 describe('layer boundary', () => {
   it('engine sources contain no network or AI imports', async () => {
     const { readdir, readFile } = await import('node:fs/promises');

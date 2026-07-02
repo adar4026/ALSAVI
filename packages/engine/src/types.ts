@@ -76,8 +76,12 @@ export interface CardView {
 
 /**
  * Immutable record of a single review. Append-only.
- * Carries enough scheduler state to replay the full history losslessly
- * (and to export to Anki-compatible formats later).
+ *
+ * `rating` + `reviewedAt` are all that scheduling reconstruction needs: because
+ * the Scheduler is deterministic, replaying them through it recomputes the full
+ * card state (see `replayCardState`). The `stability`/`difficulty`/
+ * `scheduledDays` fields are denormalized outputs kept for audit/export, not
+ * required inputs for replay.
  */
 export interface Review {
   id: ReviewId;

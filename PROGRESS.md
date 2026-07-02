@@ -1,5 +1,24 @@
 # PROGRESS
 
+## 2026-07-02 — TASK_005 (Review Log Replay / CardState reconstruction)
+
+Сделано:
+- Закрыт открытый вопрос replay: `LearningEngine.rebuildCardState(cardId)` пересчитывает `CardState` **только из Review Log** (seed `initialSchedule(createdAt)` → `applyRating(card, rating, reviewedAt)` по возрастанию времени). Чистая утилита `replayCardState` (`packages/engine/src/replay.ts`).
+- **Схему лога менять не потребовалось**: из-за детерминизма Scheduler для replay достаточно `rating`+`reviewedAt` (оба всегда хранились); `reps/lapses/learningSteps/lastReview` пересчитываются, а не читаются. Ни новых полей, ни миграции.
+- **Инвариант реализации:** seed использует только идентификационные поля карты (`id/noteId/template/deckId/createdAt`); `due/state/scheduling` как вход полностью игнорируются. Операция чистая (лог не мутируется, ничего не персистится).
+- Тесты (+4): эквивалентность replay ↔ кэш на разных историях (Again×N, Learning→Review, смешанные); карта без повторений; **намеренное повреждение `due`/`scheduling`** — реконструкция восстанавливает состояние только из лога; missing card → undefined. Всего 36, зелёные.
+- Существующее поведение (`review`/`getDueCards`/`previewIntervals`) не изменено; граница Engine/AI цела (`replay.ts` под тестом `layer boundary`).
+- Документы: `ARCHITECTURE.md` §10 (открытый вопрос закрыт, метод описан), `ENGINE.md`, комментарий `Review` в `types.ts`.
+
+Тех-долг (обновление статуса):
+- ~~Открытый вопрос replay Review Log → scheduling~~ — **закрыто (TASK_005)**.
+- Возможное развитие: «repair»-вариант (персистит пересчитанное состояние, напр. после смены параметров FSRS); оптимизация replay на очень длинной истории (сейчас O(n) по числу повторений).
+
+Следующий шаг:
+- «bury siblings» для карт одной заметки; либо экспорт/импорт данных пользователя (Review Log уже самодостаточен для этого).
+
+---
+
 ## 2026-07-02 — TASK_004 (Session Hotkeys)
 
 Сделано:
