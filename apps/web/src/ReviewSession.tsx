@@ -51,12 +51,43 @@ export function ReviewSession({ engine, session, onReviewed }: Props) {
     void loadNext();
   }, [loadNext]);
 
-  async function answer(rating: Rating) {
-    if (!current) return;
-    await engine.review(current.card.id, rating);
-    onReviewed();
-    await loadNext();
-  }
+  const answer = useCallback(
+    async (rating: Rating) => {
+      if (!current) return;
+      await engine.review(current.card.id, rating);
+      onReviewed();
+      await loadNext();
+    },
+    [current, engine, onReviewed, loadNext]
+  );
+
+  // Keyboard shortcuts: Space reveals the answer; 1..4 grade the revealed card.
+  // Active only while the session screen is mounted; ignored when typing in a
+  // field or when a modifier is held.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (loading || !current) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
+        return;
+      }
+      if (!revealed) {
+        if (e.code === 'Space' || e.key === ' ') {
+          e.preventDefault();
+          setRevealed(true);
+        }
+        return;
+      }
+      const idx = ['1', '2', '3', '4'].indexOf(e.key);
+      if (idx !== -1) {
+        e.preventDefault();
+        void answer(RATINGS[idx]!);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [loading, current, revealed, answer]);
 
   if (loading) return <div className="card-panel" />;
 
@@ -87,20 +118,26 @@ export function ReviewSession({ engine, session, onReviewed }: Props) {
         {revealed ? (
           <div className="card-back">{current.back}</div>
         ) : (
-          <button className="btn-primary" onClick={() => setRevealed(true)}>
-            Показать ответ
-          </button>
+          <>
+            <button className="btn-primary" onClick={() => setRevealed(true)}>
+              Показать ответ
+            </button>
+            <span className="hotkey-hint">Пробел</span>
+          </>
         )}
       </div>
       {revealed && preview && (
-        <div className="answer-buttons">
-          {RATINGS.map((r) => (
-            <button key={r} onClick={() => void answer(r)}>
-              {RATING_LABELS[r]}
-              <span className="interval">{formatInterval(now, preview[r])}</span>
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="answer-buttons">
+            {RATINGS.map((r) => (
+              <button key={r} onClick={() => void answer(r)}>
+                {RATING_LABELS[r]}
+                <span className="interval">{formatInterval(now, preview[r])}</span>
+              </button>
+            ))}
+          </div>
+          <div className="hotkey-hint">1 · 2 · 3 · 4</div>
+        </>
       )}
     </div>
   );

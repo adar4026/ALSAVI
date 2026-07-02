@@ -164,6 +164,15 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.hotkey-hint {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+
 .btn-primary {
   background: var(--accent);
   color: #fff;
