@@ -1,0 +1,14 @@
+{
+  "name": "alsavi",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "npm run test -w @alsavi/engine",
+    "dev": "npm run dev -w @alsavi/web",
+    "build": "npm run build -w @alsavi/engine && npm run build -w @alsavi/web"
+  }
+}
