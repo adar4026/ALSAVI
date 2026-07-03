@@ -1,5 +1,6 @@
 import type { CardState, CardView, LearningEngine } from '@alsavi/engine';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { importApkgFile, type ImportReport } from './importApkg';
 
 const STATE_LABELS: Record<CardState, string> = {
   new: 'новая',
@@ -7,6 +8,24 @@ const STATE_LABELS: Record<CardState, string> = {
   review: 'на повторении',
   relearning: 'переучивается',
 };
+
+const SKIP_LABELS: Record<string, string> = {
+  'cloze-note-type': 'cloze',
+  'fewer-than-2-fields': 'меньше 2 полей',
+  'unsupported-template': 'неподдерживаемый шаблон',
+  'empty-after-cleanup': 'пустой текст',
+};
+
+function describeReport(r: ImportReport): string {
+  const skipped = r.skipped.reduce((n, s) => n + s.count, 0);
+  let msg = `Импортировано ${r.importedNotes} заметок (${r.importedCards} карточек).`;
+  if (skipped > 0) {
+    const parts = r.skipped.map((s) => `${SKIP_LABELS[s.reason] ?? s.reason} — ${s.count}`);
+    msg += ` Пропущено ${skipped}: ${parts.join(', ')}.`;
+  }
+  if (r.error) msg += ` Прервано с ошибкой: ${r.error}`;
+  return msg;
+}
 
 interface Props {
   engine: LearningEngine;
@@ -18,6 +37,8 @@ export function CardManager({ engine, onChanged }: Props) {
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
   const [alsoReverse, setAlsoReverse] = useState(false);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
     const all = await engine.listCardViews();
@@ -48,6 +69,21 @@ export function CardManager({ engine, onChanged }: Props) {
     onChanged();
   }
 
+  async function onImport(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+    setImportStatus(`Импорт «${file.name}»…`);
+    try {
+      const report = await importApkgFile(file, engine);
+      setImportStatus(describeReport(report));
+      await reload();
+      onChanged();
+    } catch (err) {
+      setImportStatus(`Не удалось импортировать: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   return (
     <div>
       <form className="add-form" onSubmit={(e) => void add(e)}>
@@ -76,6 +112,19 @@ export function CardManager({ engine, onChanged }: Props) {
           Добавить {alsoReverse ? 'карточки' : 'карточку'}
         </button>
       </form>
+      <div className="import-row">
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".apkg"
+          style={{ display: 'none' }}
+          onChange={(e) => void onImport(e)}
+        />
+        <button className="btn-secondary" onClick={() => fileInput.current?.click()}>
+          Импорт из Anki (.apkg)
+        </button>
+        {importStatus && <span className="import-status">{importStatus}</span>}
+      </div>
       <div className="card-list">
         {cards.length === 0 && (
           <div className="empty-state">Карточек пока нет — добавь первую выше.</div>

@@ -241,6 +241,36 @@ body {
   cursor: pointer;
 }
 
+.import-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 32px;
+}
+
+.btn-secondary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.import-status {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
 .card-list {
   display: flex;
   flex-direction: column;
