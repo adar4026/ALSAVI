@@ -54,11 +54,13 @@ export function ReviewSession({ engine, session, onReviewed }: Props) {
   const answer = useCallback(
     async (rating: Rating) => {
       if (!current) return;
-      await engine.review(current.card.id, rating);
+      // Single answer path: the session delegates recording to engine.review
+      // and applies bury-siblings — no separate call to keep in sync.
+      await session.answer(current.card.id, rating);
       onReviewed();
       await loadNext();
     },
-    [current, engine, onReviewed, loadNext]
+    [current, session, onReviewed, loadNext]
   );
 
   // Keyboard shortcuts: Space reveals the answer; 1..4 grade the revealed card.

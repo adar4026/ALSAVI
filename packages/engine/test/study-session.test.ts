@@ -115,6 +115,82 @@ describe('StudySession — indexed due-horizon (TASK_006)', () => {
   });
 });
 
+describe('StudySession — bury siblings (TASK_007)', () => {
+  it('answering a card buries its sibling but shows an independent card', async () => {
+    // learnAhead 0 isolates bury from learn-ahead resurfacing.
+    const { engine, session } = setup({ t: T0 }, 0);
+    const { cards: a } = await engine.addNote({ front: 'A', back: 'a', directions: ['forward', 'reverse'] });
+    const { cards: b } = await engine.addNote({ front: 'B', back: 'b', directions: ['forward'] });
+    const aFwd = a.find((c) => c.template === 'forward')!;
+    const aRev = a.find((c) => c.template === 'reverse')!;
+    const bFwd = b[0]!;
+
+    await session.answer(aFwd.id, 'good');
+
+    const next = await session.nextCard();
+    expect(next?.id).toBe(bFwd.id); // independent card shown
+    expect(next?.id).not.toBe(aRev.id); // sibling not shown
+  });
+
+  it('the buried sibling stays hidden until the session ends (single-remaining case)', async () => {
+    const { engine, session } = setup({ t: T0 }, 0);
+    const { cards: a } = await engine.addNote({ front: 'A', back: 'a', directions: ['forward', 'reverse'] });
+    const { cards: b } = await engine.addNote({ front: 'B', back: 'b', directions: ['forward'] });
+    const aFwd = a.find((c) => c.template === 'forward')!;
+    const bFwd = b[0]!;
+
+    await session.answer(aFwd.id, 'good');
+    await session.answer(bFwd.id, 'good');
+    // Only A-reverse remains due, but it is buried → session ends, not shown.
+    expect(await session.nextCard()).toBeNull();
+    expect(await session.dueCount()).toBe(0);
+  });
+
+  it('dueCount excludes buried siblings (stays in sync with nextCard)', async () => {
+    const { engine, session } = setup({ t: T0 }, 0);
+    const { cards } = await engine.addNote({ front: 'A', back: 'a', directions: ['forward', 'reverse'] });
+    const aFwd = cards.find((c) => c.template === 'forward')!;
+    expect(await session.dueCount()).toBe(2); // both siblings due
+
+    await session.answer(aFwd.id, 'good'); // aFwd rescheduled away, aRev buried
+    expect(await session.dueCount()).toBe(0); // buried sibling not counted
+    expect(await session.nextCard()).toBeNull(); // matches the count
+  });
+
+  it('a new StudySession instance shows a sibling the previous one buried', async () => {
+    const clock = { t: T0 };
+    let seq = 0;
+    const engine = new LearningEngine(new MemoryStore(), {
+      now: () => clock.t,
+      newId: () => `id-${seq++}`,
+    });
+    const { cards } = await engine.addNote({ front: 'A', back: 'a', directions: ['forward', 'reverse'] });
+    const aFwd = cards.find((c) => c.template === 'forward')!;
+    const aRev = cards.find((c) => c.template === 'reverse')!;
+
+    const s1 = new StudySession(engine, { now: () => clock.t, learnAheadMinutes: 0 });
+    await s1.answer(aFwd.id, 'good');
+    expect(await s1.nextCard()).toBeNull(); // aRev buried in s1
+
+    const s2 = new StudySession(engine, { now: () => clock.t, learnAheadMinutes: 0 });
+    expect((await s2.nextCard())?.id).toBe(aRev.id); // fresh session shows it again
+  });
+
+  it('the answered card itself can still resurface via learn-ahead; the sibling cannot', async () => {
+    const { engine, session } = setup({ t: T0 }, 20);
+    const { cards } = await engine.addNote({ front: 'A', back: 'a', directions: ['forward', 'reverse'] });
+    const aFwd = cards.find((c) => c.template === 'forward')!;
+    const aRev = cards.find((c) => c.template === 'reverse')!;
+
+    await session.answer(aFwd.id, 'again'); // aFwd → learning, due ~+1m (within learn-ahead)
+
+    const next = await session.nextCard();
+    expect(next?.id).toBe(aFwd.id); // answered card resurfaces
+    expect(next?.id).not.toBe(aRev.id); // sibling stays buried even though it is due now
+    expect(await session.dueCount()).toBe(1); // only the answered card, not the buried sibling
+  });
+});
+
 describe('StudySession — in-session flow', () => {
   it('returns a due (new) card, null when nothing is due or learning-soon', async () => {
     const { engine, session } = setup();
