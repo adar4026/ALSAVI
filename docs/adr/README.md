@@ -14,3 +14,4 @@
 | [ADR-001](ADR-001-scheduler-abstraction.md) | Scheduler abstraction | Accepted |
 | [ADR-002](ADR-002-review-log-source-of-truth.md) | Review Log as Source of Truth | Accepted |
 | [ADR-003](ADR-003-studysession-separation.md) | StudySession separation from LearningEngine | Accepted |
+| [ADR-004](ADR-004-retrieval-responsibility.md) | Retrieval Responsibility | Accepted |
