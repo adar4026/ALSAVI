@@ -20,6 +20,7 @@ export type {
   CardState,
   CardTemplate,
   CardView,
+  CollectionData,
   EngineStats,
   IntervalPreview,
   Note,

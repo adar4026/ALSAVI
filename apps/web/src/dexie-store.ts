@@ -1,4 +1,4 @@
-import type { Card, CardId, EngineStore, Note, NoteId, Review } from '@alsavi/engine';
+import type { Card, CardId, CollectionData, EngineStore, Note, NoteId, Review } from '@alsavi/engine';
 import Dexie, { type EntityTable } from 'dexie';
 
 /** Shape of a v1 card, before content moved to notes. Used only by migration. */
@@ -61,6 +61,10 @@ export class DexieStore implements EngineStore {
     return found.filter((n): n is Note => n !== undefined);
   }
 
+  listNotes(): Promise<Note[]> {
+    return this.db.notes.toArray();
+  }
+
   async putNote(note: Note): Promise<void> {
     await this.db.notes.put(note);
   }
@@ -101,5 +105,22 @@ export class DexieStore implements EngineStore {
       return this.db.reviews.where('cardId').equals(cardId).sortBy('reviewedAt');
     }
     return this.db.reviews.orderBy('reviewedAt').toArray();
+  }
+
+  /**
+   * Atomically replace the whole collection (backup restore). Runs clear +
+   * bulkAdd inside ONE Dexie rw transaction: IndexedDB commits all-or-nothing,
+   * so a failure (or crash) mid-restore rolls back and leaves the previous data
+   * intact. No `deleteDatabase` — the deadlock from TASK_007 cannot occur here;
+   * the live connection reflects the new data after commit. Callers pass only
+   * validated data (the store does not validate).
+   */
+  async replaceAll(data: CollectionData): Promise<void> {
+    await this.db.transaction('rw', this.db.notes, this.db.cards, this.db.reviews, async () => {
+      await Promise.all([this.db.notes.clear(), this.db.cards.clear(), this.db.reviews.clear()]);
+      await this.db.notes.bulkAdd(data.notes);
+      await this.db.cards.bulkAdd(data.cards);
+      await this.db.reviews.bulkAdd(data.reviews);
+    });
   }
 }

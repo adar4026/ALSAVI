@@ -105,6 +105,11 @@ Engine **только через публичный интерфейс** — н�
 - **INV-8.** Контент принадлежит `Note` (единственный источник истины); `Card`
   не хранит `front/back`, а рендерит их из заметки. Редактирование контента
   никогда не изменяет scheduling (обновлённая форма INV-3).
+- **INV-9.** Восстановление из бэкапа безопасно: файл **полностью валидируется
+  до** любой записи; замена — атомарная (одна Dexie `rw`-транзакция, откат при
+  сбое), поэтому падение в середине оставляет прежние данные целыми. Сырой
+  `indexedDB.deleteDatabase` не используется — deadlock из TASK_007 исключён по
+  построению.
 
 ## 5. LearningEngine (`packages/engine/src/engine.ts`)
 
@@ -200,8 +205,10 @@ steps (`1m`, `10m`) и переходы состояний обеспечива�
 - `MemoryStore` (`memory-store.ts`) — референс-реализация для тестов;
 - `DexieStore` (`apps/web/src/dexie-store.ts`) — IndexedDB для веба.
 
-Методы: `getNote/getNotesByIds/putNote/deleteNote`, `getCard/putCard/deleteCard`,
-`listCards`, `listDueCards`, `appendReview`, `listReviews`. Reviews — append-only.
+Методы: `getNote/getNotesByIds/listNotes/putNote/deleteNote`,
+`getCard/putCard/deleteCard`, `listCards`, `listDueCards`, `appendReview`,
+`listReviews`, `replaceAll` (атомарная замена всей коллекции — restore).
+Reviews — append-only.
 При удалении карты лог повторений намеренно сохраняется (история, статистика,
 будущий re-fit параметров). `DexieStore` версионирует схему: `version(2)`
 вводит таблицу `notes` и non-breaking `upgrade`-миграцию (синтетическая заметка
@@ -293,6 +300,32 @@ N+1 при построении списков; это остаётся хран
 Импорт как **новые** карты (revlog не переносится). Неподдерживаемое —
 пропускается со счётом в `ImportReport`, не роняя импорт. Импорт **добавляет** к
 коллекции (никакого пересоздания БД).
+
+## 11b. Backup / Restore (`packages/backup`, TASK_009)
+
+Отдельный **пакет-потребитель** `@alsavi/backup` — полный самодостаточный снимок
+коллекции и восстановление с заменой. **Storage-концерн**, а не memory-домен:
+работает через **порт `EngineStore`** (`listNotes`/`listCards`/`listReviews` для
+экспорта, `replaceAll` для восстановления), **публичный API `LearningEngine` НЕ
+расширяется** (принцип №8). Модуль `serialize/validate` — чистый, тестируется в
+node с `MemoryStore`.
+
+- **Снимок** (JSON, `{format:'alsavi-backup', version, exportedAt, data:{notes,
+  cards, reviews}}`) включает **полный Review Log** — source of truth (ADR-002),
+  поэтому самодостаточен: `rebuildCardState` (TASK_005) воспроизводит состояние
+  из лога. Scheduling-кэш тоже экспортируется — для точного, независимого от
+  Scheduler восстановления.
+- **Безопасный порядок восстановления (INV-9):** прочитать файл → **полная
+  валидация** (структура + версия + ссылочная целостность: каждый `card.noteId`
+  → существующая заметка, каждый `review.cardId` → карта, нет дублей id) → при
+  успехе **явное подтверждение необратимой замены** (UI) → **атомарный**
+  `store.replaceAll` (одна Dexie `rw`-транзакция: `clear`+`bulkAdd`). При провале
+  валидации/несовместимой версии/сбое транзакции — прежние данные целы.
+- **`replaceAll` принимает только провалидированные данные** — хранилище бэкап не
+  валидирует.
+- Deadlock TASK_007 **закрыт**: restore не зовёт сырой `deleteDatabase`, а
+  заменяет строки транзакционно на живом соединении; managed close/reopen не
+  нужен (транзакция делает его излишним — см. решение TASK_009).
 
 ## 12. Future Architecture (направление, не контракт)
 

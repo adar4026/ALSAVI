@@ -1,4 +1,4 @@
-import type { Card, CardId, Note, NoteId, Review } from './types.js';
+import type { Card, CardId, CollectionData, Note, NoteId, Review } from './types.js';
 
 /**
  * Storage port of the Engine. The Engine depends only on this interface;
@@ -10,6 +10,8 @@ export interface EngineStore {
   /** Batch primitive: fetch many notes by id at once. Missing ids are skipped;
    *  order and duplicates are not guaranteed — callers key by `note.id`. */
   getNotesByIds(ids: NoteId[]): Promise<Note[]>;
+  /** All notes. For full-collection export (backup). */
+  listNotes(): Promise<Note[]>;
   putNote(note: Note): Promise<void>;
   deleteNote(id: NoteId): Promise<void>;
   getCard(id: CardId): Promise<Card | undefined>;
@@ -21,4 +23,14 @@ export interface EngineStore {
   appendReview(review: Review): Promise<void>;
   /** All reviews (or reviews of one card), ordered by reviewedAt ascending. */
   listReviews(cardId?: CardId): Promise<Review[]>;
+
+  /**
+   * Atomically replace ALL stored data with `data` (backup restore). The
+   * destructive whole-collection swap: previous notes/cards/reviews are
+   * discarded and the given ones written. The caller MUST pass fully validated,
+   * referentially consistent data — the store does not validate (TASK_009,
+   * invariant 3). Implementations should make this all-or-nothing so a failure
+   * leaves the previous data intact.
+   */
+  replaceAll(data: CollectionData): Promise<void>;
 }

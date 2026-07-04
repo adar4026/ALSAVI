@@ -7,7 +7,9 @@ import { ReviewSession } from './ReviewSession';
 type View = 'review' | 'cards';
 
 export function App() {
-  const engine = useMemo(() => new LearningEngine(new DexieStore()), []);
+  // Keep the store reference: backup/restore operates at the storage layer.
+  const store = useMemo(() => new DexieStore(), []);
+  const engine = useMemo(() => new LearningEngine(store), [store]);
   const session = useMemo(() => new StudySession(engine), [engine]);
   const [view, setView] = useState<View>('review');
   const [stats, setStats] = useState<EngineStats | null>(null);
@@ -67,7 +69,7 @@ export function App() {
       {view === 'review' ? (
         <ReviewSession engine={engine} session={session} onReviewed={() => void refreshStats()} />
       ) : (
-        <CardManager engine={engine} onChanged={() => void refreshStats()} />
+        <CardManager engine={engine} store={store} onChanged={() => void refreshStats()} />
       )}
     </div>
   );

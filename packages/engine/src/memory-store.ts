@@ -1,5 +1,5 @@
 import type { EngineStore } from './store.js';
-import type { Card, CardId, Note, NoteId, Review } from './types.js';
+import type { Card, CardId, CollectionData, Note, NoteId, Review } from './types.js';
 
 /** Reference EngineStore implementation. Used in tests and as adapter spec. */
 export class MemoryStore implements EngineStore {
@@ -18,6 +18,10 @@ export class MemoryStore implements EngineStore {
       if (note) out.push(note);
     }
     return out;
+  }
+
+  async listNotes(): Promise<Note[]> {
+    return [...this.notes.values()];
   }
 
   async putNote(note: Note): Promise<void> {
@@ -58,5 +62,11 @@ export class MemoryStore implements EngineStore {
   async listReviews(cardId?: CardId): Promise<Review[]> {
     const all = cardId ? this.reviews.filter((r) => r.cardId === cardId) : this.reviews;
     return [...all].sort((a, b) => a.reviewedAt - b.reviewedAt);
+  }
+
+  async replaceAll(data: CollectionData): Promise<void> {
+    this.notes = new Map(data.notes.map((n) => [n.id, structuredClone(n)]));
+    this.cards = new Map(data.cards.map((c) => [c.id, structuredClone(c)]));
+    this.reviews = data.reviews.map((r) => structuredClone(r));
   }
 }

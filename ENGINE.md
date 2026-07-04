@@ -126,12 +126,16 @@ interface Scheduler {
 - `MemoryStore` (`src/memory-store.ts`) — in-memory, для тестов и как эталон;
 - `DexieStore` (`apps/web/src/dexie-store.ts`) — IndexedDB для веба.
 
-Методы: `getNote/getNotesByIds/putNote/deleteNote`, `getCard/putCard/deleteCard`,
-`listCards`, `listDueCards`, `appendReview`, `listReviews`. `getNotesByIds` —
-batch-примитив (bulk get по ключам) для загрузки заметок без N+1;
-`listDueCards(threshold)` — индексированный range-запрос по `due`. `appendReview`
-— только добавление; `listReviews` — по возрастанию времени. При `deleteCard`
-журнал повторений намеренно **не** удаляется. См.
+Методы: `getNote/getNotesByIds/listNotes/putNote/deleteNote`,
+`getCard/putCard/deleteCard`, `listCards`, `listDueCards`, `appendReview`,
+`listReviews`, `replaceAll`. `getNotesByIds` — batch-примитив (bulk get по
+ключам) без N+1; `listNotes` — все заметки (для экспорта бэкапа);
+`listDueCards(threshold)` — индексированный range-запрос по `due`; `replaceAll` —
+атомарная замена всей коллекции (restore, TASK_009), принимает только
+провалидированные данные. `appendReview` — только добавление; `listReviews` — по
+возрастанию времени. При `deleteCard` журнал повторений намеренно **не**
+удаляется. Backup/restore (`packages/backup`) — storage-потребитель через этот
+порт; публичный API движка не расширяется. См.
 [ADR-002](docs/adr/ADR-002-review-log-source-of-truth.md).
 
 `DexieStore` версионирует схему: `version(2)` вводит таблицу `notes` и индекс

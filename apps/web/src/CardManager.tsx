@@ -1,4 +1,5 @@
-import type { CardState, CardView, LearningEngine } from '@alsavi/engine';
+import type { CardState, CardView, EngineStore, LearningEngine } from '@alsavi/engine';
+import { backupFilename, exportBackup, parseBackup } from '@alsavi/backup';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { importApkgFile, type ImportReport } from './importApkg';
 
@@ -29,16 +30,19 @@ function describeReport(r: ImportReport): string {
 
 interface Props {
   engine: LearningEngine;
+  store: EngineStore;
   onChanged: () => void;
 }
 
-export function CardManager({ engine, onChanged }: Props) {
+export function CardManager({ engine, store, onChanged }: Props) {
   const [cards, setCards] = useState<CardView[]>([]);
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
   const [alsoReverse, setAlsoReverse] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [backupStatus, setBackupStatus] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const backupInput = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
     const all = await engine.listCardViews();
@@ -84,6 +88,55 @@ export function CardManager({ engine, onChanged }: Props) {
     }
   }
 
+  async function onExport() {
+    setBackupStatus('Формирую резервную копию…');
+    try {
+      const json = await exportBackup(store);
+      const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = backupFilename();
+      a.click();
+      URL.revokeObjectURL(url);
+      setBackupStatus('Резервная копия сохранена.');
+    } catch (err) {
+      setBackupStatus(`Не удалось экспортировать: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  async function onRestore(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBackupStatus(null);
+    const text = await file.text();
+    // Validate BEFORE the destructive phase and BEFORE asking to confirm.
+    const result = parseBackup(text);
+    if (!result.ok) {
+      setBackupStatus(`Файл отклонён: ${result.error} Текущие данные не изменены.`);
+      return;
+    }
+    const { notes, cards: cs, reviews } = result.data;
+    const confirmed = window.confirm(
+      `Восстановление заменит ВСЕ текущие данные на копию от ` +
+        `${new Date(result.exportedAt).toLocaleString()} ` +
+        `(${notes.length} заметок, ${cs.length} карточек, ${reviews.length} повторений).\n\n` +
+        `Это действие необратимо. Продолжить?`
+    );
+    if (!confirmed) {
+      setBackupStatus('Восстановление отменено. Данные не изменены.');
+      return;
+    }
+    try {
+      await store.replaceAll(result.data); // only validated data reaches the store
+      setBackupStatus(`Восстановлено: ${notes.length} заметок, ${cs.length} карточек, ${reviews.length} повторений.`);
+      await reload();
+      onChanged();
+    } catch (err) {
+      setBackupStatus(`Ошибка восстановления: ${err instanceof Error ? err.message : String(err)}. Данные могли не измениться.`);
+    }
+  }
+
   return (
     <div>
       <form className="add-form" onSubmit={(e) => void add(e)}>
@@ -124,6 +177,22 @@ export function CardManager({ engine, onChanged }: Props) {
           Импорт из Anki (.apkg)
         </button>
         {importStatus && <span className="import-status">{importStatus}</span>}
+      </div>
+      <div className="import-row">
+        <input
+          ref={backupInput}
+          type="file"
+          accept=".json,application/json"
+          style={{ display: 'none' }}
+          onChange={(e) => void onRestore(e)}
+        />
+        <button className="btn-secondary" onClick={() => void onExport()}>
+          Экспорт (резервная копия)
+        </button>
+        <button className="btn-secondary" onClick={() => backupInput.current?.click()}>
+          Восстановить из копии
+        </button>
+        {backupStatus && <span className="import-status">{backupStatus}</span>}
       </div>
       <div className="card-list">
         {cards.length === 0 && (

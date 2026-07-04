@@ -74,6 +74,13 @@ export interface CardView {
   back: string;
 }
 
+/** A complete, self-contained snapshot of the collection (backup payload). */
+export interface CollectionData {
+  notes: Note[];
+  cards: Card[];
+  reviews: Review[];
+}
+
 /**
  * Immutable record of a single review. Append-only.
  *

@@ -7,7 +7,7 @@
     "apps/*"
   ],
   "scripts": {
-    "test": "npm run test -w @alsavi/engine && npm run test -w @alsavi/anki-import",
+    "test": "npm run test -w @alsavi/engine && npm run test -w @alsavi/anki-import && npm run test -w @alsavi/backup",
     "dev": "npm run dev -w @alsavi/web",
     "build": "npm run build -w @alsavi/engine && npm run build -w @alsavi/web"
   }
