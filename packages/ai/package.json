@@ -1,0 +1,20 @@
+{
+  "name": "@alsavi/ai",
+  "version": "0.1.0",
+  "description": "ALSAVI AI Layer — a stateless, read-only consumer of the Learning Engine's public API. Assembles context, builds prompts and generates answers through an LLMProvider abstraction. Owns no data, no storage, no search index.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@alsavi/engine": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}
