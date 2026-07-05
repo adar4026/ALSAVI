@@ -9,6 +9,30 @@ export interface AIServiceOptions {
   engine: LearningEngine;
   /** The LLM behind the {@link LLMProvider} abstraction. */
   provider: LLMProvider;
+  /**
+   * Context Budget: the maximum size of the final prompt, in **characters**.
+   *
+   * A deliberate consumer-side cap on how much text is sent to the model —
+   * distinct from the model's own token window (Model Window). This is measured
+   * in characters, not tokens: the AI Layer does not tokenize or count tokens.
+   */
+  budgetChars: number;
+}
+
+/**
+ * Thrown by {@link AIService} when the built prompt exceeds the Context Budget,
+ * before the provider (and therefore any network call) is invoked.
+ */
+export class ContextBudgetExceededError extends Error {
+  readonly actualChars: number;
+  readonly budgetChars: number;
+
+  constructor(actualChars: number, budgetChars: number) {
+    super(`Prompt exceeds context budget: ${actualChars} > ${budgetChars} characters`);
+    this.name = 'ContextBudgetExceededError';
+    this.actualChars = actualChars;
+    this.budgetChars = budgetChars;
+  }
 }
 
 /**
@@ -23,16 +47,23 @@ export class AIService {
   private readonly context: ContextAssembler;
   private readonly prompts: PromptBuilder;
   private readonly generator: AnswerGenerator;
+  private readonly budgetChars: number;
 
   constructor(options: AIServiceOptions) {
     this.context = new ContextAssembler(options.engine);
     this.prompts = new PromptBuilder();
     this.generator = new AnswerGenerator(options.provider);
+    this.budgetChars = options.budgetChars;
   }
 
   async answer(question: string): Promise<AIAnswer> {
     const context = await this.context.assemble();
     const prompt = this.prompts.build(question, context);
+    // Context Budget Guard — runs after the prompt is built but BEFORE the
+    // provider is called, so an over-budget prompt never reaches the network.
+    if (prompt.length > this.budgetChars) {
+      throw new ContextBudgetExceededError(prompt.length, this.budgetChars);
+    }
     const answer = await this.generator.generate(prompt);
     // `sources` is intentionally omitted in TASK_010 (reserved for citations).
     return { answer };

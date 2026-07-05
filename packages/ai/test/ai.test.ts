@@ -1,10 +1,11 @@
 import { LearningEngine, MemoryStore } from '@alsavi/engine';
-import { describe, expect, it } from 'vitest';
-import { AIService } from '../src/AIService.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AIService, ContextBudgetExceededError } from '../src/AIService.js';
 import { ContextAssembler } from '../src/ContextAssembler.js';
 import { PromptBuilder } from '../src/PromptBuilder.js';
 import { MockProvider } from '../src/providers/MockProvider.js';
-import type { AssembledContext } from '../src/types.js';
+import { OllamaProvider } from '../src/providers/OllamaProvider.js';
+import type { AssembledContext, LLMProvider } from '../src/types.js';
 
 const T0 = new Date('2026-07-01T10:00:00Z').getTime();
 
@@ -77,7 +78,7 @@ describe('AIService (end-to-end with MockProvider)', () => {
     const provider = new MockProvider((prompt) =>
       prompt.includes('der Hund') ? 'Your collection includes der Hund.' : 'No such card.'
     );
-    const service = new AIService({ engine, provider });
+    const service = new AIService({ engine, provider, budgetChars: 100_000 });
 
     const result = await service.answer('Do I have a card about der Hund?');
 
@@ -87,11 +88,83 @@ describe('AIService (end-to-end with MockProvider)', () => {
 
   it('is deterministic with the default MockProvider', async () => {
     const engine = await fixtureEngine();
-    const service = new AIService({ engine, provider: new MockProvider() });
+    const service = new AIService({ engine, provider: new MockProvider(), budgetChars: 100_000 });
     const a = await service.answer('anything');
     const b = await service.answer('anything');
     expect(a.answer).toBe(b.answer);
     expect(a.answer).toMatch(/^Mock answer based on a \d+-character prompt\.$/);
+  });
+});
+
+describe('Context Budget Guard (AIService)', () => {
+  /** A provider that records whether it was invoked, without any network. */
+  function trackedProvider(): { provider: LLMProvider; calls: () => number } {
+    let n = 0;
+    return {
+      provider: {
+        async generate() {
+          n += 1;
+          return 'ok';
+        },
+      },
+      calls: () => n,
+    };
+  }
+
+  it('within budget: the prompt is passed to the provider', async () => {
+    const engine = await fixtureEngine();
+    const t = trackedProvider();
+    const service = new AIService({ engine, provider: t.provider, budgetChars: 100_000 });
+    const res = await service.answer('anything');
+    expect(res.answer).toBe('ok');
+    expect(t.calls()).toBe(1);
+  });
+
+  it('over budget: throws ContextBudgetExceededError before the provider runs (no HTTP)', async () => {
+    const engine = await fixtureEngine();
+    const t = trackedProvider();
+    const service = new AIService({ engine, provider: t.provider, budgetChars: 10 });
+
+    const err = await service.answer('anything').catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ContextBudgetExceededError);
+    const budgetErr = err as ContextBudgetExceededError;
+    expect(budgetErr.budgetChars).toBe(10);
+    expect(budgetErr.actualChars).toBeGreaterThan(10);
+    expect(t.calls()).toBe(0); // guard runs before the provider is ever called
+  });
+});
+
+describe('OllamaProvider (no real HTTP)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('POSTs the prompt to /api/generate (stream disabled) and returns the response text', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: { method: string; body: string }) => ({
+      ok: true,
+      json: async () => ({ response: 'Hallo' }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const provider = new OllamaProvider({ endpoint: 'http://localhost:11434', model: 'llama3' });
+    const out = await provider.generate('say hi');
+
+    expect(out).toBe('Hallo');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('http://localhost:11434/api/generate');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({ model: 'llama3', prompt: 'say hi', stream: false });
+  });
+
+  it('throws when the server responds with a non-OK status', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: false, status: 500, statusText: 'Server Error', json: async () => ({}) }))
+    );
+    const provider = new OllamaProvider({ endpoint: 'http://x', model: 'm' });
+    await expect(provider.generate('p')).rejects.toThrow(/Ollama request failed: 500/);
   });
 });
 

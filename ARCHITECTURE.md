@@ -337,7 +337,7 @@ node с `MemoryStore`.
   заменяет строки транзакционно на живом соединении; managed close/reopen не
   нужен (транзакция делает его излишним — см. решение TASK_009).
 
-## 11c. AI Layer (`packages/ai`, TASK_010)
+## 11c. AI Layer (`packages/ai`, TASK_010 / TASK_011)
 
 Отдельный **пакет-потребитель** `@alsavi/ai` — первый read-only consumer ядра.
 Программная точка входа `AIService.answer(question): Promise<AIAnswer>`. **Не в
@@ -357,16 +357,28 @@ Engine на каждый `answer`.
   не ищет, не вызывает модель.
 - **`AnswerGenerator`** — генерация ответа через абстракцию `LLMProvider`; не
   знает о конкретной реализации провайдера.
-- **`LLMProvider`** (`generate(prompt) → string`) — граница модели. Единственная
-  реализация сегодня — `MockProvider` (детерминированный, оффлайн, для
-  воспроизводимых тестов). Реальные провайдеры (OpenAI/Ollama/Claude) — вне
-  TASK_010.
+- **`LLMProvider`** (`generate(prompt) → string`) — граница модели. Реализации:
+  `MockProvider` (детерминированный, оффлайн — штатный провайдер тестов) и
+  `OllamaProvider` (TASK_011) — реальный провайдер поверх локального Ollama
+  (`POST {endpoint}/api/generate`, `stream:false`); endpoint и модель — только из
+  конфигурации. Сам интерфейс `LLMProvider` не менялся — `OllamaProvider` лишь
+  реализует его; tokenizer, подсчёт токенов, streaming, второй провайдер не
+  вводятся.
 - **`AIService`** — только оркестрация: `ContextAssembler` → `PromptBuilder` →
-  `AnswerGenerator` → `AIAnswer`.
+  Context Budget Guard → `AnswerGenerator` → `AIAnswer`.
 
 `AIAnswer` — `{ readonly answer: string; readonly sources?: readonly string[] }`;
-`sources` зарезервировано под будущие citations и в TASK_010 не заполняется
-(объект, а не голая строка — чтобы расширять без ломающего изменения API).
+`sources` зарезервировано под будущие citations и не заполняется (объект, а не
+голая строка — чтобы расширять без ломающего изменения API).
+
+**Context Budget Guard (TASK_011).** `AIService.answer` перед вызовом провайдера
+— т.е. **до любого HTTP** — сравнивает длину итогового prompt (в **символах**) с
+`budgetChars` (обязательное поле `AIServiceOptions`); при превышении бросает
+`ContextBudgetExceededError { actualChars, budgetChars }`, провайдер не
+вызывается. Guard живёт inline в `AIService` (одна проверка; отдельной
+абстракции не заведено — принцип простоты). **Context Budget ≠ Model Window:**
+это сознательный consumer-side лимит на объём отправляемого текста в символах, а
+не токеновое окно модели — токены AI Layer не считает и не токенизирует.
 
 Границы enforced тестами (`packages/ai/test`, симметрично `layer boundary`
 ядра): ни один файл Engine не импортирует из `ai`; ни один файл `ai` не

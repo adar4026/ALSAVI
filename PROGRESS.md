@@ -1,5 +1,28 @@
 # PROGRESS
 
+## 2026-07-05 — TASK_011 (First real LLMProvider — Ollama, consumer-side, guarded)
+
+Сделано:
+- **`OllamaProvider`** (`packages/ai/src/providers/OllamaProvider.ts`) — первый реальный `LLMProvider` поверх локального Ollama. Реализует **существующий** интерфейс `LLMProvider` (`generate(prompt) → string`), ничего в него не добавляя. `POST {endpoint}/api/generate` с `{model, prompt, stream:false}`, возвращает `response`. **Endpoint и модель — только из конфигурации** конструктора (`{endpoint, model}`), без хардкода. Consumer-side, **stateless**, знает формат Ollama только он — остальные модули видят лишь абстракцию.
+- **Context Budget Guard** — inline в `AIService.answer`, **между** сборкой prompt и вызовом провайдера, т.е. **до любого HTTP**. Сравнивает длину итогового prompt (в **символах**) с `budgetChars` (новое **обязательное** поле `AIServiceOptions`); при превышении бросает `ContextBudgetExceededError { actualChars, budgetChars }`, провайдер не вызывается. Отдельной абстракции под одну проверку не заводил (принцип простоты; развилка по стоп-условию B была вынесена и подтверждена основателем — inline).
+- **Model Window ≠ Context Budget:** Context Budget — сознательный consumer-side лимит объёма отправляемого текста в **символах**; токеновое окно модели (Model Window) — другое, токены AI Layer не считает и не токенизирует (tokenizer/подсчёт токенов запрещены и не вводились).
+- **Границы соблюдены (стоп-условие A — нарушений нет):** Engine, его публичный API, Storage/DexieStore, Scheduler/FSRS, Backup/Import — **не тронуты** (git: пустой diff в `packages/engine` и его экспортах). AI Layer не получил Selection/Retrieval/Search, своего индекса/кэша/состояния. `MockProvider` остаётся штатным провайдером тестов. Контракт `AIAnswer` и интерфейс `LLMProvider` не менялись.
+- DI провайдера — прежним путём (`AIService({ engine, provider, budgetChars })`); `OllamaProvider` просто передаётся как `provider`.
+- Тесты (+4 в `@alsavi/ai`: 7 → 11; всего engine 45 + anki-import 18/+1 skip + backup 10 + ai 11): guard в пределах бюджета → prompt уходит провайдеру; превышение → `ContextBudgetExceededError` с верными `actualChars`/`budgetChars`, **провайдер не вызван** (доказывает «до HTTP»); `OllamaProvider` через **мок `fetch`** (`vi.stubGlobal`) — правильный URL `/api/generate`, тело `{model,prompt,stream:false}`, парсинг `response`; non-OK статус → ошибка. **Ни один тест не делает реальных HTTP-запросов.** Существующие тесты AIService обновлены передачей `budgetChars` (расширение ai-тестов). Границы по-прежнему enforced guard-тестами.
+- Документы: ARCHITECTURE.md §11c (реальный `OllamaProvider`, Context Budget Guard, разделение Model Window / Context Budget). ENGINE.md **не менялся** — Engine не изменялся.
+
+Решения и почему:
+- **Тестирование `OllamaProvider` без реального HTTP** — через подмену глобального `fetch` (`vi.stubGlobal`), а не инъекцию `fetch` в конструктор: конфиг провайдера остаётся ровно `{endpoint, model}`, лишней зависимости конструктора нет (подтверждено основателем на развилке).
+- **`budgetChars` — обязательное поле**, а не дефолт: явная политика без скрытой «магической» константы (подтверждено основателем).
+- **Guard в `AIService`, inline** — единственная точка, где prompt собран, но не отправлен; покрывается существующими тестами AIService, отдельный модуль под один вызов не оправдан.
+
+Сознательно вне рамок (не делалось): реальные провайдеры кроме Ollama, второй провайдер, tokenizer/подсчёт токенов, Selection/Retrieval/Search/embeddings, streaming, citations, UI/CLI. Всё это — будущие задачи; по ADR-004 любое развитие retrieval — на стороне публичного API Engine, не AI Layer.
+
+Следующий шаг:
+- Сквозной UI/CLI поверх `AIService.answer` с выбором провайдера (Mock/Ollama) и настройкой `budgetChars`; либо синхронизация/дедупликация поверх backup-формата (TASK_009).
+
+---
+
 ## 2026-07-04 — TASK_010 (AI Layer — первый read-only consumer)
 
 Сделано:
