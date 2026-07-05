@@ -1,0 +1,22 @@
+{
+  "name": "@alsavi/cli",
+  "private": true,
+  "version": "0.1.0",
+  "description": "ALSAVI CLI — first end-to-end user entry point. `ask` composes AIService + OllamaProvider in-process and prints the model's answer. No transport layer, no business logic.",
+  "type": "module",
+  "scripts": {
+    "ask": "tsx src/main.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@alsavi/ai": "*",
+    "@alsavi/engine": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}

@@ -1,5 +1,28 @@
 # PROGRESS
 
+## 2026-07-05 — TASK_012 (First end-to-end user scenario — CLI `ask`)
+
+Сделано:
+- Новое приложение **`apps/cli`** (`@alsavi/cli`) — **первая законченная пользовательская точка входа ALSAVI**. Команда `ask [--endpoint <url>] --model <name> --context-budget <int> "<question>"`. Полный путь `CLI → AIService.answer() → Engine → OllamaProvider → модель → stdout`, целиком в Node-процессе. **Никакого нового транспортного слоя** (HTTP/REST/GraphQL/WS/IPC/daemon).
+- **CLI — чистая композиция без бизнес-логики:** ручной разбор `process.argv` (без CLI-фреймворков) в чистом `args.ts`; оркестрация в `run(argv, io): Promise<exitCode>` (вывод через инъектируемые stdout/stderr → тестируется без process-потоков); тонкий bin `main.ts`. Локальный запуск — скрипт `ask` через `tsx` (TS-раннер, не CLI-фреймворк; добавлен как devDependency). Проверено вживую: `npm run ask -w @alsavi/cli -- --model llama3` → usage в stderr, код 2.
+- **Конфигурация только через аргументы** (без dotenv/env/config-файлов): `--model` и `--context-budget` обязательны, `--endpoint` опционален; `--context-budget` — положительное целое → маппится в обязательный `contextBudgetChars`. **Дефолт endpoint `http://127.0.0.1:11434` — политика CLI**, `OllamaProvider` дефолта не содержит (TASK_011).
+- **Разрешение расхождения (вынесено основателю до кода):** `AIServiceOptions.engine` обязателен, а пример задачи создавал `AIService` без него. По подтверждённому решению CLI строит **пустой in-memory движок** `new LearningEngine(new MemoryStore())` (без персистентности/карт — загрузка коллекции вне рамок), поэтому зависит и от `@alsavi/ai`, и от `@alsavi/engine` (только для создания требуемого движка). Формулировка «исключительно @alsavi/ai» смягчена соответственно. **AI Layer, Engine и их публичные API не изменялись** (git: пустой diff в `packages/engine` и `packages/ai`).
+- **Ошибки:** неверные аргументы → stderr + код 2, AIService не создаётся; `ContextBudgetExceededError` → показ `actualChars`/`budgetChars`, код 1; runtime (Ollama недоступна/ECONNREFUSED) → проброс как есть, код 1, без retry/автозапуска/подмены endpoint. Успех → **ровно текст ответа модели** в stdout, без баннеров/логов, код 0.
+- Тесты (+18 в `@alsavi/cli`; всего engine 45 + anki-import 18/+1 skip + backup 10 + ai 13 + cli 18): разбор аргументов и маппинг флагов; отклонение отсутствующих `--model`/`--context-budget`/вопроса, неположительного бюджета, неизвестного флага; коды возврата; **дефолт endpoint** (мок `fetch` вызван с `http://127.0.0.1:11434/api/generate` — DoD 11); явный `--endpoint`; arg-ошибка → HTTP не вызывается; `ContextBudgetExceededError` до HTTP; runtime-ошибка. **Весь HTTP мокируется `vi.stubGlobal('fetch', …)` — ни один тест не требует Ollama, CI детерминирован.**
+- Документы: ARCHITECTURE.md §11d (CLI как первая пользовательская точка входа). ENGINE.md **не менялся** — Engine не изменялся.
+
+Решения и почему:
+- **Пустой in-memory движок в CLI** — минимальный способ удовлетворить обязательный `engine`, не трогая AI Layer; загрузка реальной коллекции (storage-путь, конфиг) сознательно вне TASK_012.
+- **`run(argv, io)` + инъекция потоков** — вся логика тестируема без подмены process.stdout; `main.ts` тривиален.
+- **`tsx` для локального запуска** — Node v24 не резолвит workspace-TS с bundler-импортами напрямую; `tsx` даёт запуск без шага сборки, оставаясь только dev-зависимостью.
+
+Сознательно вне рамок (не делалось): HTTP API/REST/GraphQL/Web/Mobile/IPC/daemon/streaming, history/multi-turn, Retrieval/Selection/Search/embeddings, citations/sources, tokenizer, tool calling, config-файлы/dotenv/env, публикация npm, глобальная установка, имя bin.
+
+Следующий шаг:
+- Загрузка реальной коллекции пользователя в CLI (storage-путь) поверх того же `AIService`; либо выбор провайдера (Mock/Ollama) флагом; либо синхронизация/дедупликация поверх backup-формата (TASK_009).
+
+---
+
 ## 2026-07-05 — TASK_011 (First real LLMProvider — Ollama, consumer-side, guarded)
 
 Сделано:

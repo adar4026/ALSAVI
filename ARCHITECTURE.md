@@ -387,6 +387,43 @@ Engine на каждый `answer`.
 **необходимого** контекста — по правилу задачи реализация останавливается и
 вопрос выносится основателю, а не решается своим индексом/поиском/кэшем.
 
+## 11d. CLI (`apps/cli`, TASK_012)
+
+**Первая законченная пользовательская точка входа ALSAVI** — команда `ask`
+(`apps/cli`, `@alsavi/cli`). Это `apps/*` (приложение-потребитель), не
+библиотека. Полный путь: `CLI → AIService.answer() → Engine → OllamaProvider →
+модель → stdout`. **Никакого нового транспортного слоя** (HTTP/REST/GraphQL/
+WebSocket/IPC/daemon) — CLI вызывает `AIService.answer()` прямо в Node-процессе.
+
+- **Композиция, без бизнес-логики.** CLI = ручной разбор `process.argv` (без
+  CLI-фреймворков) → создание `AIService`/`OllamaProvider` → `answer()` → вывод
+  ответа → код возврата. Разбор аргументов вынесен в чистый `args.ts`; вся
+  оркестрация — в `run(argv, io): Promise<exitCode>` (пишет через инъектируемые
+  stdout/stderr, поэтому тестируется без обращения к process-потокам); `main.ts`
+  — тонкий bin-entry.
+- **Конфигурация только через аргументы** (`--model`, `--context-budget`
+  обязательны; `--endpoint` опционален), без dotenv/env/config-файлов.
+  `--context-budget` маппится в обязательный `contextBudgetChars`
+  (`AIServiceOptions`).
+- **Дефолт endpoint — политика CLI, не провайдера.** При отсутствии
+  `--endpoint` CLI передаёт в `OllamaProvider` `http://127.0.0.1:11434`. Сам
+  `OllamaProvider` дефолта не содержит (TASK_011) — политика по умолчанию живёт
+  у потребителя.
+- **Требуемый `AIServiceOptions.engine`** удовлетворяется композицией: CLI
+  создаёт пустой in-memory движок `new LearningEngine(new MemoryStore())` (без
+  персистентности/карт — загрузка коллекции вне рамок TASK_012). Поэтому CLI
+  зависит и от `@alsavi/ai`, и от `@alsavi/engine` (только чтобы построить
+  требуемый движок). **AI Layer, Engine и их публичные API не изменялись.**
+- **Ошибки → stderr + код возврата ≠ 0:** неверные аргументы (AIService не
+  создаётся), `ContextBudgetExceededError` (показываются `actualChars`/
+  `budgetChars`), runtime-ошибки (Ollama недоступна/ECONNREFUSED —
+  пробрасываются как есть; без retry/автозапуска/подмены endpoint). Успех →
+  ровно текст ответа модели в stdout, код `0`.
+- **Тесты (`apps/cli/test`)**: разбор аргументов, маппинг флагов, коды возврата,
+  дефолт endpoint (`http://127.0.0.1:11434`), обработка ошибок. Весь HTTP
+  мокируется (`vi.stubGlobal('fetch', …)`) — ни один тест не требует работающей
+  Ollama, CI детерминирован.
+
 ## 12. Future Architecture (направление, не контракт)
 
 Ниже — стратегические направления из конституции/Roadmap. **Интерфейсы заранее
