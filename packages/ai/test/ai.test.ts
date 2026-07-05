@@ -133,6 +133,41 @@ describe('Context Budget Guard (AIService)', () => {
     expect(budgetErr.actualChars).toBeGreaterThan(10);
     expect(t.calls()).toBe(0); // guard runs before the provider is ever called
   });
+
+  // Exact-boundary tests: pin the comparison so a `>` → `>=` swap is caught.
+  // L is the deterministic length of the assembled prompt for a fixed question.
+  const BOUNDARY_QUESTION = 'Boundary?';
+  async function assembledPromptLength(engine: LearningEngine): Promise<number> {
+    const context = await new ContextAssembler(engine).assemble();
+    return new PromptBuilder().build(BOUNDARY_QUESTION, context).length;
+  }
+
+  it('at the exact boundary (budgetChars === L): passes, provider called', async () => {
+    const engine = await fixtureEngine();
+    const L = await assembledPromptLength(engine);
+    const t = trackedProvider();
+    const service = new AIService({ engine, provider: t.provider, budgetChars: L });
+
+    const res = await service.answer(BOUNDARY_QUESTION);
+
+    expect(res.answer).toBe('ok');
+    expect(t.calls()).toBe(1);
+  });
+
+  it('one over the boundary (budgetChars === L - 1): throws with exact counts, provider not called', async () => {
+    const engine = await fixtureEngine();
+    const L = await assembledPromptLength(engine);
+    const t = trackedProvider();
+    const service = new AIService({ engine, provider: t.provider, budgetChars: L - 1 });
+
+    const err = await service.answer(BOUNDARY_QUESTION).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ContextBudgetExceededError);
+    const budgetErr = err as ContextBudgetExceededError;
+    expect(budgetErr.actualChars).toBe(L);
+    expect(budgetErr.budgetChars).toBe(L - 1);
+    expect(t.calls()).toBe(0);
+  });
 });
 
 describe('OllamaProvider (no real HTTP)', () => {
