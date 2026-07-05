@@ -16,7 +16,7 @@ export interface AIServiceOptions {
    * distinct from the model's own token window (Model Window). This is measured
    * in characters, not tokens: the AI Layer does not tokenize or count tokens.
    */
-  budgetChars: number;
+  contextBudgetChars: number;
 }
 
 /**
@@ -47,13 +47,13 @@ export class AIService {
   private readonly context: ContextAssembler;
   private readonly prompts: PromptBuilder;
   private readonly generator: AnswerGenerator;
-  private readonly budgetChars: number;
+  private readonly contextBudgetChars: number;
 
   constructor(options: AIServiceOptions) {
     this.context = new ContextAssembler(options.engine);
     this.prompts = new PromptBuilder();
     this.generator = new AnswerGenerator(options.provider);
-    this.budgetChars = options.budgetChars;
+    this.contextBudgetChars = options.contextBudgetChars;
   }
 
   async answer(question: string): Promise<AIAnswer> {
@@ -61,8 +61,8 @@ export class AIService {
     const prompt = this.prompts.build(question, context);
     // Context Budget Guard — runs after the prompt is built but BEFORE the
     // provider is called, so an over-budget prompt never reaches the network.
-    if (prompt.length > this.budgetChars) {
-      throw new ContextBudgetExceededError(prompt.length, this.budgetChars);
+    if (prompt.length > this.contextBudgetChars) {
+      throw new ContextBudgetExceededError(prompt.length, this.contextBudgetChars);
     }
     const answer = await this.generator.generate(prompt);
     // `sources` is intentionally omitted in TASK_010 (reserved for citations).

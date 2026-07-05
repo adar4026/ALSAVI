@@ -78,7 +78,7 @@ describe('AIService (end-to-end with MockProvider)', () => {
     const provider = new MockProvider((prompt) =>
       prompt.includes('der Hund') ? 'Your collection includes der Hund.' : 'No such card.'
     );
-    const service = new AIService({ engine, provider, budgetChars: 100_000 });
+    const service = new AIService({ engine, provider, contextBudgetChars: 100_000 });
 
     const result = await service.answer('Do I have a card about der Hund?');
 
@@ -88,7 +88,7 @@ describe('AIService (end-to-end with MockProvider)', () => {
 
   it('is deterministic with the default MockProvider', async () => {
     const engine = await fixtureEngine();
-    const service = new AIService({ engine, provider: new MockProvider(), budgetChars: 100_000 });
+    const service = new AIService({ engine, provider: new MockProvider(), contextBudgetChars: 100_000 });
     const a = await service.answer('anything');
     const b = await service.answer('anything');
     expect(a.answer).toBe(b.answer);
@@ -114,7 +114,7 @@ describe('Context Budget Guard (AIService)', () => {
   it('within budget: the prompt is passed to the provider', async () => {
     const engine = await fixtureEngine();
     const t = trackedProvider();
-    const service = new AIService({ engine, provider: t.provider, budgetChars: 100_000 });
+    const service = new AIService({ engine, provider: t.provider, contextBudgetChars: 100_000 });
     const res = await service.answer('anything');
     expect(res.answer).toBe('ok');
     expect(t.calls()).toBe(1);
@@ -123,7 +123,7 @@ describe('Context Budget Guard (AIService)', () => {
   it('over budget: throws ContextBudgetExceededError before the provider runs (no HTTP)', async () => {
     const engine = await fixtureEngine();
     const t = trackedProvider();
-    const service = new AIService({ engine, provider: t.provider, budgetChars: 10 });
+    const service = new AIService({ engine, provider: t.provider, contextBudgetChars: 10 });
 
     const err = await service.answer('anything').catch((e: unknown) => e);
 
@@ -142,11 +142,11 @@ describe('Context Budget Guard (AIService)', () => {
     return new PromptBuilder().build(BOUNDARY_QUESTION, context).length;
   }
 
-  it('at the exact boundary (budgetChars === L): passes, provider called', async () => {
+  it('at the exact boundary (contextBudgetChars === L): passes, provider called', async () => {
     const engine = await fixtureEngine();
     const L = await assembledPromptLength(engine);
     const t = trackedProvider();
-    const service = new AIService({ engine, provider: t.provider, budgetChars: L });
+    const service = new AIService({ engine, provider: t.provider, contextBudgetChars: L });
 
     const res = await service.answer(BOUNDARY_QUESTION);
 
@@ -154,11 +154,11 @@ describe('Context Budget Guard (AIService)', () => {
     expect(t.calls()).toBe(1);
   });
 
-  it('one over the boundary (budgetChars === L - 1): throws with exact counts, provider not called', async () => {
+  it('one over the boundary (contextBudgetChars === L - 1): throws with exact counts, provider not called', async () => {
     const engine = await fixtureEngine();
     const L = await assembledPromptLength(engine);
     const t = trackedProvider();
-    const service = new AIService({ engine, provider: t.provider, budgetChars: L - 1 });
+    const service = new AIService({ engine, provider: t.provider, contextBudgetChars: L - 1 });
 
     const err = await service.answer(BOUNDARY_QUESTION).catch((e: unknown) => e);
 

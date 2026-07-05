@@ -373,7 +373,7 @@ Engine на каждый `answer`.
 
 **Context Budget Guard (TASK_011).** `AIService.answer` перед вызовом провайдера
 — т.е. **до любого HTTP** — сравнивает длину итогового prompt (в **символах**) с
-`budgetChars` (обязательное поле `AIServiceOptions`); при превышении бросает
+`contextBudgetChars` (обязательное поле `AIServiceOptions`); при превышении бросает
 `ContextBudgetExceededError { actualChars, budgetChars }`, провайдер не
 вызывается. Guard живёт inline в `AIService` (одна проверка; отдельной
 абстракции не заведено — принцип простоты). **Context Budget ≠ Model Window:**
