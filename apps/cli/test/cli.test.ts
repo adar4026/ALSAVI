@@ -1,6 +1,21 @@
+import { exportBackup } from '@alsavi/backup';
+import { LearningEngine, MemoryStore } from '@alsavi/engine';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs } from '../src/args.js';
 import { DEFAULT_ENDPOINT, run, type CliIO } from '../src/cli.js';
+
+const T0 = new Date('2026-07-01T10:00:00Z').getTime();
+
+/** Build a valid, NON-EMPTY exported backup snapshot (JSON string). */
+async function validSnapshotJson(): Promise<string> {
+  const store = new MemoryStore();
+  let seq = 0;
+  const engine = new LearningEngine(store, { now: () => T0, newId: () => `id-${seq++}` });
+  const { cards } = await engine.addNote({ front: 'der Hund', back: 'собака' });
+  await engine.review(cards[0]!.id, 'good');
+  expect((await store.listCards()).length).toBeGreaterThan(0); // snapshot is non-empty
+  return exportBackup(store, () => T0);
+}
 
 function makeIO(): { io: CliIO; out: () => string; err: () => string } {
   const out: string[] = [];
@@ -46,6 +61,11 @@ describe('parseArgs (flag → config mapping)', () => {
   it('endpoint is optional — absent → no endpoint key', () => {
     const r = parseArgs(['--model', 'llama3', '--context-budget', '100', 'q']);
     expect(r).toEqual({ ok: true, config: { model: 'llama3', contextBudget: 100, question: 'q' } });
+  });
+
+  it('maps --db to config.db', () => {
+    const r = parseArgs(['--db', '/x/snap.json', '--model', 'm', '--context-budget', '100', 'q']);
+    expect(r).toEqual({ ok: true, config: { model: 'm', contextBudget: 100, question: 'q', db: '/x/snap.json' } });
   });
 
   it('rejects missing --model', () => {
@@ -142,5 +162,72 @@ describe('run — error paths and exit codes', () => {
 
     expect(code).not.toBe(0);
     expect(err()).toMatch(/ECONNREFUSED/);
+  });
+});
+
+describe('run — --db snapshot loading', () => {
+  it('loads a valid snapshot and answers over the non-empty base (provider called once)', async () => {
+    const json = await validSnapshotJson();
+    const fetchMock = stubOllama('answer');
+    const readFile = vi.fn(async (_path: string) => json);
+    const { io, out } = makeIO();
+
+    const code = await run(
+      ['--db', '/snap.json', '--model', 'llama3', '--context-budget', '20000', 'q'],
+      io,
+      { readFile }
+    );
+
+    expect(code).toBe(0);
+    expect(out()).toBe('answer');
+    expect(readFile).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // AIService.answer ran over the loaded snapshot
+  });
+
+  it('missing/unreadable file → stderr, non-zero, provider not called', async () => {
+    const fetchMock = stubOllama();
+    const readFile = vi.fn(async (_path: string) => {
+      throw Object.assign(new Error("ENOENT: no such file or directory, open '/nope.json'"), { code: 'ENOENT' });
+    });
+    const { io, err } = makeIO();
+
+    const code = await run(
+      ['--db', '/nope.json', '--model', 'm', '--context-budget', '20000', 'q'],
+      io,
+      { readFile }
+    );
+
+    expect(code).not.toBe(0);
+    expect(err().length).toBeGreaterThan(0);
+    expect(fetchMock).not.toHaveBeenCalled(); // engine/AIService never reached
+  });
+
+  it('invalid backup → stderr with reason, non-zero, provider not called', async () => {
+    const fetchMock = stubOllama();
+    const readFile = vi.fn(async (_path: string) => '{"format":"not-alsavi"}'); // valid JSON, fails parseBackup
+    const { io, err } = makeIO();
+
+    const code = await run(
+      ['--db', '/bad.json', '--model', 'm', '--context-budget', '20000', 'q'],
+      io,
+      { readFile }
+    );
+
+    expect(code).not.toBe(0);
+    expect(err().length).toBeGreaterThan(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('without --db the reader is never touched (TASK_012 behavior preserved)', async () => {
+    stubOllama();
+    const readFile = vi.fn(async (_path: string) => {
+      throw new Error('reader must not be called without --db');
+    });
+    const { io } = makeIO();
+
+    const code = await run(['--model', 'm', '--context-budget', '20000', 'q'], io, { readFile });
+
+    expect(code).toBe(0);
+    expect(readFile).not.toHaveBeenCalled();
   });
 });

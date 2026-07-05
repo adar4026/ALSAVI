@@ -1,5 +1,27 @@
 # PROGRESS
 
+## 2026-07-05 — TASK_013 (CLI reads a real ALSAVI backup snapshot — `--db`)
+
+Сделано:
+- В `apps/cli` добавлен **опциональный флаг `--db <path>`** — первый E2E на настоящих данных: `backup.json (снимок) → importBackup → MemoryStore → LearningEngine → AIService → Ollama → ответ`. **Без `--db`** — поведение TASK_012 без изменений (пустой `MemoryStore`); существующие CLI-тесты зелёные без правок. **С `--db`**: `fs.readFile` (UTF-8) → `new MemoryStore()` → `await importBackup(store, text)` → `new LearningEngine(store)` → далее как в TASK_012.
+- **Используется существующий публичный механизм, не дублируется:** `importBackup(store, text)` сам валидирует через `parseBackup` и **бросает `BackupError`** на невалидном входе (контракт установлен в Фазе 1 чтением кода — это throw, не report-с-флагом). CLI не парсит backup вручную и не дублирует валидацию. CLI остаётся composition root — только собирает готовые компоненты.
+- **Мост web → file → CLI (осознанная граница):** реальные карточки живут в браузерном IndexedDB (`DexieStore`), недоступном Node; ручной экспорт из web (`exportBackup` → JSON) — единственный путь в Node. CLI отвечает **по снимку на момент экспорта**, не по live-базе. Живая синхронизация/общий Node-стор — явно вне рамок (сработает только если ручной экспорт окажется реальным трением — наблюдение, не предположение).
+- **Ошибки — часть контракта:** файл не найден/нечитаем (`ENOENT`) и невалидный backup — оба **бросают**, покрыты одной `try/catch` вокруг фазы загрузки → понятное сообщение в stderr + код ≠ 0; движок/`AIService` **не строятся**, провайдер не вызывается. Без retry/автодействий (как ошибки аргументов в TASK_012; код `1` для сбоя загрузки, `2` остаётся за ошибками формы аргументов).
+- **Границы:** изменён **только** `apps/cli` (STOP-условие A не наступило). Engine, публичный API Engine, `AIService`/`LLMProvider`/`OllamaProvider`/`MockProvider`/Context Budget Guard, `@alsavi/backup`, `apps/web`, любой Storage — **не тронуты** (git: пустой diff в `packages/engine`, `packages/ai`, `packages/backup`, `apps/web`). Нового Storage/API/HTTP нет. `@alsavi/backup` добавлен в `dependencies` CLI (пакет разрешён заданием; сам не менялся). Чтение файла — встроенный `node:fs`, не новая зависимость.
+- Тесты (+5 в `@alsavi/cli`: 18 → 23; всего engine 45 + anki-import 18/+1 skip + backup 10 + ai 13 + cli 23): маппинг `--db` в конфиг; `--db` с валидным непустым снимком (фикстура через `exportBackup` от засеянного движка, `fs` замокан) → `importBackup` успешен, engine над непустым `MemoryStore`, `answer()` без ошибок, **провайдер вызван ровно один раз** (содержимое prompt не проверяется — деталь PromptBuilder); несуществующий файл → код ≠ 0, stderr, провайдер не вызван; невалидный backup → код ≠ 0, stderr, провайдер не вызван; без `--db` — reader вообще не вызывается. **`fs` инъектируется в `run(argv, io, deps?)` (`deps.readFile`, дефолт `node:fs/promises`)** — существующие тесты `run(argv, io)` и `main.ts` не менялись. Весь HTTP через `vi.stubGlobal('fetch', …)`. **Ни один тест не требует реального файла или Ollama; CI детерминирован.**
+- Документы: ARCHITECTURE.md §11d (загрузка снимка через `--db`, мост web→file→CLI, ответ по снимку не live). ENGINE.md **не менялся** — Engine не изменялся.
+
+Решения и почему:
+- **Инъекция `readFile` в `run`** (вместо `vi.mock('node:fs')`) — детерминизм и единый стиль с инъекцией `io`; подпись `run(argv, io, deps?)` обратно совместима (дефолт — реальный `node:fs/promises`), `main.ts` не тронут (подтверждено основателем на развилке).
+- **Единая `try/catch`** для обеих ошибок загрузки — потому что фактический контракт `importBackup` и `fs.readFile` одинаков (throw); отдельная обработка не нужна.
+
+Сознательно вне рамок (не делалось): новый Storage (file/sqlite/level), живая синхронизация web↔CLI, автоэкспорт из браузера, HTTP/mobile, Selection/Retrieval/Search, streaming, citations, изменение Engine/AI/backup/web, новый публичный API, tokenizer.
+
+Следующий шаг:
+- Наблюдать, окажется ли ручной экспорт реальным трением; при подтверждении — обсуждать способ доступа Node к данным (общий файловый стор или backup-как-вход по умолчанию). Либо выбор провайдера (Mock/Ollama) флагом.
+
+---
+
 ## 2026-07-05 — TASK_012 (First end-to-end user scenario — CLI `ask`)
 
 Сделано:

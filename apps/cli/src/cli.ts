@@ -1,4 +1,6 @@
+import { readFile } from 'node:fs/promises';
 import { AIService, ContextBudgetExceededError, OllamaProvider } from '@alsavi/ai';
+import { importBackup } from '@alsavi/backup';
 import { LearningEngine, MemoryStore } from '@alsavi/engine';
 import { parseArgs } from './args.js';
 
@@ -11,6 +13,14 @@ export interface CliIO {
   stderr: (chunk: string) => void;
 }
 
+/** Injected side-effect deps, so `run` is testable without touching the disk. */
+export interface CliDeps {
+  /** Read a file's text (UTF-8). Defaults to `node:fs/promises`. */
+  readFile: (path: string) => Promise<string>;
+}
+
+const defaultDeps: CliDeps = { readFile: (path) => readFile(path, 'utf8') };
+
 /**
  * The whole `ask` command: parse args → build AIService (over an empty
  * in-memory Engine) + OllamaProvider → answer → print → exit code.
@@ -19,15 +29,30 @@ export interface CliIO {
  * (and `@alsavi/engine`, solely to instantiate the required `LearningEngine`)
  * and reports the result. Returns the process exit code.
  */
-export async function run(argv: readonly string[], io: CliIO): Promise<number> {
+export async function run(argv: readonly string[], io: CliIO, deps: CliDeps = defaultDeps): Promise<number> {
   const parsed = parseArgs(argv);
   if (!parsed.ok) {
     io.stderr(`${parsed.error}\n`);
     return 2; // usage error — AIService is never constructed below
   }
-  const { model, contextBudget, endpoint, question } = parsed.config;
+  const { model, contextBudget, endpoint, question, db } = parsed.config;
 
-  const engine = new LearningEngine(new MemoryStore());
+  // Data source: empty MemoryStore, or — with --db — a real exported snapshot
+  // loaded via the existing restore mechanism. On failure the engine/AIService
+  // are never constructed. importBackup itself validates (throws BackupError).
+  const store = new MemoryStore();
+  if (db !== undefined) {
+    try {
+      await importBackup(store, await deps.readFile(db));
+    } catch (error) {
+      io.stderr(
+        `Failed to load database snapshot from ${db}: ${error instanceof Error ? error.message : String(error)}\n`
+      );
+      return 1;
+    }
+  }
+
+  const engine = new LearningEngine(store);
   const provider = new OllamaProvider({ endpoint: endpoint ?? DEFAULT_ENDPOINT, model });
   const service = new AIService({ engine, provider, contextBudgetChars: contextBudget });
 

@@ -11,6 +11,8 @@ export interface CliConfig {
   readonly question: string;
   /** Optional; when absent the CLI (not this parser) supplies the default. */
   readonly endpoint?: string;
+  /** Optional path to an exported ALSAVI backup snapshot to answer over. */
+  readonly db?: string;
 }
 
 export type ParseResult =
@@ -18,14 +20,15 @@ export type ParseResult =
   | { readonly ok: false; readonly error: string };
 
 export const USAGE =
-  'Usage: ask [--endpoint <url>] --model <name> --context-budget <int> "<question>"';
+  'Usage: ask [--endpoint <url>] [--db <path>] --model <name> --context-budget <int> "<question>"';
 
-const VALUE_FLAGS = new Set(['--model', '--context-budget', '--endpoint']);
+const VALUE_FLAGS = new Set(['--model', '--context-budget', '--endpoint', '--db']);
 
 export function parseArgs(argv: readonly string[]): ParseResult {
   let model: string | undefined;
   let contextBudgetRaw: string | undefined;
   let endpoint: string | undefined;
+  let db: string | undefined;
   const positionals: string[] = [];
 
   for (let i = 0; i < argv.length; i++) {
@@ -38,7 +41,8 @@ export function parseArgs(argv: readonly string[]): ParseResult {
       i++;
       if (token === '--model') model = value;
       else if (token === '--context-budget') contextBudgetRaw = value;
-      else endpoint = value;
+      else if (token === '--endpoint') endpoint = value;
+      else db = value; // '--db'
     } else if (token.startsWith('--')) {
       return fail(`Unknown flag: ${token}`);
     } else {
@@ -61,6 +65,7 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     contextBudget: Number(contextBudgetRaw),
     question: positionals[0]!,
     ...(endpoint !== undefined ? { endpoint } : {}),
+    ...(db !== undefined ? { db } : {}),
   };
   return { ok: true, config };
 }
