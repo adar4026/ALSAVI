@@ -17,6 +17,15 @@ export interface EngineStore {
   getCard(id: CardId): Promise<Card | undefined>;
   putCard(card: Card): Promise<void>;
   deleteCard(id: CardId): Promise<void>;
+  /**
+   * All cards, in a deterministic, stable, total order: ascending by `card.id`
+   * (lexicographic, matching IndexedDB string-key order). Every `EngineStore`
+   * implementation MUST return this same order for identical data — the order is
+   * part of the public contract, not an adapter implementation detail (TASK_014).
+   * Changing this normative order is a breaking architectural change and requires
+   * a separate ADR + task. Scope is `listCards`/`listCardViews` only; it does not
+   * govern `listDueCards` (which orders by `due`).
+   */
   listCards(): Promise<Card[]>;
   /** Cards with due <= now, ordered by due ascending. */
   listDueCards(now: number, limit?: number): Promise<Card[]>;

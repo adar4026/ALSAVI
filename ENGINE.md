@@ -153,6 +153,18 @@ interface Scheduler {
 заметку 1:1 для каждой карты v1 (контент → поля заметки, `template='forward'`),
 сохраняя планирование и Review Log. Миграция non-breaking, без потери данных.
 
+**Порядок перечисления — часть контракта (TASK_014).** `listCards()` и, как
+следствие, `listCardViews()` возвращают карты в едином детерминированном,
+стабильном, тотальном порядке: по возрастанию `card.id` (лексикографически, как
+порядок строковых ключей IndexedDB). Все реализации `EngineStore` обязаны
+соблюдать этот порядок: `MemoryStore` явно сортирует по `id` на чтении,
+`DexieStore` — `orderBy('id')` (не полагаясь на побочный эффект `toArray()`).
+Раньше порядок был не специфицирован и различался между адаптерами. **Изменение
+нормативного порядка — breaking architectural change: только через отдельный ADR
+и отдельную задачу.** Область — исключительно `listCards`/`listCardViews`; не
+затрагивает `listDueCards` (порядок по `due`) и не вводит Selection/Retrieval/
+Search/фильтрацию.
+
 ## 5. CardState
 
 `CardState = 'new' | 'learning' | 'review' | 'relearning'` (`src/types.ts`).

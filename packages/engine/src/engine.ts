@@ -188,6 +188,9 @@ export class LearningEngine {
    * All cards with their content rendered from their notes. Notes are loaded in
    * one batch and deduplicated, so sibling cards of the same note never trigger
    * a repeated read (no N+1).
+   *
+   * Order is inherited from `store.listCards()` — the deterministic id-order
+   * contract (TASK_014); this method adds no sorting of its own.
    */
   async listCardViews(): Promise<CardView[]> {
     const cards = await this.store.listCards();

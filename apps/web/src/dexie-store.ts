@@ -88,7 +88,9 @@ export class DexieStore implements EngineStore {
   }
 
   listCards(): Promise<Card[]> {
-    return this.db.cards.toArray();
+    // Contract order (TASK_014): ascending by card.id. Explicit orderBy on the
+    // primary key — not relying on toArray()'s implicit key ordering.
+    return this.db.cards.orderBy('id').toArray();
   }
 
   async listDueCards(now: number, limit?: number): Promise<Card[]> {

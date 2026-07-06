@@ -45,7 +45,10 @@ export class MemoryStore implements EngineStore {
   }
 
   async listCards(): Promise<Card[]> {
-    return [...this.cards.values()];
+    // Contract order (TASK_014): ascending by card.id, lexicographic — matching
+    // IndexedDB string-key order so every adapter agrees. Sort on read only;
+    // internal Map storage is unchanged.
+    return [...this.cards.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   }
 
   async listDueCards(now: number, limit = Infinity): Promise<Card[]> {
