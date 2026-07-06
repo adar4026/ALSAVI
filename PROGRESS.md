@@ -18,6 +18,10 @@
 
 Ожидает подтверждения пользователем на реальном устройстве (DoD 10–12, агент их не закрывает): открытие по HTTPS без cert-предупреждений; установка на «Домой» и standalone-запуск; идентичность базовой функциональности (карточки, review-сессия, FSRS-интервалы) десктопу.
 
+Известное эксплуатационное ограничение (наблюдение из ревью SW; не дефект, код не менялся):
+- Current Service Worker implementation uses a static CACHE_VERSION. Content-hashed assets from successive builds may accumulate within the same cache until the cache version is bumped manually. This does not block TASK_015 or application updates, but should be considered during future storage durability testing on iOS/WebKit.
+- Связь с ранее зафиксированным риском storage-pressure eviction (mobile research) — причинно-следственно **не доказана**, но рост локального объёма кэша потенциально может повышать вероятность срабатывания очистки хранилища; учесть при подготовке 2-недельного storage-durability теста.
+
 Следующий шаг:
 - После установки — отдельный 2-недельный on-device inactivity-тест durability IndexedDB (по Mobile MVP Decision), не блокирующий сам факт установки; до тех пор `Export (backup)` как страховка. Затем — при необходимости — выбор провайдера/AI на мобиле как отдельная задача (удалённый HTTPS-provider за `LLMProvider`).
 
