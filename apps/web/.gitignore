@@ -1,0 +1,2 @@
+# Local mkcert dev certificates (TASK_015) — never commit private keys.
+.certs/

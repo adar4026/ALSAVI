@@ -1,5 +1,28 @@
 # PROGRESS
 
+## 2026-07-06 — TASK_015 (PWA Foundation — первый устанавливаемый билд A-Lex на iPhone)
+
+Основание — [Mobile MVP Decision](docs/MOBILE_MVP_DECISION.md) (PWA как первый мобильный клиент), зафиксированный отдельным docs-коммитом до реализации. Спецификация — `tasks/TASK_015.md`.
+
+Сделано (только `apps/web`; **Engine, публичный API Engine, `EngineStore`, AI Layer — не тронуты**):
+- **PWA-манифест и иконки:** `apps/web/public/manifest.webmanifest` (name/short_name «ALSAVI», `display: standalone`, `theme_color #2563eb`, `background_color #fafaf9`, иконки 192/512 + 512 maskable). Иконки сгенерированы (PIL) — плейсхолдер бренда (буква «A» на акцентном фоне), не дизайн-полировка. `apple-touch-icon.png` (180×180). В `index.html` подключены manifest, `apple-touch-icon`, apple-мета (`apple-mobile-web-app-capable=yes`, `-status-bar-style`, `-title`), `theme-color`, `viewport-fit=cover`.
+- **Service Worker (`public/sw.js`), сознательно минимальный:** только app-shell caching (навигация network-first → офлайн-fallback на закэшированный shell; статические ассеты stale-while-revalidate; только same-origin GET). **Не кэширует** пользовательские данные/IndexedDB/API/бизнес-логику — источник состояния остаётся один (Engine/DexieStore). Без background sync/push. Регистрация (`src/registerSW.ts`) **только в production-сборке** (`import.meta.env.PROD`), чтобы не затенять HMR в dev.
+- **Локальный HTTPS (mkcert):** `vite.config.ts` авто-подхватывает `apps/web/.certs/{key.pem,cert.pem}` → HTTPS + `host: true` (LAN) для dev и preview; при отсутствии сертификатов — тихий откат на HTTP (сборка/дев не ломаются). `.certs/` в `apps/web/.gitignore` (приватные ключи не коммитятся). Полная воспроизводимая инструкция (install mkcert → генерация cert → **on-device trust** двумя шагами: профиль + Certificate Trust Settings → «Добавить на экран Домой») — в `apps/web/README.md`.
+- **Проверка автономной части (агент):** production-build проходит (`tsc --noEmit && vite build`); в `dist/` присутствуют manifest/sw.js/иконки; preview built-сборки — приложение рендерится, консоль чистая, manifest валиден (standalone, 3 иконки), `apple-touch-icon`/icons отдают 200, **service worker зарегистрирован** (scope `/`). Все тесты зелёные без правок: engine 45 + anki-import 18/+1 skip + backup 10 + ai 13 + cli 23 + web 3.
+
+Решения и почему:
+- **SW в PROD-only + install-тест на preview built-сборки** — dev-SW затеняет HMR и отдаёт устаревшие модули; для офлайн/установки нужен стабильный build. iOS «Add to Home Screen» не требует SW для установки (в отличие от Chrome) — SW нужен только для офлайн-старта.
+- **HTTPS через файлы сертификатов, а не запуск `mkcert -install`** — установка корневого CA меняет системный/связочный trust (Mac и, отдельно, iPhone) — это ручные, подтверждаемые пользователем шаги; агент их не выполняет, только документирует.
+
+Сознательно вне рамок (Non-Goals): push, background sync, интеграция AI Layer в web, App Store/нативная дистрибуция, Capacitor/RN, туннели/staging, любые изменения Engine/API/`EngineStore`, 2-недельный inactivity-тест durability (отдельный follow-up), UI-полировка сверх PWA-минимума.
+
+Ожидает подтверждения пользователем на реальном устройстве (DoD 10–12, агент их не закрывает): открытие по HTTPS без cert-предупреждений; установка на «Домой» и standalone-запуск; идентичность базовой функциональности (карточки, review-сессия, FSRS-интервалы) десктопу.
+
+Следующий шаг:
+- После установки — отдельный 2-недельный on-device inactivity-тест durability IndexedDB (по Mobile MVP Decision), не блокирующий сам факт установки; до тех пор `Export (backup)` как страховка. Затем — при необходимости — выбор провайдера/AI на мобиле как отдельная задача (удалённый HTTPS-provider за `LLMProvider`).
+
+---
+
 ## 2026-07-06 — TASK_014 (Deterministic Ordering — детерминированный порядок перечисления Engine)
 
 Сделано:
