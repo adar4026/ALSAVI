@@ -22,12 +22,16 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     host: true, // expose on the LAN so the iPhone (same Wi-Fi) can reach it
+    // Serve the stable mDNS/Bonjour hostname (<mac-hostname>.local) — Vite blocks
+    // non-IP Host headers by default, so allow the .local domain (TASK_015 §3).
+    allowedHosts: ['.local'],
     https,
   },
   preview: {
     port: 4173,
     strictPort: true,
     host: true,
+    allowedHosts: ['.local'],
     https,
   },
 });
