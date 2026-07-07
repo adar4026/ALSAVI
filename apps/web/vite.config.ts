@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
+import { serviceWorkerVersionPlugin } from './build/serviceWorkerVersion';
 
 // Local HTTPS for on-device PWA testing (TASK_015).
 // Enabled only when a mkcert-generated key/cert pair exists at apps/web/.certs/
@@ -17,7 +18,9 @@ const https =
     : undefined;
 
 export default defineConfig({
-  plugins: [react()],
+  // serviceWorkerVersionPlugin stamps dist/sw.js with the HEAD commit sha at
+  // build time (apply: 'build' — inert during dev/preview serve). TASK_016.
+  plugins: [react(), serviceWorkerVersionPlugin()],
   server: {
     port: 5173,
     strictPort: true,
