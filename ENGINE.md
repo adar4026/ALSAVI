@@ -125,7 +125,7 @@ interface Scheduler {
 с **выключенным fuzz** (детерминизм). Она переводит доменные типы ALSAVI
 (`Card`, `Rating`, `CardState`) в типы ts-fsrs и обратно. Learning steps
 (`1m`, `10m`) и переходы состояний обеспечивает FSRS. Заменить алгоритм = дать
-новую реализацию `Scheduler`, не трогая ядро, хранилище и UL. См.
+новую реализацию `Scheduler`, не трогая ядро, хранилище и UI. См.
 [ADR-001](docs/adr/ADR-001-scheduler-abstraction.md).
 
 ## 4. EngineStore
