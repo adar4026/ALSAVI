@@ -61,17 +61,17 @@ record alone.
 
 ## 5. Canonical baseline
 
-TBD — owner decision required. The repository does not specify what
+Ratified 2026-07-10 (see Ratification record above). The repository does not specify what
 constitutes the canonical on-device baseline beyond "a freshly verified
 build, installed, with the deployment event manually recorded" (PROGRESS.md,
 2026-07-10 entry). It does not specify: what functional checks (if any)
 must pass on-device before the baseline is considered valid, beyond the
 already-open DoD 10-12 (PROGRESS.md, Session Handover §2).
 
-**(предложено в сессии 2026-07-10, ожидает финального подтверждения владельца)**
+**(ratified 2026-07-10)**
 The already-recorded deployment event (main HEAD `ad3f1af`, dated
-2026-07-10, on-device `/sw.js` verified via direct Safari tab) **is
-proposed to qualify** as the canonical baseline, independent of the
+2026-07-10, on-device `/sw.js` verified via direct Safari tab) **qualifies**
+as the canonical baseline, independent of the
 still-open Service Worker registration question. Rationale: `sw.js`
 explicitly does not touch IndexedDB (`sw.js:9-12` — "IndexedDB is not even
 reachable from here"); the durability experiment concerns WebKit/ITP
@@ -79,11 +79,11 @@ storage eviction of IndexedDB, a mechanism independent of the SW.
 
 ## 6. Canonical dataset
 
-TBD — owner decision required. No repository document defines a seed
+Ratified 2026-07-10 (see Ratification record above). No repository document defines a seed
 dataset, card count, or content to be created on-device before the
 observation period begins.
 
-**(предложено в сессии 2026-07-10, ожидает финального подтверждения владельца)**
+**(ratified 2026-07-10)**
 A hybrid dataset: cards spanning multiple SRS states (new, learning,
 review, varying intervals), created on-device, followed immediately by an
 Export (backup) taken as the Day-0 ground-truth snapshot.
@@ -94,11 +94,11 @@ Export (backup) taken as the Day-0 ground-truth snapshot.
 / "a 2-week on-device inactivity test" (docs/MOBILE_MVP_DECISION.md:52;
 apps/web/README.md:112; tasks/TASK_015.md).
 
-TBD — owner decision required for the idle-regime definition (what
+Ratified 2026-07-10 (see Ratification record above), covering the idle-regime definition (what
 device/app usage is permitted vs. forbidden during the 14 days) and the
 exact start/end timestamps. No repository document specifies this.
 
-**(предложено в сессии 2026-07-10, ожидает финального подтверждения владельца)**
+**(ratified 2026-07-10)**
 Zero interaction with the installed PWA for the full 14-day window. The
 app is opened only twice: at Day-0 declaration and at the Day-14 check.
 Start timestamp = the exact moment of Day-0 declaration (date+time+
@@ -107,14 +107,14 @@ counting).
 
 ## 8. Allowed actions
 
-TBD — owner decision required. Not specified in the repository beyond the
+Ratified 2026-07-10 (see Ratification record above). Not specified in the repository beyond the
 implicit interim safety net: "до его прохождения `Export (backup)` —
 страховка" (PROGRESS.md, Session Handover §5), which establishes that
 taking a backup export is treated as acceptable/expected practice
 independent of the test, but does not state whether taking one *during*
 the observation window is permitted without disturbing the test.
 
-**(предложено в сессии 2026-07-10, ожидает финального подтверждения владельца)**
+**(ratified 2026-07-10)**
 Taking an Export (backup) during the window is explicitly FORBIDDEN —
 opening the PWA to export could itself reset ITP-related engagement
 timers, which is the exact confound the idle-regime restriction exists to
@@ -128,11 +128,11 @@ forbidden for the duration: "Вся реализация и любые rebuild/r
 until the experiment completes per authoritative documentation"
 (docs/ROADMAP_ALSAVI_BETA.md §8).
 
-TBD — owner decision required for whether opening the app, using Safari
+Ratified 2026-07-10 (see Ratification record above), covering whether opening the app, using Safari
 generally on the device, or other device activity is forbidden during the
 window. Not specified in the repository.
 
-**(предложено в сессии 2026-07-10, ожидает финального подтверждения владельца)**
+**(ratified 2026-07-10)**
 No interaction with the installed PWA during the window (per §7–8).
 Additionally flagged as an explicit **owner trade-off** (not
 repository-derived, not mandated): disabling iOS automatic updates for the
@@ -142,19 +142,19 @@ or reject, not a settled requirement.
 
 ## 10. Success criteria
 
-TBD — owner decision required. The repository states the goal ("verify
+Ratified 2026-07-10 (see Ratification record above). The repository states the goal ("verify
 durability") but no document defines a measurable pass condition (e.g.,
 what data must be present, how it is checked, what counts as "survived").
 
-**(предложено в сессии 2026-07-10, ожидает финального подтверждения владельца)**
+**(ratified 2026-07-10)**
 Byte-identical comparison between the Day-0 Export (§6) and a Day-14
 Export, record by record.
 
 ## 11. Failure criteria
 
-TBD — owner decision required. Not specified in the repository.
+Ratified 2026-07-10 (see Ratification record above). Not specified in the repository.
 
-**(предложено в сессии 2026-07-10, ожидает финального подтверждения владельца)**
+**(ratified 2026-07-10)**
 Two distinguished subtypes, both counting as durability failure but
 categorized separately for follow-up: (a) full eviction — entire origin
 storage cleared; (b) partial loss/corruption — some records missing or
@@ -164,14 +164,14 @@ application/persistence bug.
 
 ## 12. Interpretation rules
 
-TBD — owner decision required. Not specified in the repository. (Note:
+Ratified 2026-07-10 (see Ratification record above). Not specified in the repository. (Note:
 this session's investigation surfaced a relevant open observation — Service
 Worker registration status is unresolved and could confound interpretation
 of an on-device inspection — recorded in PROGRESS.md, 2026-07-10 entry,
 «Открытые наблюдения», but that record does not itself constitute
 interpretation rules for the durability test.)
 
-**(предложено в сессии 2026-07-10, ожидает финального подтверждения владельца)**
+**(ratified 2026-07-10)**
 On Day 14, require agreement between two independent verification methods
 before declaring a result: (1) the app's own UI/statistics (reads through
 the Dexie/engine layer), and (2) direct IndexedDB inspection via Web
