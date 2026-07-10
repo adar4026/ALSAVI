@@ -134,11 +134,9 @@ window. Not specified in the repository.
 
 **(ratified 2026-07-10)**
 No interaction with the installed PWA during the window (per §7–8).
-Additionally flagged as an explicit **owner trade-off** (not
-repository-derived, not mandated): disabling iOS automatic updates for the
-window's duration is recommended, since a system update could alter
-default storage-eviction policy — but this is the owner's call to confirm
-or reject, not a settled requirement.
+iOS automatic updates are disabled for the window's duration —
+decided by the owner (see Ratification record above), since a system
+update could alter default storage-eviction policy.
 
 ## 10. Success criteria
 
