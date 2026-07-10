@@ -1,5 +1,79 @@
 # PROGRESS
 
+## 2026-07-10 — Protocol Freeze: инвариант, находки, открытые вопросы
+
+**Owner architectural decision** (adopted 2026-07-10, not yet reflected in
+repository documentation). Protocol Freeze защищает стабильность задеплоенной
+сборки/SHA до и во время on-device durability-эксперимента IndexedDB.
+
+**Механизм наблюдения SHA (established from TASK_016 code).**
+Билд-плагин штампует 12-символьный HEAD sha в `dist/sw.js`:
+- `apps/web/build/serviceWorkerVersion.ts:43` — `sha = run('git', ['rev-parse',
+  '--short=12', 'HEAD']).trim();`; `:65-72` (`stampServiceWorker`) → `:92-99`
+  (`closeBundle`) пишет результат в `dist/sw.js`.
+- Источник: `apps/web/public/sw.js:29` — `const CACHE_VERSION =
+  SHELL_CACHE_PREFIX + '__ALSAVI_SW_CACHE_VERSION__';` (`:28` —
+  `SHELL_CACHE_PREFIX = 'alsavi-shell-'`).
+SHA наблюдаем ровно в двух местах, оба относятся к service-worker-механизму, но
+с разной наблюдаемостью:
+  (i) **текст самого `sw.js`** — присутствует в собранном/отдаваемом файле
+      независимо от того, зарегистрирован ли SW (читается просмотром/запросом
+      `/sw.js`);
+  (ii) **имя Cache Storage bucket `alsavi-shell-<sha>`** — существует только
+      если отработал `install` (`apps/web/public/sw.js:38` — `const cache =
+      await caches.open(CACHE_VERSION);`).
+SW-независимой копии нет: ни в HTML/бандле (`index.html`, `src/main.tsx`,
+`vite.config.ts` — без version/`define`), ни в IndexedDB (`sw.js:9-12` —
+«IndexedDB is not even reachable from here»).
+
+**Попытка восстановить deployed SHA задним числом — отклонена.**
+Локальный `apps/web/dist/sw.js` (git-ignored/untracked, mtime 2026-07-07 16:26)
+содержит заштампованный SHA: `apps/web/dist/sw.js:29` — `const CACHE_VERSION =
+SHELL_CACHE_PREFIX + '10cc838985b6';`. `10cc838985b6` резолвится в коммит
+`10cc838` («docs(progress): add Session Handover TASK_015 → TASK_016»,
+2026-07-07 14:58) — **docs-коммит, предшествующий** импл-коммиту TASK_016
+`2e84212` (2026-07-07 21:04). Т.е. этот локальный билд собран до кода TASK_016.
+**У этого локального артефакта нет установленной связи с установкой на
+устройстве** (в репозитории нет deployment-лога), поэтому он **НЕ используется**
+как freeze-start SHA.
+
+**Открытые наблюдения.**
+Возникли только в ходе текущего расследования; зафиксированы для будущей оценки
+и **не вводят нового архитектурного требования** (статус: подтверждается будущей
+практикой — по конвенции проекта инварианты зарабатываются, а не объявляются
+превентивно).
+- Сквозная прослеживаемость `deployment event → installed device` отсутствует:
+  в репозитории нет deployment-лога. Механизирован только сегмент `git commit →
+  build artifact` (через build-time SHA-штамп); связи артефакта с событием
+  деплоя и устройством не зафиксировано.
+- Сбой регистрации SW проглатывается молча: `apps/web/src/registerSW.ts:12-14`
+  — `navigator.serviceWorker.register('/sw.js').catch(() => { … });` (комментарий:
+  «Offline start is best-effort; failing to register must not break the app»).
+  При сбое регистрации нет диагностического сигнала → сбой неотличим от
+  ограничения UI Web Inspector.
+- Статус регистрации SW на текущей установленной on-device PWA не разрешён
+  (относится к DoD 12, уже отмеченному как открытый в PROGRESS.md).
+
+**Freeze-start SHA: не установлен задним числом.** Будет установлен через новый,
+полностью прослеживаемый цикл вместо реконструкции прошлого.
+
+**Согласованный следующий шаг:**
+1. Свежий production-build из состояния репозитория, явно выбранного основателем
+   (по умолчанию текущий `main` HEAD — сейчас `6abd275`, — если сознательно не
+   выбран другой baseline). Как побочный эффект снимает prod-vs-dev-server
+   неоднозначность сегодняшней Web-Inspector-сессии: SW регистрируется только в
+   production-сборке (`apps/web/src/registerSW.ts:9` — `if (!import.meta.env.PROD)
+   return;`).
+2. Установка на устройство, заменяющая текущую (непроверенную) установку.
+3. Основатель вручную фиксирует событие деплоя (дата + итоговый SHA) сразу после
+   установки — автоматического deployment-лога для этого нет.
+4. Day 0 объявляется против этого свежепроверенного baseline, а не против
+   исторически реконструированного SHA.
+
+**Статус.** Зафиксировано 2026-07-10 как отдельный коммит, независимый от roadmap/ADR-005 merge.
+
+---
+
 ## 2026-07-09 — Roadmap «ALSAVI Beta — Anki Replacement» (документ планирования, НЕ инженерная задача)
 
 Добавлен авторитетный документ планирования [`docs/ROADMAP_ALSAVI_BETA.md`](docs/ROADMAP_ALSAVI_BETA.md) — дорожная карта достижения «ALSAVI Beta: заменить Anki для ежедневного личного использования до Cloud Sync».
