@@ -3,6 +3,14 @@
 **Status:** DRAFT — not authoritative. Owner decisions marked below are
 pending confirmation.
 
+**Ratification record.** On 2026-07-10, the project owner ratified all nine
+proposed decisions (§4-12) without amendment, except for §9 where the owner
+explicitly decided that iOS automatic updates are to be disabled for the
+duration of the 14-day observation window. This ratification records the
+owner's decisions only. It does not by itself change the document's
+publication status or authority, which remain governed by the project's
+documentation workflow.
+
 ## 1. Purpose
 
 [Repository-derived] Verify that ALSAVI's local IndexedDB data survives
