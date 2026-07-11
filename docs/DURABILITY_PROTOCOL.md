@@ -44,13 +44,12 @@ fresh production build from an owner-selected repo state → on-device install
 → owner manually records the deployment event (date + resulting SHA) → Day 0
 declared against that baseline.
 
-[Owner decision — TBD] The specific Day-0 declaration entry format, and
+[Ratified 2026-07-10] The specific Day-0 declaration entry format, and
 confirmation of whether the already-recorded deployment event (main HEAD
 `ad3f1af`, dated 2026-07-10, per this session's STEP 2 build) qualifies as
-this baseline, is a pending owner decision — not yet declared in
-PROGRESS.md.
+this baseline, is ratified (see Ratification record above and §5).
 
-**(предложено в сессии 2026-07-10, ожидает финального подтверждения владельца)**
+**(ratified 2026-07-10)**
 The Day-0 declaration record (to be written into PROGRESS.md when Day 0 is
 declared) must be self-contained: exact declaration timestamp (date + time
 + timezone), reference to the baseline SHA, description/export-hash of the
