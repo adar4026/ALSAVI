@@ -1,7 +1,7 @@
 # Durability Protocol — 14-day On-device IndexedDB Inactivity Test
 
-**Status:** DRAFT — not authoritative. Owner decisions marked below are
-pending confirmation.
+**Status:** DRAFT — not authoritative. Owner decisions in §4-12 are
+ratified (see the Ratification record below); §13 remains open by design.
 
 **Ratification record.** On 2026-07-10, the project owner ratified all nine
 proposed decisions (§4-12) without amendment, except for §9 where the owner
