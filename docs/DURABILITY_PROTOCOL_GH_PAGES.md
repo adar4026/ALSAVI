@@ -1,15 +1,21 @@
 # Durability Protocol (v2) — GitHub Pages origin, 14-day on-device IndexedDB inactivity test
 
-**Status:** DEFINED, NOT YET STARTED. This is a new, independent protocol for
-the new production origin — it is not a resumption of the terminated
-LAN-origin experiment (`docs/DURABILITY_PROTOCOL.md`), whose result is
-recorded as `TERMINATED EARLY` / `INCONCLUSIVE` (`PROGRESS.md`, 2026-07-21
-entry) and carries no positive or negative durability conclusion.
+**Status:** DAY 0 DECLARED, dataset/export baseline PENDING. This is a new,
+independent protocol for the new production origin — it is not a resumption of
+the terminated LAN-origin experiment (`docs/DURABILITY_PROTOCOL.md`), whose
+result is recorded as `TERMINATED EARLY` / `INCONCLUSIVE` (`PROGRESS.md`,
+2026-07-21 entry) and carries no positive or negative durability conclusion.
 
-Day 0 for **this** protocol requires a physical, on-device action (creating a
-seed dataset on the real installed PWA and taking an Export) that only the
-owner can perform — see "How to start" below. Nothing in this document, by
-itself, starts the observation window.
+**Day 0 declared 2026-07-21, 22:30, +02:00** — see `PROGRESS.md`, 2026-07-21
+entry ("Physical iPhone acceptance… + Day 0 declaration") for the full,
+authoritative record (declaration timestamp, deployed source SHA, cache
+version, computed Day-14 checkpoint). PROGRESS.md is the source of status per
+project convention; this document is not updated in place as status changes.
+
+**Open precondition, not yet closed:** the canonical seed dataset + Day-0
+Export (§10, steps 3-4) have **not** been confirmed as done. Without them, the
+Day-14 byte-identical comparison (§6) cannot be performed as specified. See
+"How to start" below and the "Next step" note in the PROGRESS.md entry.
 
 ## 1. Why a new protocol, not a resumed one
 
