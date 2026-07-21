@@ -1,10 +1,27 @@
 # TASK_017: App-shell precache hardening (offline cold-start guarantee)
 
-**Status: BLOCKED — Protocol Freeze is active. Implementation may begin only
+**Status: SUPERSEDED — folded into `TASK_018` (GitHub Pages production
+deployment), 2026-07-21.** The Protocol Freeze that blocked this task is lifted
+by explicit owner decision (see `PROGRESS.md`, 2026-07-21 entry) as part of
+moving to a permanent GitHub Pages deployment, ahead of the originally planned
+Day-14 durability check. Rather than implement this finding in isolation
+against the now-retired LAN/local-preview deployment model, the owner directed
+that it be implemented as part of the GitHub Pages deployment work, since the
+production service worker needs a correct app-shell precache regardless. This
+document's research/scoping content below (root cause, DoD, boundaries) remains
+the accurate technical analysis of the gap and is the basis for `TASK_018`'s
+implementation; this file is no longer the active task — see `TASK_018.md`.
+
+<details>
+<summary>Original (pre-2026-07-21) status line — historical, superseded above</summary>
+
+Status: BLOCKED — Protocol Freeze is active. Implementation may begin only
 after the Protocol Freeze is formally lifted following completion of the
 durability experiment. The earliest possible time is 2026-07-25 08:43 +02:00,
 contingent on the experiment's outcome (docs/DURABILITY_PROTOCOL.md §13, still
-TBD).**
+TBD).
+
+</details>
 
 ## Основание задачи
 
@@ -50,9 +67,20 @@ TASK_016 (версионирование кэша SW), который созна
 
 ## Статус
 
+**SUPERSEDED (2026-07-21) — см. статус-строку в начале файла.** Protocol Freeze
+снят решением основателя; реализация этой находки выполнена в рамках
+`TASK_018` (GitHub Pages deployment), не отдельно. Раздел «Гейтинг Protocol
+Freeze» ниже остаётся как исторический контекст того, почему реализация была
+заблокирована до 2026-07-21.
+
+<details>
+<summary>Исходный статус (до 2026-07-21) — историческая версия</summary>
+
 BLOCKED — Protocol Freeze активен (см. статус-строку в начале файла и раздел
 «Гейтинг Protocol Freeze (Protocol-Freeze gating)» ниже). Это research/scoping-
 документ: реализация **не** начата, код/сборка/деплой **не** тронуты.
+
+</details>
 
 ## Цель
 

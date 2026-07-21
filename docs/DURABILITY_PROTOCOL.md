@@ -11,6 +11,18 @@ owner's decisions only. It does not by itself change the document's
 publication status or authority, which remain governed by the project's
 documentation workflow.
 
+**Experiment outcome — TERMINATED EARLY / INCONCLUSIVE (2026-07-21).** The
+owner ended this experiment's observation window early, before the planned
+Day-14 check (2026-07-25 08:43 +02:00), to adopt a permanent GitHub Pages
+production deployment — see PROGRESS.md, 2026-07-21 entry, for the full
+decision record. **No pass/fail conclusion under §10/§11 is drawn**; the
+result is recorded as inconclusive because the observation window was not
+completed under its original conditions (§7-9). This document's §1-14 remain
+as the authoritative record of what was designed and ratified for that
+(terminated) run — unmodified below — and serve as the template a new,
+GitHub-Pages-origin durability protocol is built from, not as a currently
+active experiment.
+
 ## 1. Purpose
 
 [Repository-derived] Verify that ALSAVI's local IndexedDB data survives

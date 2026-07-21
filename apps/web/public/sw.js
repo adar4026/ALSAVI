@@ -1,16 +1,25 @@
 /*
- * ALSAVI — minimal app-shell service worker (TASK_015; cache versioning
- * hardened in TASK_016).
+ * ALSAVI — app-shell service worker (TASK_015; cache versioning hardened in
+ * TASK_016; full app-shell precache in TASK_017/GitHub Pages deployment).
  *
  * SCOPE, DELIBERATELY MINIMAL:
- *  - Caches ONLY the static app shell (the navigation document '/', and — lazily
- *    via stale-while-revalidate — the JS/CSS bundles, icons, manifest) so the
- *    installed PWA can cold-start offline after the first online load.
+ *  - Caches ONLY the static app shell: the navigation document, every
+ *    content-hashed JS/CSS bundle, manifest.webmanifest, and the icons —
+ *    precached eagerly at install (TASK_017) — plus stale-while-revalidate
+ *    as a runtime safety net for anything not in that list. This gives a
+ *    fully-offline cold start after the very first install, not just after a
+ *    prior online session has happened to populate the cache.
  *  - Does NOT cache user data, IndexedDB, or any API/business logic. All
  *    learning data lives in IndexedDB via the Engine's DexieStore and is the
  *    single source of truth; the service worker never becomes a second,
  *    undocumented state store. IndexedDB is not even reachable from here.
  *  - No background sync, no push.
+ *
+ * PATHS ARE SCOPE-RELATIVE, NOT ORIGIN-ROOT: this worker may be registered
+ * under a subpath (e.g. GitHub Pages project site '/ALSAVI/'), so the
+ * navigation-document key uses './' (resolves against this script's own URL,
+ * i.e. the registration scope) rather than a hardcoded '/' (which would
+ * resolve to the origin root and silently miss the actual app shell).
  *
  * CACHE VERSIONING (TASK_016):
  *  - SHELL_CACHE_PREFIX is the SINGLE SOURCE OF TRUTH for the cache namespace
@@ -24,19 +33,28 @@
  *    fresh cache; activate then prunes every older 'alsavi-shell-' cache. In dev
  *    the token is left as-is, but registerSW.ts registers this worker only in a
  *    production build, so it never runs there.
+ *
+ * PRECACHE MANIFEST (TASK_017):
+ *  - PRECACHE_MANIFEST is a JSON array of scope-relative asset URLs, stamped at
+ *    build time the same way as CACHE_VERSION (see serviceWorkerVersion.ts,
+ *    resolvePrecacheManifest/stampPrecacheManifest): the literal array below is
+ *    the placeholder Vite replaces with the real, build-discovered list. In dev
+ *    it stays as-is (a harmless single nonsense entry) since this worker never
+ *    registers outside a production build.
  */
 const SHELL_CACHE_PREFIX = 'alsavi-shell-';
 const CACHE_VERSION = SHELL_CACHE_PREFIX + '__ALSAVI_SW_CACHE_VERSION__';
+const PRECACHE_MANIFEST = ['__ALSAVI_SW_PRECACHE_MANIFEST__'];
 
 self.addEventListener('install', (event) => {
   // Fully populate the new versioned cache BEFORE taking over: skipWaiting() is
   // called only after the app shell is cached, so a half-populated cache is
-  // never activated. If the shell precache fails, install rejects and the old
-  // worker stays in control.
+  // never activated. If any precache asset fails, addAll rejects install and
+  // the old worker stays in control.
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE_VERSION);
-      await cache.add('/');
+      await cache.addAll(['./', ...PRECACHE_MANIFEST]);
       await self.skipWaiting();
     })()
   );
@@ -73,7 +91,7 @@ self.addEventListener('fetch', (event) => {
           return await fetch(request);
         } catch {
           const cache = await caches.open(CACHE_VERSION);
-          return (await cache.match('/')) || (await cache.match(request)) || Response.error();
+          return (await cache.match('./')) || (await cache.match(request)) || Response.error();
         }
       })()
     );

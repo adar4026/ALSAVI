@@ -1,0 +1,80 @@
+name: Deploy ALSAVI to GitHub Pages
+
+# GitHub Pages production deployment for @alsavi/web.
+#
+# Static hosting only — no backend, no server. Builds the same
+# `apps/web` production bundle used locally (`npm run build`), publishes
+# only its generated `dist/` output, and never commits build artifacts
+# to `main`.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deployment at a time; let an in-flight one finish rather
+# than cancel it mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies (all workspaces)
+        run: npm ci
+
+      - name: Run tests (all workspaces)
+        run: npm test
+
+      # Root script: typecheck @alsavi/engine, then `tsc --noEmit && vite build`
+      # for @alsavi/web. GitHub Pages project-site base path ('/ALSAVI/') is
+      # applied by apps/web/vite.config.ts for the `build` command.
+      - name: Build
+        run: npm run build
+
+      # GitHub Pages runs output through Jekyll by default, which ignores
+      # underscore-prefixed paths; this is static-only output but the file
+      # costs nothing and removes the ambiguity.
+      - name: Disable Jekyll processing
+        run: touch apps/web/dist/.nojekyll
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -9,7 +9,11 @@ export function registerServiceWorker(): void {
   if (!import.meta.env.PROD) return;
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
+    // BASE_URL is Vite's resolved `base` ('/' in dev, '/ALSAVI/' in production
+    // — see vite.config.ts). Registering relative to it, rather than the
+    // hardcoded origin root, is required for a GitHub Pages project-site
+    // subpath deploy and gives the worker the matching default scope.
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {
       // Offline start is best-effort; failing to register must not break the app.
     });
   });

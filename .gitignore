@@ -2,3 +2,13 @@ node_modules/
 dist/
 *.log
 .DS_Store
+
+# Personal documents and cross-app backup exports sometimes staged in this
+# working directory by mistake — never part of ALSAVI. Root-scoped only, so
+# legitimate fixtures elsewhere in the tree (none currently exist under these
+# names) are not silently hidden.
+/*.pdf
+/alsavi-backup-*.json
+/alex_finance_backup_*.json
+/ministry-backup-*.json
+/*.afb.json

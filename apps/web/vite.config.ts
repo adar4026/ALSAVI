@@ -17,7 +17,14 @@ const https =
     ? { key: readFileSync(keyPath), cert: readFileSync(certPath) }
     : undefined;
 
-export default defineConfig({
+export default defineConfig(({ command, isPreview }) => ({
+  // GitHub Pages project-site base path (deployment task): the repo is
+  // published at https://adar4026.github.io/ALSAVI/, not the origin root.
+  // `vite dev` stays at '/' so the existing on-device LAN/mkcert workflow
+  // (TASK_015) is unaffected; `vite build` and `vite preview` both use the
+  // production subpath so `vite preview` is a faithful check of the deployed
+  // base path (Vite's own mechanism — no ad hoc URL rewriting).
+  base: command === 'build' || isPreview ? '/ALSAVI/' : '/',
   // serviceWorkerVersionPlugin stamps dist/sw.js with the HEAD commit sha at
   // build time (apply: 'build' — inert during dev/preview serve). TASK_016.
   plugins: [react(), serviceWorkerVersionPlugin()],
@@ -37,4 +44,4 @@ export default defineConfig({
     allowedHosts: ['.local'],
     https,
   },
-});
+}));

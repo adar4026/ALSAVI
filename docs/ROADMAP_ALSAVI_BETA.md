@@ -185,6 +185,8 @@ M0 (thin foundation)
 
 The app-shell precache follow-up remains intentionally **outside the ALSAVI Beta roadmap**. It is an **independent engineering item**, recorded in `PROGRESS.md` (HEAD `4b68b07`) as an open follow-up finding, not yet scoped. When it is acted on it will be opened as **its own engineering task (number to be assigned when opened)**, scheduled **after Protocol Freeze is lifted and before public release.** Its scheduling is **intentionally independent** from Beta feature development and does not gate, and is not gated by, any milestone above.
 
+**Update (2026-07-21).** Number assigned: this item is implemented as part of **`tasks/TASK_018.md`** (GitHub Pages production deployment), which the owner directed ahead of the originally planned Day-14 durability checkpoint — see `PROGRESS.md`, 2026-07-21 entry, for the Protocol Freeze lift decision. This is an infrastructure/deployment change, not a Beta feature milestone; it does not itself alter the Beta feature-completeness gating in §0/§7 above, which remains a separate, still-open question.
+
 ---
 
 ## 7. Definition of ALSAVI Beta
