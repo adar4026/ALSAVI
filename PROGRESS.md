@@ -1,5 +1,144 @@
 # PROGRESS
 
+## 2026-07-21 — TASK_018 (GitHub Pages production deployment) — выполнено
+
+Основание — запись выше («Owner decision: 14-дневный durability-эксперимент
+завершён досрочно…») и `tasks/TASK_018.md`. ALSAVI развёрнут на постоянном
+production-адресе **`https://adar4026.github.io/ALSAVI/`**, вживую проверен.
+
+**Сделано:**
+- **Репозиторий сделан публичным** (owner-confirmed в этой сессии) — GitHub
+  Pages не обслуживает private-репозитории на Free-плане; перед переключением
+  проверено отсутствие секретов/ключей в истории (`git grep` по
+  ключевым/паролям/PEM-паттернам — чисто, `.env`/`.pem`/`.key` не отслеживаются).
+- **Base-path** (`apps/web/vite.config.ts`): `base: '/ALSAVI/'` для `build`/
+  `preview`, `'/'` для локального `dev` (LAN/mkcert-сценарий TASK_015 не
+  затронут; `vite preview` теперь честно проверяет тот же base, что и prod).
+  `index.html` — через `%BASE_URL%` (штатный механизм Vite, не ad hoc
+  rewriting); `manifest.webmanifest` — `start_url`/`scope`/иконки переведены на
+  **относительные** пути (резолвятся относительно самого манифеста по спеке Web
+  App Manifest — переносимо на любой base без build-time штампа);
+  `registerSW.ts` — регистрация через `import.meta.env.BASE_URL`.
+- **TASK_017 (полный app-shell precache) реализован** и включён в эту задачу
+  (folded in, не отдельно): `apps/web/build/serviceWorkerVersion.ts` —
+  `resolvePrecacheManifest`/`stampPrecacheManifest`, детерминированно (сортировка)
+  собирают список файлов `dist/` (кроме `sw.js`/`index.html`, кроме `.wasm` —
+  см. ниже) и стампуют в `dist/sw.js`; `install`-обработчик теперь
+  `cache.addAll(['./', ...PRECACHE_MANIFEST])` вместо `cache.add('/')`.
+  **Попутно найден и исправлен реальный баг** (не только TASK_017-находка): `'/'`
+  в `cache.add`/`cache.match` резолвится относительно **origin root**, а не
+  scope — под sub-path это кэшировало бы `https://adar4026.github.io/`, а не
+  `/ALSAVI/`. Заменено на `'./'` (резолвится относительно scope SW). Подтверждено
+  вживую на production (см. ниже).
+- **`sql.js`-WASM (660 КБ) осознанно исключён** из eager precache
+  (`PRECACHE_EXCLUDED_EXTENSIONS = ['.wasm']`) — используется только при
+  ручном .apkg-импорте, не нужен для usable initial state; форсировать это на
+  каждую установку противоречило бы принципу SPEED. Остаётся на runtime
+  stale-while-revalidate — закэшируется при первом реальном использовании.
+- **`.github/workflows/deploy-pages.yml`** — GitHub Actions
+  (`actions/deploy-pages`), единственный механизм (gh-pages-пакет не введён):
+  install → **`npm test`** (все workspaces) → `npm run build` → `.nojekyll` →
+  upload → deploy. Pages включён через `gh api` с `build_type=workflow`.
+- **`.gitignore` ужесточён**: узкие root-scoped правила (`/*.pdf`,
+  `/alsavi-backup-*.json`, `/alex_finance_backup_*.json`, `/ministry-backup-*.json`,
+  `/*.afb.json`) — убрали из untracked-статуса личные документы и
+  cross-app-бэкапы, случайно оказавшиеся в корне рабочей директории; ни один
+  отслеживаемый фикстур-файл под эти паттерны не подпадает (проверено `git
+  ls-files`).
+- **`tasks/TASK_017.md`** помечен SUPERSEDED (историческая версия статуса
+  сохранена в `<details>`, не удалена); **`tasks/TASK_018.md`** — новый task-файл
+  с DoD; **`docs/ROADMAP_ALSAVI_BETA.md` §6** и **`docs/DURABILITY_PROTOCOL.md`**
+  — короткие update-примечания без переписывания ратифицированного контента.
+- **Тесты:** +8 в `@alsavi/web` (сначала 18→ добавлены прецache-тесты, потом ещё
+  1 на исключение `.wasm` = 19 итого в web); полный `npm test` по всем
+  workspaces — **128/128 зелёных**, ни один существующий тест не потребовал
+  правки. `npm run build` (`tsc --noEmit` engine + `tsc --noEmit && vite build`
+  web) — чисто.
+- **Верификация до деплоя:** `vite preview` под реальным base (`/ALSAVI/`,
+  HTTPS через существующий mkcert) — рендер корректен, консоль чистая, SW
+  зарегистрирован и `activated` **ровно на scope `.../ALSAVI/`** (не на root —
+  прямое подтверждение, что `'/'`→`'./'`-фикс реально работает), Cache Storage
+  содержит ровно 8 записей (nav doc + 7 shell-ассетов, `.wasm` отсутствует).
+- **Деплой:** commit `5a2e1ff`, push в `origin/main`, Actions run
+  `29865333304` (build 29s + deploy 10s, оба ✓, единственные annotations —
+  безобидные Node20→24-deprecation-предупреждения от самих GitHub-экшенов).
+- **Верификация на реальном production URL**
+  (`https://adar4026.github.io/ALSAVI/`, не localhost): рендер корректен,
+  консоль чистая, все ассеты 200 (JS/CSS/manifest/иконки/apple-touch-icon/
+  `sw.js`); manifest определяется браузером; SW `activated` на правильном
+  scope; **`CACHE_VERSION` = `alsavi-shell-5a2e1ffc86fc`** — подтверждено
+  равенство `git rev-parse --short=12 HEAD` (`5a2e1ffc86fc`), т.е. задеплоен
+  именно закоммиченный код; Cache Storage на production содержит те же 8
+  записей под правильным origin/scope; IndexedDB (`alsavi`) инициализируется
+  на новом origin — отдельная, пустая база (ожидаемо: browser storage
+  origin-scoped, старые LAN-данные не переносятся автоматически).
+- **Миграция данных со старого origin — код не менялся, только
+  задокументирован путь.** Существующий `@alsavi/backup`
+  (`exportBackup`/`parseBackup`/`store.replaceAll`, уже wired в
+  `CardManager.tsx:91-138`) уже удовлетворяет требованиям: валидация **до**
+  деструктивной фазы (`parseBackup` до `window.confirm`), явное **REPLACE**
+  (не merge) подтверждение с указанием количества записей и даты экспорта,
+  стабильные id из бэкапа не перегенерируются (`replaceAll` пишет
+  провалидированные данные как есть). Правок не потребовалось.
+- **`docs/DURABILITY_PROTOCOL_GH_PAGES.md`** — новый протокол для нового
+  origin, с **явными** (не `TBD`) completion-критериями (§9): наблюдение
+  завершено, когда Day-14-проверка выполнена и результат
+  (PASS/FAIL/INCONCLUSIVE) зафиксирован в PROGRESS.md — независимо от исхода.
+  Day 0 этого протокола **не объявлен** — требует физического действия
+  основателя на реальном iPhone (создать датасет на установленной PWA + снять
+  Export); см. §10 документа.
+
+**Решения и почему:**
+- **GitHub Actions, не `gh-pages`-пакет** — единственный механизм, без лишней
+  npm-зависимости, нативная поддержка `build_type=workflow`.
+- **Относительные пути в `manifest.webmanifest`, а не build-time-штамп base** —
+  манифест резолвит `start_url`/`scope`/иконки относительно собственного URL
+  (спека Web App Manifest), поэтому переносим на любой base без отдельного
+  механизма инъекции — минимализм.
+- **Directory-walk (а не парсинг `index.html`/бандл-метаданных Rollup) для
+  precache-манифеста** — простота (принцип «простота прежде архитектурной
+  чистоты»); единственная необходимая поправка — explicit-blocklist по
+  расширению (`.wasm`) для реально другого паттерна использования (lazy vs
+  eager), не полный редизайн на allowlist-от-ссылок.
+- **Push+deploy выполнены без дополнительного подтверждения** — явно
+  запрошены основателем как часть этой самой задачи в этой сессии.
+
+**Отложено и почему:**
+- **Day 0 нового durability-протокола НЕ объявлен** — требует физического
+  действия на iPhone (создание датасета + Export), которое агент не может
+  выполнить; протокол готов, ждёт основателя (см. `docs/DURABILITY_PROTOCOL_GH_PAGES.md`
+  §10 и чек-лист приёмки).
+- **Полная офлайн-проверка «закрыть приложение → выключить сеть → перезапустить
+  → рендер + данные» на iPhone** — не может быть автоматизирована; часть
+  проверена (SW registration/scope/precache-состав на реальном production
+  origin, offline-fallback навигационного документа при недоступном origin
+  через `fetch()`/Cache Storage API напрямую), но полный `<script>`/`<link>`-driven
+  reload-сценарий через инструмент Browser pane дал невоспроизводимо иной
+  результат (`ERR_FAILED` для element-driven загрузок при остановленном
+  локальном сервере, при том что идентичный `fetch()`-запрос на тот же URL
+  корректно отдавался из кэша) — похоже на артефакт CDP-инструментирования
+  этой sandboxed-среды (прямой `fetch()` к тому же URL проходит через SW и
+  Cache Storage корректно; спецификация Service Worker не различает
+  element-driven и `fetch()`-инициированные same-origin запросы). Настоящая
+  проверка — только на реальном iPhone (см. чек-лист).
+- **Кастомный домен** — не запрошен; используется дефолтный
+  `https://adar4026.github.io/ALSAVI/`.
+- **Roadmap Beta-гейтинг** (`docs/ROADMAP_ALSAVI_BETA.md` §0/§7) — не
+  переписан по существу: это вопрос feature-completeness Beta, отдельный от
+  того, развёрнуто ли приложение куда-либо; добавлено только точечное
+  примечание в §6.
+
+**Следующий шаг:**
+- Основатель выполняет чек-лист приёмки на iPhone (ниже в отчёте сессии) —
+  Add to Home Screen, импорт бэкапа со старого origin, офлайн-проверка.
+- После успешной приёмки — объявление Day 0 нового durability-протокола
+  (`docs/DURABILITY_PROTOCOL_GH_PAGES.md`).
+- Отдельно, независимо от durability — возврат к ALSAVI Beta roadmap
+  (M0–M6, `docs/ROADMAP_ALSAVI_BETA.md`), которую эта задача не продвигала и
+  не блокировала.
+
+---
+
 ## 2026-07-21 — Owner decision: 14-дневный durability-эксперимент завершён досрочно; Protocol Freeze снят для перехода на GitHub Pages
 
 **Решение основателя** (2026-07-21). Переход на постоянное production-развёртывание
