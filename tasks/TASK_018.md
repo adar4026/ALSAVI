@@ -1,8 +1,19 @@
 # TASK_018: GitHub Pages production deployment (permanent offline-first PWA)
 
-**Status: IN PROGRESS.** Protocol Freeze is lifted by explicit owner decision
-(`PROGRESS.md`, 2026-07-21 entry) specifically for this task. This is an
-implementation task, not research/scoping.
+**Status: DONE.** Deployed and production-verified at
+`https://adar4026.github.io/ALSAVI/` (source `5a2e1ff`); physical iPhone
+acceptance owner-verified (`PROGRESS.md`, 2026-07-21 entries). Protocol Freeze
+was lifted by explicit owner decision (`PROGRESS.md`, 2026-07-21 entry)
+specifically for this task and remains lifted.
+
+DoD 8's post-deployment durability protocol was created with explicit
+completion criteria (`docs/DURABILITY_PROTOCOL_GH_PAGES.md`) and its Day 0 was
+declared — then subsequently **cancelled by owner decision** (`PROGRESS.md`,
+2026-07-21, "GitHub Pages durability observation CANCELLED BY OWNER") once
+end-to-end production use was physically confirmed. This is a valid,
+owner-directed outcome, not a DoD failure — the protocol document with
+explicit, non-`TBD` criteria exists exactly as required; it was simply not run
+to its Day-14 conclusion.
 
 ## Основание задачи
 

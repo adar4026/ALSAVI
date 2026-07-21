@@ -1,30 +1,32 @@
 # Durability Protocol (v2) — GitHub Pages origin, 14-day on-device IndexedDB inactivity test
 
-**Status:** DAY 0 DECLARED (corrected), dataset/export baseline CLOSED. This is
-a new, independent protocol for the new production origin — it is not a
-resumption of the terminated LAN-origin experiment
-(`docs/DURABILITY_PROTOCOL.md`), whose result is recorded as
-`TERMINATED EARLY` / `INCONCLUSIVE` (`PROGRESS.md`, 2026-07-21 entry) and
-carries no positive or negative durability conclusion.
+**Status: `CANCELLED BY OWNER`, 2026-07-21.** Not `FAIL`, not `completed` —
+the Day-14 check (§8) was never performed, so this observation produces **no
+durability conclusion in either direction**. Cancelled because the owner
+physically verified on iPhone that the production deployment works
+end-to-end (open, launch independent of MacBook/local server, Add to Home
+Screen, backup export/import + IndexedDB restore) and decided the 14-day idle
+window is no longer a required precondition for normal use or development.
+Full record: `PROGRESS.md`, 2026-07-21 entry ("Owner decision: GitHub Pages
+durability observation CANCELLED BY OWNER"). This is a new, independent
+protocol for the GitHub Pages production origin — it was never a resumption of
+the terminated LAN-origin experiment (`docs/DURABILITY_PROTOCOL.md`), whose
+result is separately recorded as `TERMINATED EARLY` / `INCONCLUSIVE`.
 
-**Day 0 declared 2026-07-21, 22:42:37, +02:00** (corrected) — see
-`PROGRESS.md`, 2026-07-21 entry ("Backup restore verified on production;
-corrected Day 0 declaration") for the full, authoritative record (declaration
-timestamp derived from the baseline export's `exportedAt`, deployed source
-SHA, cache version, dataset checksum/counts, computed Day-14 checkpoint).
-PROGRESS.md is the source of status per project convention; this document is
-not updated in place as status changes.
+**Effective immediately:** the idle-regime / zero-interaction rules (§5) no
+longer apply; `apps/web` may be opened, used, rebuilt, and redeployed
+normally; no Protocol Freeze or durability gate from this protocol remains
+active.
 
-An **earlier declaration, 2026-07-21 22:30 +02:00, is superseded** (see
-`PROGRESS.md`) — invalidated because a backup create+restore interaction with
-the installed PWA occurred after it, violating the idle-regime rule (§5)
-below.
-
-**Precondition closed:** the canonical seed dataset + Day-0 Export (§10, steps
-3-4) are done — `alsavi-backup-2026-07-21.json`, SHA-256
-`1e0a92d706576ead747dec08609c58a9d23fcad25b433aa909eda155e7805f9c`, 5
-notes / 10 cards / 0 reviews (see PROGRESS.md for the full record, including a
-noted discrepancy against an earlier verbal count).
+**Historical record — preserved, not rewritten.** Day 0 was declared
+2026-07-21, 22:42:37, +02:00 (corrected from an earlier 22:30 declaration —
+see `PROGRESS.md`), against baseline `alsavi-backup-2026-07-21.json`
+(SHA-256 `1e0a92d706576ead747dec08609c58a9d23fcad25b433aa909eda155e7805f9c`,
+5 notes / 10 cards / 0 reviews), with a computed (now cancelled) Day-14
+checkpoint of 2026-08-04, 22:42:37, +02:00. The backup file remains a valid,
+checksummed recovery baseline — no Day-14 comparison against it is required.
+Full detail: `PROGRESS.md`, 2026-07-21 entries ("Backup restore verified…"
+and the Day-0 declaration below it).
 
 ## 1. Why a new protocol, not a resumed one
 
