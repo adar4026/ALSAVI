@@ -1,7 +1,7 @@
 import { LearningEngine, MemoryStore, StudySession, type Rating } from '@alsavi/engine';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { exportBackup } from '../src/export.js';
-import { BackupError, importBackup } from '../src/import.js';
+import { BackupError, importBackup, restoreBackup } from '../src/import.js';
 import { parseBackup } from '../src/validate.js';
 
 const T0 = new Date('2026-07-01T10:00:00Z').getTime();
@@ -173,6 +173,92 @@ describe('backup — validation rejects before touching data', () => {
     const note = { id: 'dup', front: 'a', back: 'b' };
     const bad = { format: 'alsavi-backup', version: 1, data: { notes: [note, note], cards: [], reviews: [] } };
     await currentDataUntouched(JSON.stringify(bad), /Дублирующийся id заметки/);
+  });
+});
+
+describe('restoreBackup — shared confirm-gated orchestration (TASK_019)', () => {
+  it('invalid backup: rejected, confirm never called, store untouched', async () => {
+    const store = await seed();
+    const before = await snapshot(store);
+    const confirm = vi.fn(() => true);
+
+    const outcome = await restoreBackup(store, '{ not json', confirm);
+
+    expect(outcome.status).toBe('rejected');
+    expect(confirm).not.toHaveBeenCalled();
+    expect(await snapshot(store)).toEqual(before);
+  });
+
+  it('valid backup + confirm → false: cancelled, no replace, data intact', async () => {
+    const src = await seed();
+    const json = await exportBackup(src);
+    const dst = await seed(); // dst has its own pre-existing data to protect
+    const before = await snapshot(dst);
+
+    const outcome = await restoreBackup(dst, json, () => false);
+
+    expect(outcome.status).toBe('cancelled');
+    expect(await snapshot(dst)).toEqual(before);
+  });
+
+  it('valid backup + synchronous confirm → true: restored, correct counts', async () => {
+    const src = await seed();
+    const json = await exportBackup(src);
+    const dst = new MemoryStore();
+
+    const outcome = await restoreBackup(dst, json, () => true);
+
+    expect(outcome).toMatchObject({
+      status: 'restored',
+      notes: (await src.listNotes()).length,
+      cards: (await src.listCards()).length,
+      reviews: (await src.listReviews()).length,
+    });
+    expect((await dst.listCards()).length).toBeGreaterThan(0);
+  });
+
+  it('valid backup + asynchronous confirm resolving true: restored via the same path', async () => {
+    const src = await seed();
+    const json = await exportBackup(src);
+    const dst = new MemoryStore();
+
+    const outcome = await restoreBackup(dst, json, async () => {
+      await Promise.resolve();
+      return true;
+    });
+
+    expect(outcome.status).toBe('restored');
+    expect((await dst.listCards()).length).toBeGreaterThan(0);
+  });
+
+  it('confirm receives the parsed metadata (no re-parsing needed by the caller)', async () => {
+    const src = await seed();
+    const json = await exportBackup(src, () => T0);
+    const dst = new MemoryStore();
+    const confirm = vi.fn(() => true);
+
+    await restoreBackup(dst, json, confirm);
+
+    expect(confirm).toHaveBeenCalledWith({
+      exportedAt: T0,
+      notes: (await src.listNotes()).length,
+      cards: (await src.listCards()).length,
+      reviews: (await src.listReviews()).length,
+    });
+  });
+
+  it('importBackup remains a thin auto-approving wrapper with unchanged behavior', async () => {
+    const src = await seed();
+    const json = await exportBackup(src);
+    const dst = new MemoryStore();
+
+    const report = await importBackup(dst, json);
+
+    expect(report).toEqual({
+      notes: (await src.listNotes()).length,
+      cards: (await src.listCards()).length,
+      reviews: (await src.listReviews()).length,
+    });
   });
 });
 

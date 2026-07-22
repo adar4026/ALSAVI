@@ -1,5 +1,5 @@
 import type { CardState, CardView, EngineStore, LearningEngine } from '@alsavi/engine';
-import { backupFilename, exportBackup, parseBackup } from '@alsavi/backup';
+import { backupFilename, exportBackup, restoreBackup } from '@alsavi/backup';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { importApkgFile, type ImportReport } from './importApkg';
 
@@ -110,28 +110,33 @@ export function CardManager({ engine, store, onChanged }: Props) {
     if (!file) return;
     setBackupStatus(null);
     const text = await file.text();
-    // Validate BEFORE the destructive phase and BEFORE asking to confirm.
-    const result = parseBackup(text);
-    if (!result.ok) {
-      setBackupStatus(`Файл отклонён: ${result.error} Текущие данные не изменены.`);
-      return;
-    }
-    const { notes, cards: cs, reviews } = result.data;
-    const confirmed = window.confirm(
-      `Восстановление заменит ВСЕ текущие данные на копию от ` +
-        `${new Date(result.exportedAt).toLocaleString()} ` +
-        `(${notes.length} заметок, ${cs.length} карточек, ${reviews.length} повторений).\n\n` +
-        `Это действие необратимо. Продолжить?`
-    );
-    if (!confirmed) {
-      setBackupStatus('Восстановление отменено. Данные не изменены.');
-      return;
-    }
     try {
-      await store.replaceAll(result.data); // only validated data reaches the store
-      setBackupStatus(`Восстановлено: ${notes.length} заметок, ${cs.length} карточек, ${reviews.length} повторений.`);
-      await reload();
-      onChanged();
+      // restoreBackup owns validate → confirm → replace; this callback is
+      // only the UI's confirmation policy (window.confirm), given the parsed
+      // metadata — no parsing/replace logic lives here.
+      const outcome = await restoreBackup(store, text, (meta) =>
+        window.confirm(
+          `Восстановление заменит ВСЕ текущие данные на копию от ` +
+            `${new Date(meta.exportedAt).toLocaleString()} ` +
+            `(${meta.notes} заметок, ${meta.cards} карточек, ${meta.reviews} повторений).\n\n` +
+            `Это действие необратимо. Продолжить?`
+        )
+      );
+      switch (outcome.status) {
+        case 'rejected':
+          setBackupStatus(`Файл отклонён: ${outcome.error} Текущие данные не изменены.`);
+          return;
+        case 'cancelled':
+          setBackupStatus('Восстановление отменено. Данные не изменены.');
+          return;
+        case 'restored':
+          setBackupStatus(
+            `Восстановлено: ${outcome.notes} заметок, ${outcome.cards} карточек, ${outcome.reviews} повторений.`
+          );
+          await reload();
+          onChanged();
+          return;
+      }
     } catch (err) {
       setBackupStatus(`Ошибка восстановления: ${err instanceof Error ? err.message : String(err)}. Данные могли не измениться.`);
     }

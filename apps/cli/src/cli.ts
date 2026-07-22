@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { AIService, ContextBudgetExceededError, OllamaProvider } from '@alsavi/ai';
-import { importBackup } from '@alsavi/backup';
+import { restoreBackup } from '@alsavi/backup';
 import { LearningEngine, MemoryStore } from '@alsavi/engine';
 import { parseArgs } from './args.js';
 
@@ -38,12 +38,19 @@ export async function run(argv: readonly string[], io: CliIO, deps: CliDeps = de
   const { model, contextBudget, endpoint, question, db } = parsed.config;
 
   // Data source: empty MemoryStore, or — with --db — a real exported snapshot
-  // loaded via the existing restore mechanism. On failure the engine/AIService
-  // are never constructed. importBackup itself validates (throws BackupError).
+  // loaded via the shared restore orchestration (@alsavi/backup#restoreBackup).
+  // The store is always fresh here (nothing to protect), so CLI's confirmation
+  // policy is a fixed auto-approval — no interactive prompt, matching prior
+  // behavior. On failure the engine/AIService are never constructed.
   const store = new MemoryStore();
   if (db !== undefined) {
     try {
-      await importBackup(store, await deps.readFile(db));
+      const outcome = await restoreBackup(store, await deps.readFile(db), () => true);
+      if (outcome.status === 'rejected') {
+        io.stderr(`Failed to load database snapshot from ${db}: ${outcome.error}\n`);
+        return 1;
+      }
+      // 'cancelled' cannot occur: the policy above always approves.
     } catch (error) {
       io.stderr(
         `Failed to load database snapshot from ${db}: ${error instanceof Error ? error.message : String(error)}\n`

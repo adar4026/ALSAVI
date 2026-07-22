@@ -1,5 +1,136 @@
 # PROGRESS
 
+## 2026-07-22 — TASK_019: Unify Safe Backup Restore Orchestration — implementation done; manual verification partial
+
+**Контекст.** Owner-approved, ограниченный follow-up сессии оценки M0
+(`docs/ROADMAP_ALSAVI_BETA.md`, milestone «M0 — Services layer + Module
+Seam»). Та оценка нашла, что полный M0 сейчас преждевременен (большинство из
+семи предложенных сервисов либо уже существуют как независимые пакеты
+(`@alsavi/backup`, `@alsavi/anki-import`, `AIService`), либо не имеют
+текущей фичи, которая их требует; `AlsaviModule`/Domain Events не имеют
+принятого ADR — `ADR-005` явно выносит этот шов за свой scope). Единственная
+найденная реальная, узкая проблема — safe-restore-последовательность была
+реализована дважды. **TASK_019 — это НЕ реализация полного M0**, а отдельный
+ограниченный application-layer cleanup внутри уже существующей границы
+`@alsavi/backup` (ARCHITECTURE.md §11b), обоснованный устранением
+дублирования, а не архитектурным строительством.
+
+**1. Implementation — завершена, в approved scope.**
+- В `@alsavi/backup` (`packages/backup/src/import.ts`) введён единый headless
+  restore-orchestration primitive — `restoreBackup(store, text, confirm)`.
+  Порядок сохранён: **validate → confirm → atomic `replaceAll`** — разрушительная
+  фаза недостижима ни на невалидном файле, ни без положительного подтверждения
+  (INV-9 не ослаблен).
+- Confirmation callback (`ConfirmRestore`) поддерживает
+  `boolean | Promise<boolean>` — не привязан к синхронному `window.confirm`.
+- Существующий `importBackup` — теперь **thin wrapper** над `restoreBackup`
+  (auto-approving `confirm: () => true`); отдельной реализации
+  `parseBackup → replaceAll` в пакете больше не существует.
+- **Web** (`apps/web/src/CardManager.tsx`, `onRestore`) использует общий
+  primitive; в React остались только чтение файла, adapter-callback к
+  `window.confirm`, отображение статус-строк (формулировки не изменены) и
+  `reload()`/`onChanged()`. Инлайновой `parseBackup`/`replaceAll`-логики в
+  компоненте больше нет.
+- **CLI** (`apps/cli/src/cli.ts`) переведён на тот же общий primitive, с
+  auto-approving policy (`() => true`) — некогда interactive-подтверждения не
+  было и не добавлено; сообщения об ошибках сохранены дословно.
+- **Тесты**: 6 новых headless-кейсов в `packages/backup/test/backup.test.ts`
+  (invalid → rejected, confirm не вызывается, store не тронут; valid + confirm
+  → false → cancelled, данные целы; valid + sync confirm → true → restored,
+  верные counts; valid + async confirm → true — тот же путь; confirm получает
+  metadata без повторного парсинга; `importBackup` не изменил поведение).
+
+**2. Code-level verification — пройдена полностью, вопросов нет.**
+- Полный `npm test` по всем workspaces: **130/130** (engine 45, anki-import
+  18+1 skipped, backup **16** [было 10], ai 13, cli 23, web 19).
+- `npx tsc --noEmit` — чисто для `packages/backup`, `apps/web`, `apps/cli`.
+- `git diff --check` — чист.
+- Diff ограничен ожидаемыми файлами: `apps/cli/src/cli.ts`,
+  `apps/web/src/CardManager.tsx`, `packages/backup/src/{import,index}.ts`,
+  `packages/backup/test/backup.test.ts`, `tasks/TASK_019.md`. **`packages/engine`,
+  `packages/ai`, `packages/anki-import` не изменялись.**
+
+**3. Manual (browser/UI) verification — частична; разделяю подтверждённое и
+неподтверждённое, без преувеличений.**
+
+Для проверки трёх веток (invalid / valid+cancel / valid+confirm) были
+подготовлены три fixture-файла вне репозитория
+(`.../scratchpad/task_019_smoke/{A-invalid,B-valid-cancel-test,
+C-valid-confirm-test}.json`), независимо провалидированные против реального
+`parseBackup`.
+
+- **Ветка A (invalid backup) — НЕ подтверждена физически владельцем** через
+  native file picker.
+- **Ветка B (valid + cancel) — НЕ подтверждена физически владельцем** через
+  native file picker.
+- **Ветка C (valid + confirm) — подтверждена владельцем физически** на
+  локальном origin (`localhost:5173`, чистая, только что очищенная
+  IndexedDB): подтверждение появилось, после подтверждения UI показал
+  «Восстановлено: 3 заметок, 6 карточек, 0 повторений», появились
+  соответствующие 6 карточек, данные отображаются и переживают reload. Это
+  подтверждает, что **end-to-end механизм (валидация, подтверждение, замена,
+  отображение восстановленных данных) реально работает.**
+  - **Но не на подготовленном fixture.** Восстановленный датасет (3
+    заметки/6 карточек/0 повторений) точно совпал (побайтово, включая тексты
+    заметок) с реальным существующим файлом `~/Desktop/alsavi-backup-2026-07-21.json`
+    — а не с подготовленным `C-valid-confirm-test.json` (2 заметки/3
+    карточки). Этот Desktop-файл — реальный личный бэкап-снимок (одна из
+    промежуточных выгрузок GitHub-Pages Day-0 сессии, задокументированной
+    выше в этом файле), не относится к репозиторию и не был изменён в рамках
+    TASK_019.
+  - Изначальная browser-automation аномалия (тот же 3/6/0-датасет,
+    полученный ранее при попытке агента через синтетический
+    `DataTransfer`) **не указывает на code defect** — тот же самый реальный
+    Desktop-файл был точно идентифицирован как содержимое, которое
+    восстановилось. **Причина, по которой file picker/automation выбрал
+    именно этот файл дважды, окончательно не доказана** — версия
+    (файл лежит там, куда диалог выбора файла подставляет
+    default/last-used путь) остаётся гипотезой, не фактом.
+
+**Ветки A и B покрыты headless automated-тестами** (см. п.1) — эквивалентная
+логика (`rejected`/`cancelled`) верифицирована детерминированно на уровне
+кода, но **не** физическим прохождением через native file picker.
+
+**Manual verification НЕ засчитывается как полное прохождение всех трёх A/B/C
+веток.** Ветка C подтверждает работоспособность механизма, но не на
+предполагавшемся fixture; A и B остаются физически неподтверждёнными.
+
+**4. ADR / roadmap.**
+- `ADR-005` **остаётся `Proposed`** — не изменён на `Accepted`. Реализация
+  одного ограниченного increment'а не равна принятию решения о слое Services
+  целиком.
+- Новый ADR не создавался — задача осталась внутри уже существующей границы
+  `@alsavi/backup`/`EngineStore`.
+- Конфликт roadmap ↔ ADR-005 по `AlsaviModule`/Domain Events **не решался** в
+  этой задаче — остаётся в Follow-up (см. отчёт M0-оценки этой же сессии).
+
+**5. Решения и почему.**
+- Единый primitive вместо второго `BackupService`-класса — минимально
+  необходимое устранение дублирования, без создания нового яруса/пакета
+  (см. отклонённый в M0-оценке риск преждевременной абстракции).
+- Manual-verification аномалия **не привела к правке кода** — нет
+  воспроизводимого доказательства implementation-дефекта; правка кода без
+  такого доказательства была бы неоправданной.
+
+**6. Отложено и почему.**
+- Физическое прохождение веток A и B через native file picker — ожидает
+  повторной попытки владельца с явной проверкой выбранного файла в диалоге
+  (рекомендация: временно убрать/переименовать
+  `~/Desktop/alsavi-backup-2026-07-21.json` с default-пути перед повтором,
+  либо явно вводить путь к fixture).
+- Полное объяснение первоначального file-selection mixup — не доказано,
+  зафиксировано как открытый follow-up, не как решённый факт.
+- Полный `M0: Services Layer + Module Seam`, `AppDataRepository`,
+  `AlsaviModule`/Domain Events — вне scope этой задачи (см. TASK_019.md
+  «Out of scope»).
+
+**7. Следующий шаг.**
+- Повторное физическое прохождение веток A/B (и, при желании, повторно C —
+  уже на подтверждённом fixture-файле) через native file picker, с явной
+  проверкой выбранного файла перед подтверждением.
+- **Commit, push и deploy — не выполнены**; ожидают отдельного явного
+  разрешения владельца.
+
 ## 2026-07-21 — Owner decision: GitHub Pages durability observation CANCELLED BY OWNER
 
 **Решение основателя** (2026-07-21, 22:50 +02:00). Активное 14-дневное
