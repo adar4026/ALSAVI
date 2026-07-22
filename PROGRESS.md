@@ -131,6 +131,77 @@ C-valid-confirm-test}.json`), независимо провалидирован�
 - **Commit, push и deploy — не выполнены**; ожидают отдельного явного
   разрешения владельца.
 
+## 2026-07-22 — TASK_019: commit, push, and GitHub Pages deployment (owner-approved)
+
+**Решение основателя.** Основатель рассмотрел итоговый отчёт сессии TASK_019
+(implementation + code-level verification + честно зафиксированный partial
+manual-verification статус выше) и утвердил фиксацию в repository: commit,
+push, deploy, safe read-only production verification. **Формулировка
+manual-verification статуса, зафиксированная выше, не менялась и не
+переписывалась** — эта запись только добавляет commit/deploy/production
+evidence, поверх уже зафиксированного.
+
+**1. Pre-commit re-verification (повторно, непосредственно перед commit).**
+Полный `npm test` — **130/130** по всем workspaces; `tsc --noEmit` чист для
+`packages/backup`/`apps/web`/`apps/cli`; `git diff --check` чист; diff
+ограничен теми же 7 файлами (`PROGRESS.md`, `tasks/TASK_019.md`,
+`packages/backup/src/{import,index}.ts`,
+`packages/backup/test/backup.test.ts`, `apps/web/src/CardManager.tsx`,
+`apps/cli/src/cli.ts`); `packages/engine`, `packages/ai`,
+`packages/anki-import`, scheduler, persistence-архитектура, ADR-файлы —
+не тронуты. Blocking-проблем не найдено.
+
+**2. Commit.** `5ea36ab23b9dd8a3f63fc1dbbc847be4e1e9220c` —
+`refactor(backup): unify safe backup restore orchestration`. Staged
+исключительно перечисленные выше 7 файлов.
+
+**3. Push.** `git push origin main` — успешно
+(`7662fc3..5ea36ab main -> main`); локальный `main` и `origin/main`
+синхронизированы на `5ea36ab`.
+
+**4. Deploy.** Push затронул пути `apps/web/**`/`packages/**`, что по
+существующему `.github/workflows/deploy-pages.yml` **автоматически** (без
+изменения deployment-конфигурации) запустило workflow `29899922691` — build
+29s (включая `npm test` в CI) + deploy 9s, оба ✓; единственные annotations —
+безобидные Node20→24-deprecation-предупреждения от самих GitHub-экшенов (как
+и в TASK_018). GitHub Pages deployment API (`gh api
+repos/adar4026/ALSAVI/deployments`) подтверждает: последний deployment id
+`5551425582`, environment `github-pages`, **`sha:
+5ea36ab23b9dd8a3f63fc1dbbc847be4e1e9220c`** — совпадает с новым коммитом.
+gh-pages-ветки нет (build_type: workflow, как и раньше) — deployment record
+и есть authoritative evidence вместо gh-pages-коммита.
+
+**5. Production verification — только безопасная, read-only, как и было
+разрешено.** Проверено на `https://adar4026.github.io/ALSAVI/`:
+- прямой запрос `/sw.js` (`cache: no-store` эквивалент через `curl`)
+  показывает `CACHE_VERSION = alsavi-shell-5ea36ab23b9d` — совпадает с
+  `git rev-parse --short=12` нового коммита, т.е. задеплоен именно
+  закоммиченный код;
+- приложение открывается, рендер корректен, консоль чистая (0 ошибок);
+- обе вкладки («Повторение», «Карточки») открываются и работают;
+- на экране карточек видны кнопки «Импорт из Anki (.apkg)», «Экспорт
+  (резервная копия)», «Восстановить из копии»;
+- сетевые запросы (JS/CSS ассеты) — 200, без 404.
+- **Restore backup, import `.apkg`, добавление/удаление карточек — НЕ
+  выполнялись на production.** Никакие реальные данные основателя не
+  затрагивались и не изменялись. Синтетическая file-input-automation на
+  production не использовалась.
+
+**6. Ограничения, сохраняющиеся без изменений (см. запись выше).** Ветки
+manual-verification A (invalid backup) и B (valid + cancel) **по-прежнему не
+подтверждены физически** через native file picker — покрыты только headless
+automated-тестами. Ветка C (valid + confirm) подтверждена физически
+основателем локально, но не на подготовленном fixture (см. подробности
+выше) — **это не переоценивается и не превращается в полный manual PASS**
+этой записью. Причина изначального file-selection mixup по-прежнему не
+доказана.
+
+**Статус.** TASK_019 зафиксирован в `main` и задеплоен на production.
+`ADR-005` остаётся `Proposed`. TASK_019 — ограниченный application-layer
+cleanup, не реализация полного `M0: Services Layer + Module Seam`; конфликт
+roadmap↔ADR-005 по `AlsaviModule`/Domain Events остаётся в Follow-up,
+не тронут этой записью.
+
 ## 2026-07-21 — Owner decision: GitHub Pages durability observation CANCELLED BY OWNER
 
 **Решение основателя** (2026-07-21, 22:50 +02:00). Активное 14-дневное
