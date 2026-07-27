@@ -32,17 +32,58 @@ interface Props {
   engine: LearningEngine;
   store: EngineStore;
   onChanged: () => void;
+  /** Current daily new-card limit (`null` = unlimited). Owned by `App`. */
+  newCardsPerDay: number | null;
+  /** Persist + apply a new daily new-card limit. Owned by `App`. */
+  onLimitChange: (value: number | null) => void;
+  /** A save is in flight — the control is disabled to prevent overlapping saves. */
+  limitSaving: boolean;
+  /** Set only when the most recent save attempt failed; cleared on the next attempt. */
+  limitSaveError: string | null;
 }
 
-export function CardManager({ engine, store, onChanged }: Props) {
+/** `null` -> empty (unlimited); a number -> its decimal string. */
+function formatLimit(value: number | null): string {
+  return value === null ? '' : String(value);
+}
+
+/** Empty/invalid/negative input -> unlimited (`null`); otherwise a non-negative integer. */
+function parseLimit(text: string): number | null {
+  const trimmed = text.trim();
+  if (trimmed === '') return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.floor(n);
+}
+
+export function CardManager({
+  engine,
+  store,
+  onChanged,
+  newCardsPerDay,
+  onLimitChange,
+  limitSaving,
+  limitSaveError,
+}: Props) {
   const [cards, setCards] = useState<CardView[]>([]);
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
   const [alsoReverse, setAlsoReverse] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
+  const [limitInput, setLimitInput] = useState(() => formatLimit(newCardsPerDay));
   const fileInput = useRef<HTMLInputElement>(null);
   const backupInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setLimitInput(formatLimit(newCardsPerDay));
+  }, [newCardsPerDay]);
+
+  function commitLimit() {
+    const parsed = parseLimit(limitInput);
+    setLimitInput(formatLimit(parsed));
+    onLimitChange(parsed);
+  }
 
   const reload = useCallback(async () => {
     const all = await engine.listCardViews();
@@ -182,6 +223,24 @@ export function CardManager({ engine, store, onChanged }: Props) {
           Импорт из Anki (.apkg)
         </button>
         {importStatus && <span className="import-status">{importStatus}</span>}
+      </div>
+      <div className="import-row">
+        <label className="reverse-toggle">
+          Новых карточек в день:
+          <input
+            className="limit-input"
+            type="number"
+            min={0}
+            step={1}
+            placeholder="не ограничено"
+            value={limitInput}
+            disabled={limitSaving}
+            onChange={(e) => setLimitInput(e.target.value)}
+            onBlur={commitLimit}
+          />
+        </label>
+        {limitSaving && <span className="import-status">Сохранение…</span>}
+        {limitSaveError && <span className="import-status">{limitSaveError}</span>}
       </div>
       <div className="import-row">
         <input

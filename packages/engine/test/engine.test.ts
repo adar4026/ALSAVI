@@ -393,3 +393,74 @@ describe('layer boundary', () => {
     }
   });
 });
+
+describe('countNewCardsAnsweredSince (TASK_020 daily new-card limit)', () => {
+  it('counts unique cards with a first-new review at/after the boundary', async () => {
+    const { engine } = makeEngine();
+    const a = await engine.addCard({ front: 'a', back: '1' });
+    const b = await engine.addCard({ front: 'b', back: '2' });
+    await engine.review(a.id, 'good');
+    await engine.review(b.id, 'again');
+    expect(await engine.countNewCardsAnsweredSince(T0)).toBe(2);
+  });
+
+  it('does not count reviews before the boundary', async () => {
+    const { engine } = makeEngine();
+    const a = await engine.addCard({ front: 'a', back: '1' });
+    await engine.review(a.id, 'good'); // reviewedAt === T0
+    expect(await engine.countNewCardsAnsweredSince(T0 + 1)).toBe(0);
+  });
+
+  it('does not count a second review of the same card once it is no longer "new"', async () => {
+    const { engine, clock } = makeEngine();
+    const a = await engine.addCard({ front: 'a', back: '1' });
+    await engine.review(a.id, 'again'); // stateBefore: 'new' -> counts
+    expect(await engine.countNewCardsAnsweredSince(T0)).toBe(1);
+    clock.t += 60_000;
+    await engine.review(a.id, 'good'); // stateBefore: 'learning' -> must not add a second count
+    expect(await engine.countNewCardsAnsweredSince(T0)).toBe(1);
+  });
+
+  it('counts a card once even if the log holds more than one new-sourced review for it (defensive against inconsistent/imported history)', async () => {
+    const store = new MemoryStore();
+    const engine = new LearningEngine(store, { now: () => T0 });
+    // Not reachable via normal engine.review() (FSRS never returns a card to
+    // 'new'), but must not double-count if imported/inconsistent data ever
+    // contains it.
+    await store.appendReview({
+      id: 'r1',
+      cardId: 'c1',
+      rating: 'good',
+      reviewedAt: T0,
+      stateBefore: 'new',
+      stateAfter: 'learning',
+      dueAfter: T0 + 60_000,
+      stability: 1,
+      difficulty: 5,
+      scheduledDays: 0,
+    });
+    await store.appendReview({
+      id: 'r2',
+      cardId: 'c1',
+      rating: 'again',
+      reviewedAt: T0 + 1000,
+      stateBefore: 'new',
+      stateAfter: 'learning',
+      dueAfter: T0 + 60_000,
+      stability: 1,
+      difficulty: 5,
+      scheduledDays: 0,
+    });
+    expect(await engine.countNewCardsAnsweredSince(T0)).toBe(1);
+  });
+
+  it('reviews from the previous local day are excluded by a boundary at local midnight', async () => {
+    const { engine } = makeEngine();
+    const a = await engine.addCard({ front: 'a', back: '1' });
+    await engine.review(a.id, 'good'); // reviewedAt === T0
+    // DAY before T0 is (in virtually all timezones, barring a same-day DST
+    // transition) the previous local calendar day.
+    expect(await engine.countNewCardsAnsweredSince(T0 - DAY + 1)).toBe(1);
+    expect(await engine.countNewCardsAnsweredSince(T0 + 1)).toBe(0);
+  });
+});

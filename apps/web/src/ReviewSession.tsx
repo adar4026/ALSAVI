@@ -36,13 +36,24 @@ export function ReviewSession({ engine, session, onReviewed }: Props) {
   const [preview, setPreview] = useState<IntervalPreview | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(true);
+  // TASK_020: distinguishes "nothing eligible at all" from "new cards exist
+  // but are withheld by the daily limit" — nextCard()===null alone can't tell
+  // these apart. Derived from the same selector as nextCard()/dueCount(), so
+  // it never disagrees with what was (or wasn't) actually returned above.
+  const [limitReached, setLimitReached] = useState(false);
 
   const loadNext = useCallback(async () => {
     setLoading(true);
     const card = await session.nextCard();
-    const view = card ? ((await engine.getCardView(card.id)) ?? null) : null;
-    setCurrent(view);
-    setPreview(card ? await engine.previewIntervals(card.id) : null);
+    if (card) {
+      setCurrent((await engine.getCardView(card.id)) ?? null);
+      setPreview(await engine.previewIntervals(card.id));
+      setLimitReached(false);
+    } else {
+      setCurrent(null);
+      setPreview(null);
+      setLimitReached((await session.newCardsWithheldByLimit()) > 0);
+    }
     setRevealed(false);
     setLoading(false);
   }, [engine, session]);
@@ -97,9 +108,20 @@ export function ReviewSession({ engine, session, onReviewed }: Props) {
     return (
       <div className="card-panel">
         <div className="empty-state">
-          Всё повторено. 🎉
-          <br />
-          Добавь новые карточки или возвращайся, когда подойдёт срок повторения.
+          {limitReached ? (
+            <>
+              Дневной лимит новых карточек достигнут.
+              <br />
+              Новые карточки вернутся завтра. Повторение уже изученных
+              карточек продолжится, когда подойдёт их срок.
+            </>
+          ) : (
+            <>
+              Всё повторено. 🎉
+              <br />
+              Добавь новые карточки или возвращайся, когда подойдёт срок повторения.
+            </>
+          )}
         </div>
         <button className="btn-primary" onClick={() => void loadNext()}>
           Проверить снова

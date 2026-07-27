@@ -278,6 +278,24 @@ export class LearningEngine {
     };
   }
 
+  /**
+   * Unique cards whose first review (`stateBefore === 'new'`) was recorded at
+   * or after `dayStart`. Derived from the Review Log, not persisted — backs
+   * StudySession's daily new-card limit. Counts unique `cardId`, not review
+   * records: under normal operation a card gets at most one `'new'`-sourced
+   * review (FSRS never returns a card to `'new'`), but unique-card counting
+   * also protects against double-charging the allowance if inconsistent or
+   * imported history ever contains more than one for the same card.
+   */
+  async countNewCardsAnsweredSince(dayStart: number): Promise<number> {
+    const reviews = await this.store.listReviews();
+    const ids = new Set<CardId>();
+    for (const r of reviews) {
+      if (r.reviewedAt >= dayStart && r.stateBefore === 'new') ids.add(r.cardId);
+    }
+    return ids.size;
+  }
+
   private async mustGetCard(id: CardId): Promise<Card> {
     const card = await this.store.getCard(id);
     if (!card) throw new Error(`Card not found: ${id}`);

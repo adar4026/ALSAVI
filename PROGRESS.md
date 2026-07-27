@@ -1,5 +1,310 @@
 # PROGRESS
 
+## 2026-07-22 — TASK_020: pre-commit audit + three corrections — implementation complete, awaiting owner approval for commit/push/deploy
+
+**Контекст.** Before any commit, an independent pre-commit audit of the
+TASK_020 diff (git-state verification + direct code reading, not just report
+review) was performed and found three real gaps, none previously reported.
+The owner authorized fixing all three within TASK_020's existing scope (no
+new features, no architecture reopened) before commit is considered. This
+entry records those corrections; see the entry below for the original
+implementation.
+
+**1. `StudySession` policy input validation (was: silent, buggy for
+fractional values).**
+- Problem confirmed: `setNewCardsPerDay`/`newCardsPerDay` accepted any
+  `number`. A fractional limit (e.g. `1.5`) let **one extra new card
+  through** beyond the stated limit, because the withheld-count loop in
+  `selectEligible` decrements the remaining allowance by whole `1` per
+  admitted card against a fractional starting value. Negative values
+  silently clamped to "block all" with no error.
+- Fix: `packages/engine/src/study-session.ts` — one shared, private
+  `normalizeNewCardsPerDay` path used by both the constructor and the setter.
+  `null`/`undefined` → unlimited; anything else must be a finite,
+  non-negative integer, else `RangeError`. An invalid `setNewCardsPerDay`
+  call throws before any assignment, so the previously active valid policy
+  is left untouched (verified by test). New export
+  `assertValidNewCardsPerDay(value)` (also from `packages/engine/src/index.ts`)
+  exposes the identical check to callers that need to validate *before*
+  persisting, without touching a live session.
+- Tests added: 11 new cases (`packages/engine/test/study-session.test.ts`'s
+  `newCardsPerDay validation` block + a dedicated `assertValidNewCardsPerDay`
+  block) — fractional/negative/`NaN`/`Infinity` constructor option and setter
+  both throw `RangeError`; omitted option normalizes to unlimited; an invalid
+  setter call leaves the prior valid limit and bury state untouched; valid
+  `null`/`0`/positive integer continue to work.
+
+**2. Bootstrap settings-load failure (was: infinite loading, no error, no
+retry).**
+- Problem confirmed: the mount effect had no `.catch()` on
+  `store.getNewCardsPerDay()`. A rejection left `settingsReady` permanently
+  `false` — the app would stay on the neutral loading placeholder forever,
+  with no visible error and no way for the user to recover.
+- Fix: `apps/web/src/App.tsx` — replaced the boolean gate with
+  `BootstrapState = 'loading' | 'ready' | 'error'`. `loadSettings` (used both
+  on mount and by a "Повторить" retry button) sets `'error'` on rejection
+  instead of leaving the state ambiguous; it never falls back to unlimited.
+  The review view shows a distinct blocking message
+  ("Не удалось загрузить настройки обучения.") with the retry button in the
+  `'error'` state; `ReviewSession` is not rendered (so `nextCard()`/answering
+  are unreachable) until `'ready'`, which is only reached after
+  `session.setNewCardsPerDay(resolvedValue)` has actually run.
+- Manual verification (see §4 below) confirmed the full failure → retry →
+  success cycle.
+
+**3. Runtime setting update (was: optimistic, could silently diverge from
+persisted storage on save failure).**
+- Problem confirmed: `onLimitChange` updated `StudySession` and the displayed
+  value *before* the Dexie write even started, with no `.catch()` on the
+  persistence call. A save failure would leave the UI and the live session
+  reflecting a value that was never actually persisted — invisible to the
+  user, and reverting on the next reload without warning.
+- Fix: `apps/web/src/App.tsx` — reordered to validate
+  (`assertValidNewCardsPerDay`) → persist (`store.setNewCardsPerDay`) → only
+  on success apply `session.setNewCardsPerDay` + update the displayed value +
+  refresh stats. On failure, nothing above runs — the previous value stays
+  fully active in storage, in `StudySession`, and in the UI — and
+  `apps/web/src/CardManager.tsx` shows a local error
+  ("Не удалось сохранить дневной лимит.") next to the control, which is
+  `disabled` while a save is in flight (preventing overlapping saves).
+  `StudySession` is never reconstructed; bury state is never touched.
+
+**4. Manual verification of the failure paths — done, on isolated local
+dev-server data.** Since these are genuine async-failure paths that cannot
+be forced through the normal UI, they were tested by temporarily adding a
+`localStorage`-gated throw inside `DexieStore.getNewCardsPerDay`/
+`setNewCardsPerDay` (and a temporary call-trace hook to diagnose an unrelated
+browser-automation quirk — see below), driving the failure and retry
+scenarios, then **fully reverting both temporary hooks** before finalizing
+the diff — confirmed by `git diff --stat` on the touched files matching their
+pre-hook byte-for-byte baseline.
+- Load failure: reload with the hook active → distinct error message shown,
+  no card, no `Показать ответ`/answer buttons rendered at all (`ReviewSession`
+  not mounted). Clicking "Повторить" while still failing → stays in the error
+  state (no infinite-loading regression, no silent unlimited fallback).
+  Clearing the hook and retrying → normal study flow resumes immediately,
+  correct limit still enforced, no `StudySession` reconstruction needed.
+- Save failure: attempted to change the limit while the hook was active →
+  local error shown, input control re-enabled after the failed attempt, and
+  — confirmed directly by reading the persisted value with a fresh
+  `DexieStore` instance — **the old value remained persisted**, untouched.
+  Clearing the hook and retrying with a new value → persisted value updated
+  correctly, error cleared.
+- Re-confirmed after the fixes: `0` and unlimited (empty input) still persist
+  and apply correctly (not just the positive-integer case).
+- **Incidental finding, not a TASK_020 defect:** this sandboxed browser pane
+  does not reliably grant the page real OS-level input focus, so scripted
+  `element.focus()`/`.blur()` calls do not always dispatch native focus/blur
+  events (`document.activeElement` updates, but no event fires) — a property
+  of the test environment, not of the shipped code. Dispatching a genuine
+  bubbling `focusout` event directly is the reliable way to trigger a React
+  `onBlur` handler when driving this app's UI via injected scripts in this
+  environment; noted here for any future manual browser-driven verification
+  in this same sandboxed pane.
+
+**5. Re-verification after corrections.**
+- `npm test` — **168/168** across all workspaces (engine 74 [63 before these
+  corrections, +11 new — see prior entry for the 63 baseline], anki-import
+  18+1 skipped [pre-existing, unrelated], backup 16, ai 13, cli 23, web 24).
+- `npx tsc --noEmit` — clean for `packages/engine` and `apps/web`.
+- `git diff --check` — clean.
+- `git status --short` / `git diff --cached --name-status` — 13 tracked
+  files modified, 3 untracked new files, **nothing staged**. (Corrects the
+  self-contradictory "changes staged only in the filesystem" wording from an
+  earlier chat-only summary of this same state — nothing was ever staged.)
+
+**6. Files changed by these corrections, in addition to the original
+implementation diff:** `packages/engine/src/study-session.ts` (validation),
+`packages/engine/src/index.ts` (new export), `packages/engine/test/study-session.test.ts`
+(+11 tests), `apps/web/src/App.tsx` (bootstrap error state, transactional
+update), `apps/web/src/CardManager.tsx` (`limitSaving`/`limitSaveError`
+props + disabled control), `tasks/TASK_020.md`, this file.
+
+**7. Still not committed, pushed, or deployed.** Per task constraints,
+stopping here to await a separate, explicit owner instruction.
+
+---
+
+## 2026-07-22 — TASK_020: Enforce configurable daily new-card introduction limit — implementation complete, awaiting owner approval for commit/push/deploy
+
+**Контекст.** Owner-approved first slice of `M1: Daily Study Controls`
+(`docs/ROADMAP_ALSAVI_BETA.md`), scoped down from a dedicated multi-round
+analysis-only session (repository verified clean, HEAD `29c1ee7`, in sync with
+`origin/main`, before any implementation began). Full `M0` was found
+premature (per the `TASK_019` M0 evaluation, reused here); `StudyService`/
+`SettingsService` were **not** created — the daily-limit policy is delivered
+as `StudySession` presentation policy, which the **Accepted**
+`docs/adr/ADR-003-studysession-separation.md` already authorizes
+("будущие дневные лимиты ... как опции/стратегии `StudySession`"). A
+`StudyService` that only delegated to `StudySession` would have been a pure
+pass-through wrapper, which the **Proposed** (non-binding)
+`docs/adr/ADR-005-application-services-layer.md` itself warns against.
+`ADR-005` is unaffected and remains `Proposed`. Full rationale, product
+semantics, and scope: `tasks/TASK_020.md`.
+
+**1. Product semantics implemented.**
+- `new cards/day`: max unique cards whose **first review** is recorded today
+  with `stateBefore === 'new'` — *cards first answered today*, not first
+  *shown*. Counting is by unique `cardId` (defensive against inconsistent/
+  imported history double-charging one card).
+- `null` = unlimited (default; also what an absent persisted setting reads
+  back as); `0` = zero new cards today; positive integer = that day's
+  allowance. `0` is never treated as falsy — normalization is `?? null` only
+  on `null`/`undefined`, never `||`/`!value`.
+- Learning/relearning cards are never restricted by this limit.
+- Day boundary: local calendar midnight, the same `startOfLocalDay` semantics
+  `getStats().reviewsToday`/streak already use.
+- Known, accepted v1 limitation: showing a new card without answering it does
+  not consume allowance (usage is derived from the Review Log, which only
+  records answered reviews).
+
+**2. Architecture — implemented in `packages/engine`.**
+- `LearningEngine.countNewCardsAnsweredSince(dayStart)` (`packages/engine/src/engine.ts`)
+  — new, minimal, read-only: unique-`cardId` count of reviews with
+  `reviewedAt >= dayStart && stateBefore === 'new'`. Derived, not persisted.
+- `StudySession` (`packages/engine/src/study-session.ts`): new
+  `newCardsPerDay?: number | null` option (`undefined` -> `null` via `??`) and
+  `setNewCardsPerDay(limit)` narrow setter (updates policy for the *next*
+  selection; no reconstruction; ephemeral bury state untouched).
+  `selectEligible()` now also returns `newWithheld` (new cards held back by
+  the limit), backing the new `newCardsWithheldByLimit()` method — derived
+  from the exact same selector as `nextCard()`/`dueCount()`, so a UI can tell
+  "nothing eligible" from "new cards exist but are limited" without risk of
+  disagreement. `EngineStore` and the FSRS scheduler are **unmodified**.
+
+**3. Persistence — `apps/web/src/dexie-store.ts`.**
+- Additive Dexie `version(3)`: one `settings` table (`key -> value`) in the
+  existing `AlsaviDB`, no migration of `notes`/`cards`/`reviews`. Verified
+  against a simulated pre-TASK_020 (version-2-only) database that existing
+  rows survive the upgrade untouched.
+- `DexieStore.getNewCardsPerDay()`/`setNewCardsPerDay()` — narrow accessor
+  methods on the same class/connection as the `EngineStore` implementation,
+  but **outside** the `EngineStore` interface (no structural access from
+  `LearningEngine`/`StudySession`). `replaceAll` (backup restore) is
+  **unchanged** — still only touches `notes`/`cards`/`reviews` — so restore
+  cannot reset the setting; verified by test and by manual restore (below).
+  Backup schema stays `BACKUP_VERSION = 1`; settings are not part of backup
+  v1; old backup files remain fully compatible.
+
+**4. Safe initialization gate — `apps/web/src/App.tsx`.**
+`ReviewSession.nextCard()` was previously called unconditionally on mount,
+before any async settings load could complete — a persisted `0` or an
+already-exhausted limit could have briefly behaved as unlimited. Fixed with a
+`settingsReady` boolean: `ReviewSession` is not rendered (and the study
+`dueCount()` used for the stats bar is not read) until the persisted setting
+has been loaded and applied via `session.setNewCardsPerDay(...)`. Runtime
+changes (via the new UI control) call the same setter immediately, without
+reconstructing `StudySession` — bury state is never at risk.
+
+**5. UI — three distinguishable states (`ReviewSession.tsx`), one minimal
+control (`CardManager.tsx`).**
+- Existing "Всё повторено. 🎉" unchanged for "nothing eligible at all".
+- New distinct message ("Дневной лимит новых карточек достигнут…") shown only
+  when new cards exist but are withheld and nothing else is eligible —
+  derived from `newCardsWithheldByLimit()`, so it can never fire falsely when
+  there simply are no new cards.
+- Due review/learning/relearning cards continue normally once the new limit
+  is reached; no terminal state is shown in that case.
+- One small numeric input ("Новых карточек в день:") next to the existing
+  backup controls in `CardManager`; empty = unlimited, `0` or a positive
+  integer = the limit. No settings-screen redesign.
+
+**6. Tests.**
+- `packages/engine`: 63/63 green (was 45; +18: `countNewCardsAnsweredSince` in
+  `engine.test.ts`, the full daily-limit behavior suite in
+  `study-session.test.ts` — unlimited/`0`/positive limit, unique-card
+  counting incl. a defensive duplicate-review-record case, day-boundary
+  exclusion, learning/relearning unaffected, showing without answering,
+  setter runtime-update without reconstruction or bury loss, and session
+  reconstruction recovering allowance from the persisted log).
+- `apps/web`: 24/24 green (was 19; +5: `settings-store.test.ts` — absent
+  setting reads as unlimited, `null`/`0`/positive round-trip, survives
+  adapter reconstruction, `replaceAll` doesn't reset it;
+  `settings-migration.test.ts` — additive `version(3)` upgrade preserves a
+  simulated pre-TASK_020 database's notes/cards).
+- **Honest limitation, not silently skipped:** this repository has no
+  React component-testing infrastructure (no jsdom/React Testing Library —
+  `apps/web/vitest.config.ts` runs `environment: 'node'`, and existing web
+  tests are all headless `.test.ts` files, e.g. `ordering.test.ts`). Adding
+  one was judged out of this task's scope (new tooling, not a narrow feature
+  change). The initialization-gate and three-UI-state behaviors in
+  `App.tsx`/`ReviewSession.tsx` therefore have **no automated component-level
+  test** — they were verified **manually** instead (next section). This is a
+  deviation from `tasks/TASK_020.md`'s literal "Initialization/UI" test list,
+  recorded here rather than overclaimed.
+
+**7. Manual verification — done, on isolated local dev-server data (not
+production data).** Local dev server (`localhost:5173`), fresh IndexedDB:
+- Empty collection -> "Всё повторено. 🎉" (state 1) rendered correctly.
+- Added two new cards, set limit to `1` via the new control -> "К повторению"
+  immediately dropped from 2 to 1, confirming persist + runtime
+  `setNewCardsPerDay` + stats refresh all wired correctly.
+- Answered the one allowed card ("Хорошо") -> it resurfaced once via
+  learn-ahead (state `изучается`, unrelated existing behavior, correctly
+  **not** re-counted against the limit); answered it again ("Легко") to
+  graduate it out -> UI then showed the **distinct** "Дневной лимит новых
+  карточек достигнут" message (state 2), not the generic empty-state message.
+- Full page reload: the persisted limit (`1`, already exhausted) was honored
+  immediately on the very first render — no unlimited flash, no incorrect
+  card shown.
+- Restore (synthetic valid backup, `window.confirm` stubbed to approve, same
+  mechanism `TASK_019` unified): after "Восстановлено: 1 заметок, 1 карточек,
+  0 повторений", the daily limit input still read `1` (setting preserved)
+  while "Сегодня"/usage correctly reset to reflect the restored (empty)
+  review log — exactly the specified restore contract.
+- `0` and cross-check of engine-level counting rules were **not** re-verified
+  manually beyond this (already exhaustively covered by the 18 new headless
+  engine tests); judged sufficient rather than redundant.
+
+**8. Code-level verification.**
+- `npm test` — **157/157** across all workspaces (engine 63, anki-import
+  18+1 skipped [pre-existing, unrelated], backup 16, ai 13, cli 23, web 24).
+- `npx tsc --noEmit` — clean for `packages/engine` and `apps/web`.
+- `git diff --check` — clean.
+- Diff scope confirmed to match `tasks/TASK_020.md`'s "In scope" exactly:
+  `packages/engine/src/{engine,study-session}.ts`,
+  `packages/engine/test/{engine,study-session}.test.ts`,
+  `apps/web/src/{App,CardManager,ReviewSession,dexie-store}.tsx?`,
+  `apps/web/src/styles.css`, `apps/web/test/settings-{store,migration}.test.ts`
+  (new), `tasks/TASK_020.md` (new), plus this entry, `ARCHITECTURE.md`, and
+  `docs/ROADMAP_ALSAVI_BETA.md`. `packages/backup`, `packages/ai`,
+  `packages/anki-import`, `apps/cli` — **untouched**.
+
+**9. ADR / roadmap.**
+- `ADR-005` remains `Proposed` — unchanged. No new ADR created (per the
+  analysis session's finding that `ADR-003`, Accepted, already covers placing
+  daily-limit policy in `StudySession`).
+- `docs/ROADMAP_ALSAVI_BETA.md` M1 section updated with an explicit "Update
+  (TASK_020, owner-approved deviation)" clause recording that this slice
+  bypassed the literal `M0 → StudyService + SettingsService` breakdown, and
+  why, so the roadmap and the implementation no longer silently disagree.
+- `ARCHITECTURE.md` §6/§5 updated: `StudySession`'s daily-limit policy and
+  `countNewCardsAnsweredSince` documented as implemented; removed from the
+  "Future Architecture" list (§12), replaced with the still-open
+  `max-reviews/day`/undo items.
+
+**10. Deviations from `tasks/TASK_020.md` (recorded, not hidden).**
+- No automated component-level test for the initialization gate / three UI
+  states (§6 above) — manual verification substituted, given no existing
+  React-testing infrastructure in this repo.
+
+**11. Follow-up observations (non-blocking, not folded into this task's scope).**
+- `max-reviews/day` counting semantics remain undefined in any committed
+  document — needs a product decision before the next M1 slice.
+- Undo ADR still not created (roadmap: "ADR first").
+- `TASK_019`'s manual-verification branches A/B (native file picker) remain
+  unconfirmed — unrelated to this task.
+- Adding React component-testing infrastructure (jsdom + React Testing
+  Library or similar) would let the initialization-gate/three-state UI logic
+  be covered by automated tests instead of manual-only verification — a
+  reasonable, separate future improvement, not required by this task.
+
+**12. Final working tree status.** All changes are made and verified but
+**not committed**. Per task constraints: no commit, push, or deploy without a
+separate, explicit owner instruction.
+
+---
+
 ## 2026-07-22 — TASK_019: Unify Safe Backup Restore Orchestration — implementation done; manual verification partial
 
 **Контекст.** Owner-approved, ограниченный follow-up сессии оценки M0

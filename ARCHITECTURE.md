@@ -131,6 +131,7 @@ Engine **только через публичный интерфейс** — н�
 | `review(cardId, rating)` | записать ответ: пересчёт + append в Review Log |
 | `previewIntervals(cardId)` | due-даты для каждого рейтинга (для кнопок) |
 | `getStats()` | totalCards, newCards, dueNow, reviewsToday, accuracy, streak |
+| `countNewCardsAnsweredSince(dayStart)` | уникальные карты с первым (`stateBefore === 'new'`) ответом `>= dayStart`; для дневного лимита `StudySession` (TASK_020), derived, не персистится |
 
 Зависимости внедряются: `store: EngineStore`, `scheduler?` (по умолчанию
 `FsrsScheduler`), `now?()`, `newId?()` — часы и генератор id инъектируются ради
@@ -159,11 +160,42 @@ Engine **только через публичный интерфейс** — н�
 **Детерминированный слой учебного потока.** Отвечает за то, *какую карточку
 показать следующей*, — но не за то, *как считать память*.
 
-- Публичные методы: `nextCard()`, `dueCount()`, `answer(cardId, rating)`.
+- Публичные методы: `nextCard()`, `dueCount()`, `answer(cardId, rating)`,
+  `newCardsWithheldByLimit()`, `setNewCardsPerDay(limit)`.
 - Политика выборки: сначала реально due-карточки (`due <= now`, порядок по
   `due`, tie-break по `id`); иначе — learning/relearning-карточка в окне
   learn-ahead (`learnAheadMinutes`, по умолчанию 20). Не-due review/new карты
   досрочно не показываются.
+- **Дневной лимит новых карт (TASK_020), owner-approved первый slice `M1: Daily
+  Study Controls`** (реализован как политика `StudySession` согласно
+  [ADR-003](docs/adr/ADR-003-studysession-separation.md) — Accepted — а не как
+  `StudyService`/`SettingsService` из буквального task breakdown roadmap,
+  который назначал их на `M0`; см.
+  [docs/ROADMAP_ALSAVI_BETA.md](docs/ROADMAP_ALSAVI_BETA.md) §4 M1 и
+  `tasks/TASK_020.md`):
+  - `newCardsPerDay: number | null` — `null` = unlimited (default), `0` =
+    ноль новых карт сегодня, положительное целое — дневной лимит. Только
+    `null`/`undefined` означают unlimited; `0` — значимое значение, никогда не
+    трактуется как falsy.
+  - Usage **derived**, не персистится: уникальные `cardId`, чей первый
+    (`stateBefore === 'new'`) ответ записан с `reviewedAt >=` границы
+    локального календарного дня (`engine.countNewCardsAnsweredSince(dayStart)`
+    — тот же `startOfLocalDay`, что и `getStats().reviewsToday`/streak).
+    Показ новой карточки без ответа allowance не расходует — осознанное
+    ограничение производной от Review Log семантики.
+  - Ограничивает только `state === 'new'` карты внутри `dueNow`; due-карты
+    вне `new` и learning/relearning (включая learn-ahead) не затрагиваются.
+  - `newCardsWithheldByLimit()` — производный от того же селектора, что
+    `nextCard()`/`dueCount()`, read-only сигнал для UI (сколько новых карт
+    удержано лимитом прямо сейчас) — различает «ничего не due» от «новые
+    карты есть, но лимит их удерживает» без риска рассинхрона.
+  - `setNewCardsPerDay()` — узкий mutable setter; применяется к следующей
+    выборке без пересоздания `StudySession` и без сброса bury-состояния.
+  - Persistence: `settings`-таблица в существующей `AlsaviDB` (аддитивный
+    Dexie `version(3)`), вне порта `EngineStore`; `replaceAll` (restore)
+    таблицу не трогает — restore не сбрасывает setting, usage пересчитывается
+    из восстановленного Review Log. Backup schema — без изменений
+    (`BACKUP_VERSION = 1`); setting не входит в backup v1.
 - **Bury siblings:** после ответа сёстры отвеченной карты (та же `noteId`, кроме
   самой карты) не показываются до конца сессии; `dueCount()` их исключает
   (инвариант TASK_002 сохранён); единственная оставшаяся погребённая сестра не
@@ -472,7 +504,10 @@ WebSocket/IPC/daemon) — CLI вызывает `AIService.answer()` прямо �
 - Синхронизация между устройствами; импорт Anki `.apkg`.
 - Дополнительные учебные режимы — как **новые независимые потребители**
   ядра / стратегии StudySession, а не как ветки внутри ядра.
-- Дневные лимиты новых карт и interleaving — как политика StudySession.
+- Interleaving new/learning-приоритета — как политика StudySession (дневной
+  лимит новых карт уже реализован, см. §6, TASK_020).
+- `max-reviews/day` и undo (`M1`) — остаются будущими задачами; undo требует
+  отдельного ADR (затрагивает append-only-инвариант Review Log, INV-4).
 
 Всё перечисленное — направление, а не обязательство и не проектная спецификация.
 

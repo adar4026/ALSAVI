@@ -13,10 +13,20 @@ interface CardV1 {
   scheduling: unknown;
 }
 
+/** A single app-preference row: `{ key: 'newCardsPerDay', value: number | null }`. */
+interface SettingRow {
+  key: string;
+  value: unknown;
+}
+
+/** Key for the daily new-card limit setting (TASK_020). `null` = unlimited. */
+const NEW_CARDS_PER_DAY_KEY = 'newCardsPerDay';
+
 class AlsaviDB extends Dexie {
   notes!: EntityTable<Note, 'id'>;
   cards!: EntityTable<Card, 'id'>;
   reviews!: EntityTable<Review, 'id'>;
+  settings!: EntityTable<SettingRow, 'key'>;
 
   constructor() {
     super('alsavi');
@@ -45,6 +55,14 @@ class AlsaviDB extends Dexie {
           await tx.table('cards').put({ ...rest, noteId, template: 'forward' });
         }
       });
+
+    // v3: additive `settings` table for local app preferences (TASK_020,
+    // e.g. daily new-card limit). Not engine memory-data — deliberately kept
+    // out of the EngineStore port and out of `replaceAll`'s table set, so
+    // backup restore never touches it. No migration of existing tables.
+    this.version(3).stores({
+      settings: 'key',
+    });
   }
 }
 
@@ -124,5 +142,24 @@ export class DexieStore implements EngineStore {
       await this.db.cards.bulkAdd(data.cards);
       await this.db.reviews.bulkAdd(data.reviews);
     });
+  }
+
+  /**
+   * Local app preference (TASK_020), not engine memory-data — deliberately
+   * outside the `EngineStore` interface above (so `LearningEngine`/
+   * `StudySession` have no structural access to it) but sharing this same
+   * `AlsaviDB` instance and connection, so there is exactly one storage
+   * lifecycle. `undefined` (no row persisted yet) and an explicitly stored
+   * `null` both resolve to unlimited — the caller cannot and need not tell
+   * them apart.
+   */
+  async getNewCardsPerDay(): Promise<number | null> {
+    const row = await this.db.settings.get(NEW_CARDS_PER_DAY_KEY);
+    return (row?.value as number | null | undefined) ?? null;
+  }
+
+  /** Persists the daily new-card limit. Never touched by `replaceAll`/restore. */
+  async setNewCardsPerDay(value: number | null): Promise<void> {
+    await this.db.settings.put({ key: NEW_CARDS_PER_DAY_KEY, value });
   }
 }

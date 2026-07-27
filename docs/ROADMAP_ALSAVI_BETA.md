@@ -125,6 +125,20 @@ Complexity: S/M/L. "Engine-risk" flags changes to the deterministic core (regres
 - **Dependencies:** M0. Undo depends on the append-only-log decision.
 - **Complexity:** limits = M. **Undo — Architecture complexity: Large; UI complexity: Small** — *Undo touches the append-only Review Log invariant (INV-4), requires an ADR, regression testing, and preservation of engine invariants.*
 - **Task breakdown:** new-cards/day + max-reviews/day as `StudyService` policy; persist settings via `SettingsService`; undo (**ADR first**, then implement).
+- **Update (TASK_020, owner-approved deviation).** The `new-cards/day` slice
+  of M1 was delivered **without** the full `M0` prerequisite and **without**
+  introducing `StudyService`/`SettingsService`: it is implemented as
+  `StudySession` presentation policy (`newCardsPerDay`/`setNewCardsPerDay`),
+  which the **Accepted** [ADR-003](adr/ADR-003-studysession-separation.md)
+  already authorizes ("будущие дневные лимиты ... как опции/стратегии
+  `StudySession`"), plus a narrow settings accessor in the existing `AlsaviDB`
+  (additive Dexie `version(3)`, outside the `EngineStore` port). A
+  `StudyService` that only delegated to `StudySession` would have been a
+  pure pass-through wrapper, which the (**Proposed**, non-binding)
+  [ADR-005](adr/ADR-005-application-services-layer.md) itself warns against.
+  `max-reviews/day` and undo remain open, future M1 work — see
+  `tasks/TASK_020.md` for the full rationale and scope. `ADR-005` is
+  unaffected and remains `Proposed`.
 
 ### M2 — Card Management → `CardService` + thin UI
 - **Objective:** browser, editor, search, filter, sort, bulk.

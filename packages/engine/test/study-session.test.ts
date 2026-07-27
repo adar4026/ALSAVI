@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { LearningEngine } from '../src/engine.js';
 import { MemoryStore } from '../src/memory-store.js';
-import { StudySession } from '../src/study-session.js';
+import { assertValidNewCardsPerDay, StudySession } from '../src/study-session.js';
 import type { Card, CardState, Rating } from '../src/types.js';
 
 const T0 = new Date('2026-07-01T10:00:00Z').getTime();
 const MIN = 60_000;
+const DAY = 24 * 60 * 60 * 1000;
 
 /** Fixture card with a precise due offset and state, for boundary tests. */
 function cardFixture(id: string, dueOffsetMin: number, state: CardState = 'learning'): Card {
@@ -319,5 +320,341 @@ describe('StudySession — determinism', () => {
     }
 
     expect(await run()).toEqual(await run());
+  });
+});
+
+describe('StudySession — daily new-card limit (TASK_020)', () => {
+  it('unlimited (default/omitted) preserves existing behavior: all new cards stay reachable', async () => {
+    const { engine, session } = setup(); // newCardsPerDay omitted -> unlimited
+    await engine.addCard({ front: 'a', back: '1' });
+    await engine.addCard({ front: 'b', back: '2' });
+    expect(await session.dueCount()).toBe(2);
+    expect(await session.newCardsWithheldByLimit()).toBe(0);
+  });
+
+  it('explicit null is unlimited, same as omitting the option', async () => {
+    const clock = { t: T0 };
+    let seq = 0;
+    const engine = new LearningEngine(new MemoryStore(), { now: () => clock.t, newId: () => `id-${seq++}` });
+    const session = new StudySession(engine, { now: () => clock.t, newCardsPerDay: null });
+    await engine.addCard({ front: 'a', back: '1' });
+    await engine.addCard({ front: 'b', back: '2' });
+    expect(await session.dueCount()).toBe(2);
+  });
+
+  it('"0" blocks all new cards but leaves a due non-new card untouched', async () => {
+    const store = new MemoryStore();
+    const clock = { t: T0 };
+    let seq = 0;
+    const engine = new LearningEngine(store, { now: () => clock.t, newId: () => `id-${seq++}` });
+    const session = new StudySession(engine, { now: () => clock.t, newCardsPerDay: 0 });
+
+    await engine.addCard({ front: 'new1', back: '1' }); // state 'new', due now
+    await store.putCard(cardFixture('rev1', -1, 'review')); // due now, not new
+
+    expect(await session.dueCount()).toBe(1); // only the non-new card
+    expect((await session.nextCard())?.id).toBe('rev1');
+    expect(await session.newCardsWithheldByLimit()).toBe(1);
+  });
+
+  it('a positive limit allows only the remaining allowance', async () => {
+    const clock = { t: T0 };
+    let seq = 0;
+    const engine = new LearningEngine(new MemoryStore(), { now: () => clock.t, newId: () => `id-${seq++}` });
+    // learnAheadMinutes: 0 isolates the daily limit from learn-ahead resurfacing
+    // (a 'good' answer on a new card lands in 'learning', not straight to
+    // 'review' — see engine.test.ts "learning steps" — and would otherwise
+    // come back via learn-ahead, which is a separate, already-tested concern).
+    const session = new StudySession(engine, { now: () => clock.t, newCardsPerDay: 1, learnAheadMinutes: 0 });
+
+    const a = await engine.addCard({ front: 'a', back: '1' });
+    await engine.addCard({ front: 'b', back: '2' });
+
+    expect(await session.dueCount()).toBe(1); // only 1 of the 2 new cards allowed
+    expect(await session.newCardsWithheldByLimit()).toBe(1);
+
+    const shown = await session.nextCard();
+    expect(shown?.id).toBe(a.id); // earliest by due/id tie-break
+
+    await session.answer(shown!.id, 'good'); // consumes today's one allowance
+
+    expect(await session.dueCount()).toBe(0); // b still withheld, no more allowance today
+    expect(await session.newCardsWithheldByLimit()).toBe(1);
+  });
+
+  it('multiple review records for one card consume the allowance once, not per-record (defensive against inconsistent/imported history)', async () => {
+    const store = new MemoryStore();
+    const clock = { t: T0 };
+    const engine = new LearningEngine(store, { now: () => clock.t });
+    const session = new StudySession(engine, { now: () => clock.t, newCardsPerDay: 2 });
+
+    // c1: already past 'new' (now learning), but its log carries TWO
+    // 'new'-sourced review records for it — simulating inconsistent/imported
+    // history (not reachable via normal engine.review(), which never returns
+    // a card to 'new'). c2: a genuinely untouched new card, still due.
+    await store.putCard(cardFixture('c1', 0, 'learning'));
+    await store.putCard(cardFixture('c2', 0, 'new'));
+    await store.appendReview({
+      id: 'r1',
+      cardId: 'c1',
+      rating: 'good',
+      reviewedAt: T0,
+      stateBefore: 'new',
+      stateAfter: 'learning',
+      dueAfter: T0 + MIN,
+      stability: 1,
+      difficulty: 5,
+      scheduledDays: 0,
+    });
+    await store.appendReview({
+      id: 'r2',
+      cardId: 'c1',
+      rating: 'again',
+      reviewedAt: T0 + 1000,
+      stateBefore: 'new',
+      stateAfter: 'learning',
+      dueAfter: T0 + MIN,
+      stability: 1,
+      difficulty: 5,
+      scheduledDays: 0,
+    });
+
+    // Unique-card counting: c1 counts once (usedToday=1). With limit=2, one
+    // more new card (c2) must still get through — a record-count bug would
+    // instead compute usedToday=2 and withhold c2. (c1 and c2 share the same
+    // `due`, so nextCard()'s id tie-break is not what's under test here —
+    // dueCount()/newCardsWithheldByLimit() directly confirm c2 got through.)
+    expect(await session.newCardsWithheldByLimit()).toBe(0);
+    expect(await session.dueCount()).toBe(2); // c1 (non-new) + c2 (allowed new)
+  });
+
+  it("a new-card answer from a previous local day does not count against today's allowance", async () => {
+    const store = new MemoryStore();
+    const clock = { t: T0 };
+    const engine = new LearningEngine(store, { now: () => clock.t });
+    const session = new StudySession(engine, { now: () => clock.t, newCardsPerDay: 1 });
+
+    await store.appendReview({
+      id: 'y1',
+      cardId: 'yesterday-card',
+      rating: 'good',
+      reviewedAt: T0 - DAY,
+      stateBefore: 'new',
+      stateAfter: 'learning',
+      dueAfter: T0 - DAY + MIN,
+      stability: 1,
+      difficulty: 5,
+      scheduledDays: 0,
+    });
+    await store.putCard(cardFixture('today-new', 0, 'new'));
+
+    expect(await session.newCardsWithheldByLimit()).toBe(0);
+    expect((await session.nextCard())?.id).toBe('today-new');
+  });
+
+  it('learning/relearning cards remain eligible after the new-card limit is reached', async () => {
+    const store = new MemoryStore();
+    const clock = { t: T0 };
+    const engine = new LearningEngine(store, { now: () => clock.t });
+    const session = new StudySession(engine, { now: () => clock.t, newCardsPerDay: 0 });
+
+    await store.putCard(cardFixture('learning1', -1, 'learning'));
+    await store.putCard(cardFixture('relearning1', -1, 'relearning'));
+    await store.putCard(cardFixture('new1', -1, 'new'));
+
+    expect(await session.dueCount()).toBe(2); // learning + relearning; new withheld
+    expect(await session.newCardsWithheldByLimit()).toBe(1);
+  });
+
+  it('newCardsWithheldByLimit is 0 when there simply are no new cards (not a false limit-reached signal)', async () => {
+    const { session } = setup({ t: T0 }, 20); // no cards added at all
+    expect(await session.dueCount()).toBe(0);
+    expect(await session.newCardsWithheldByLimit()).toBe(0);
+  });
+
+  it('newCardsWithheldByLimit is 0 when unlimited, even with many new cards', async () => {
+    const { engine, session } = setup();
+    await engine.addCard({ front: 'a', back: '1' });
+    await engine.addCard({ front: 'b', back: '2' });
+    expect(await session.newCardsWithheldByLimit()).toBe(0);
+  });
+
+  it('showing a new card without answering it does not consume the daily allowance', async () => {
+    const clock = { t: T0 };
+    let seq = 0;
+    const engine = new LearningEngine(new MemoryStore(), { now: () => clock.t, newId: () => `id-${seq++}` });
+    const session = new StudySession(engine, { now: () => clock.t, newCardsPerDay: 1 });
+    await engine.addCard({ front: 'a', back: '1' });
+
+    await session.nextCard();
+    await session.nextCard();
+    await session.nextCard(); // repeated "shows", never answered
+
+    expect(await session.dueCount()).toBe(1); // allowance still available
+    expect(await session.newCardsWithheldByLimit()).toBe(0);
+  });
+
+  it('setNewCardsPerDay changes policy starting with the next selection, without reconstruction', async () => {
+    const clock = { t: T0 };
+    let seq = 0;
+    const engine = new LearningEngine(new MemoryStore(), { now: () => clock.t, newId: () => `id-${seq++}` });
+    const session = new StudySession(engine, { now: () => clock.t }); // unlimited
+    await engine.addCard({ front: 'a', back: '1' });
+    await engine.addCard({ front: 'b', back: '2' });
+
+    expect(await session.dueCount()).toBe(2);
+
+    session.setNewCardsPerDay(1);
+    expect(await session.dueCount()).toBe(1);
+    expect(await session.newCardsWithheldByLimit()).toBe(1);
+
+    session.setNewCardsPerDay(0);
+    expect(await session.dueCount()).toBe(0);
+    expect(await session.newCardsWithheldByLimit()).toBe(2);
+
+    session.setNewCardsPerDay(null);
+    expect(await session.dueCount()).toBe(2);
+    expect(await session.newCardsWithheldByLimit()).toBe(0);
+  });
+
+  it('setNewCardsPerDay does not reset ephemeral bury state', async () => {
+    const { engine, session } = setup({ t: T0 }, 0); // learnAhead 0 isolates bury
+    const { cards } = await engine.addNote({ front: 'A', back: 'a', directions: ['forward', 'reverse'] });
+    const aFwd = cards.find((c) => c.template === 'forward')!;
+
+    await session.answer(aFwd.id, 'good'); // buries the reverse sibling
+
+    session.setNewCardsPerDay(5);
+    session.setNewCardsPerDay(null);
+
+    // Only the buried sibling would otherwise be due — still hidden.
+    expect(await session.nextCard()).toBeNull();
+  });
+
+  it('a new StudySession instance recovers the correct allowance from the persisted Review Log', async () => {
+    const clock = { t: T0 };
+    let seq = 0;
+    const store = new MemoryStore();
+    const engine = new LearningEngine(store, { now: () => clock.t, newId: () => `id-${seq++}` });
+
+    // learnAheadMinutes: 0 isolates the daily limit from learn-ahead
+    // resurfacing of the just-answered card `a` (see the previous test).
+    const s1 = new StudySession(engine, { now: () => clock.t, newCardsPerDay: 1, learnAheadMinutes: 0 });
+    const a = await engine.addCard({ front: 'a', back: '1' });
+    await engine.addCard({ front: 'b', back: '2' });
+    await s1.answer(a.id, 'good'); // consumes the day's one allowance
+
+    // Simulate an app restart: a brand-new StudySession instance, same engine/store.
+    const s2 = new StudySession(engine, { now: () => clock.t, newCardsPerDay: 1, learnAheadMinutes: 0 });
+    expect(await s2.dueCount()).toBe(0); // allowance already spent today, recovered from the log
+    expect(await s2.newCardsWithheldByLimit()).toBe(1); // b still withheld
+  });
+});
+
+describe('StudySession — newCardsPerDay validation (pre-commit audit fix)', () => {
+  function freshEngine() {
+    return new LearningEngine(new MemoryStore(), { now: () => T0 });
+  }
+
+  it('a fractional constructor option throws (would otherwise over-admit new cards)', () => {
+    const engine = freshEngine();
+    expect(() => new StudySession(engine, { newCardsPerDay: 1.5 })).toThrow(RangeError);
+  });
+
+  it('a negative constructor option throws', () => {
+    const engine = freshEngine();
+    expect(() => new StudySession(engine, { newCardsPerDay: -1 })).toThrow(RangeError);
+  });
+
+  it('NaN and Infinity constructor options throw', () => {
+    const engine = freshEngine();
+    expect(() => new StudySession(engine, { newCardsPerDay: Number.NaN })).toThrow(RangeError);
+    expect(() => new StudySession(engine, { newCardsPerDay: Number.POSITIVE_INFINITY })).toThrow(RangeError);
+    expect(() => new StudySession(engine, { newCardsPerDay: Number.NEGATIVE_INFINITY })).toThrow(RangeError);
+  });
+
+  it('an omitted constructor option normalizes to unlimited, not an error', () => {
+    const engine = freshEngine();
+    expect(() => new StudySession(engine, {})).not.toThrow();
+  });
+
+  it('setNewCardsPerDay throws on fractional/negative/NaN/Infinity', () => {
+    const engine = freshEngine();
+    const session = new StudySession(engine, { now: () => T0 });
+    expect(() => session.setNewCardsPerDay(2.5)).toThrow(RangeError);
+    expect(() => session.setNewCardsPerDay(-3)).toThrow(RangeError);
+    expect(() => session.setNewCardsPerDay(Number.NaN)).toThrow(RangeError);
+    expect(() => session.setNewCardsPerDay(Number.POSITIVE_INFINITY)).toThrow(RangeError);
+  });
+
+  it('an invalid setNewCardsPerDay call leaves the previously active valid limit unchanged', async () => {
+    const engine = freshEngine();
+    const session = new StudySession(engine, { now: () => T0, newCardsPerDay: 1, learnAheadMinutes: 0 });
+    await engine.addCard({ front: 'a', back: '1' });
+    await engine.addCard({ front: 'b', back: '2' });
+
+    expect(await session.dueCount()).toBe(1); // limit=1 active
+
+    expect(() => session.setNewCardsPerDay(1.5)).toThrow(RangeError);
+
+    // Still governed by the original limit=1, not by the rejected 1.5 and not
+    // reset to unlimited.
+    expect(await session.dueCount()).toBe(1);
+    expect(await session.newCardsWithheldByLimit()).toBe(1);
+  });
+
+  it('valid null, 0, and a positive integer all continue to work via the setter', async () => {
+    const engine = freshEngine();
+    const session = new StudySession(engine, { now: () => T0 });
+    await engine.addCard({ front: 'a', back: '1' });
+    await engine.addCard({ front: 'b', back: '2' });
+
+    expect(() => session.setNewCardsPerDay(0)).not.toThrow();
+    expect(await session.dueCount()).toBe(0);
+
+    expect(() => session.setNewCardsPerDay(1)).not.toThrow();
+    expect(await session.dueCount()).toBe(1);
+
+    expect(() => session.setNewCardsPerDay(null)).not.toThrow();
+    expect(await session.dueCount()).toBe(2);
+  });
+
+  it('bury state is unaffected by a valid setNewCardsPerDay call, and by a rejected invalid one', async () => {
+    const engine = freshEngine();
+    const session = new StudySession(engine, { now: () => T0, learnAheadMinutes: 0 });
+    const { cards } = await engine.addNote({ front: 'A', back: 'a', directions: ['forward', 'reverse'] });
+    const aFwd = cards.find((c) => c.template === 'forward')!;
+
+    await session.answer(aFwd.id, 'good'); // buries the reverse sibling
+
+    session.setNewCardsPerDay(3); // valid change
+    expect(() => session.setNewCardsPerDay(-1)).toThrow(RangeError); // rejected
+
+    // Sibling still buried through both the valid change and the rejected one.
+    expect(await session.nextCard()).toBeNull();
+  });
+});
+
+describe('assertValidNewCardsPerDay (standalone, no session/engine needed)', () => {
+  it('accepts null, undefined, 0, and positive integers without throwing', () => {
+    expect(() => assertValidNewCardsPerDay(null)).not.toThrow();
+    expect(() => assertValidNewCardsPerDay(undefined)).not.toThrow();
+    expect(() => assertValidNewCardsPerDay(0)).not.toThrow();
+    expect(() => assertValidNewCardsPerDay(20)).not.toThrow();
+  });
+
+  it('rejects negative, fractional, NaN, and Infinity values with RangeError', () => {
+    expect(() => assertValidNewCardsPerDay(-1)).toThrow(RangeError);
+    expect(() => assertValidNewCardsPerDay(1.5)).toThrow(RangeError);
+    expect(() => assertValidNewCardsPerDay(Number.NaN)).toThrow(RangeError);
+    expect(() => assertValidNewCardsPerDay(Number.POSITIVE_INFINITY)).toThrow(RangeError);
+    expect(() => assertValidNewCardsPerDay(Number.NEGATIVE_INFINITY)).toThrow(RangeError);
+  });
+
+  it('does not mutate or require any session/engine — a pure precondition check', () => {
+    // No StudySession/LearningEngine instantiated in this test at all: proves
+    // a composition root can validate a value before persisting it, without
+    // yet touching a live session (the exact use case this was added for).
+    expect(assertValidNewCardsPerDay(5)).toBeUndefined();
   });
 });
