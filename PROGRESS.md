@@ -1,6 +1,16 @@
 # PROGRESS
 
-## 2026-07-22 — TASK_020: pre-commit audit + three corrections — implementation complete, awaiting owner approval for commit/push/deploy
+## 2026-07-27 — TASK_020: commit, push, and automatic GitHub Pages deployment verified
+
+**Commit:** `5775fb9a9ddc2acc9310ac41817fd3b82b72571b` (`feat(study): add configurable daily new-card limit`), pushed to `origin/main`.
+
+**Deployment.** The push automatically triggered the existing `Deploy ALSAVI to GitHub Pages` workflow (no manual deploy step — same pre-existing mechanism as prior deploys). Workflow run `30261902150`: `build` and `deploy` jobs both completed successfully. The GitHub Pages deployment record confirms the exact deployed commit: `5775fb9a9ddc2acc9310ac41817fd3b82b72571b`.
+
+**Read-only production verification.** The production URL returned HTTP 200. The deployed `sw.js`'s `CACHE_VERSION` contains `5775fb9a9ddc`, confirming the live build matches this exact commit (not a stale cache). No production user data was touched or modified by this verification. **Interactive production UI verification (exercising the new daily-limit feature live) was not performed** — this entry confirms only that the correct build is deployed and reachable, not that its functionality was checked in production.
+
+---
+
+## 2026-07-27 — TASK_020: pre-commit audit + three corrections — implementation complete, awaiting owner approval for commit/push/deploy
 
 **Контекст.** Before any commit, an independent pre-commit audit of the
 TASK_020 diff (git-state verification + direct code reading, not just report
@@ -125,7 +135,7 @@ stopping here to await a separate, explicit owner instruction.
 
 ---
 
-## 2026-07-22 — TASK_020: Enforce configurable daily new-card introduction limit — implementation complete, awaiting owner approval for commit/push/deploy
+## 2026-07-27 — TASK_020: Enforce configurable daily new-card introduction limit — implementation complete, awaiting owner approval for commit/push/deploy
 
 **Контекст.** Owner-approved first slice of `M1: Daily Study Controls`
 (`docs/ROADMAP_ALSAVI_BETA.md`), scoped down from a dedicated multi-round
