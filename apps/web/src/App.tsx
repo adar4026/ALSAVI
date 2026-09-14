@@ -2,9 +2,19 @@ import { assertValidNewCardsPerDay, LearningEngine, StudySession, type EngineSta
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CardManager } from './CardManager';
 import { DexieStore } from './dexie-store';
+import { ReviewHome } from './ReviewHome';
 import { ReviewSession } from './ReviewSession';
 
 type View = 'review' | 'cards';
+
+/**
+ * Sub-state of the "Повторение" tab (TASK_022): the home/overview screen
+ * ("Учиться сегодня") before the per-card flow, and the flow itself. Local
+ * UI navigation only — `StudySession` itself stays the same long-lived
+ * instance for the whole app (its own bury-state lifetime is unaffected by
+ * switching between these two screens).
+ */
+type ReviewPhase = 'home' | 'session';
 
 /**
  * TASK_020 pre-commit fix: the persisted daily-limit setting must be loaded
@@ -21,6 +31,7 @@ export function App() {
   const engine = useMemo(() => new LearningEngine(store), [store]);
   const session = useMemo(() => new StudySession(engine), [engine]);
   const [view, setView] = useState<View>('review');
+  const [reviewPhase, setReviewPhase] = useState<ReviewPhase>('home');
   const [stats, setStats] = useState<EngineStats | null>(null);
   // "К повторению" reflects the session queue (due + learn-ahead), so it stays
   // in sync with what StudySession.nextCard() will actually show — not the
@@ -147,7 +158,21 @@ export function App() {
       </div>
       {view === 'review' ? (
         bootstrap === 'ready' ? (
-          <ReviewSession engine={engine} session={session} onReviewed={() => void refreshStats()} />
+          reviewPhase === 'home' ? (
+            <ReviewHome
+              session={session}
+              stats={stats}
+              onStart={() => setReviewPhase('session')}
+              onAddCard={() => setView('cards')}
+            />
+          ) : (
+            <ReviewSession
+              engine={engine}
+              session={session}
+              onReviewed={() => void refreshStats()}
+              onExit={() => setReviewPhase('home')}
+            />
+          )
         ) : bootstrap === 'error' ? (
           <div className="card-panel">
             <div className="empty-state">Не удалось загрузить настройки обучения.</div>

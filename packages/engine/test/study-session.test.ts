@@ -658,3 +658,88 @@ describe('assertValidNewCardsPerDay (standalone, no session/engine needed)', () 
     expect(assertValidNewCardsPerDay(5)).toBeUndefined();
   });
 });
+
+describe('overview (TASK_022 daily study home screen)', () => {
+  /** Engine + session over a directly-accessible MemoryStore (for fixture inserts). */
+  function setupWithStore(clock: { t: number } = { t: T0 }, newCardsPerDay: number | null = null) {
+    const store = new MemoryStore();
+    let seq = 0;
+    const engine = new LearningEngine(store, { now: () => clock.t, newId: () => `id-${seq++}` });
+    const session = new StudySession(engine, { now: () => clock.t, newCardsPerDay });
+    return { store, engine, session, clock };
+  }
+
+  it('an empty collection has all-zero counts', async () => {
+    const { session } = setup();
+    expect(await session.overview()).toEqual({
+      newCount: 0,
+      learningCount: 0,
+      reviewCount: 0,
+      total: 0,
+      newWithheld: 0,
+    });
+  });
+
+  it('categorizes new/learning/relearning/due-review cards into the right buckets', async () => {
+    const { store, session, clock } = setupWithStore();
+    await store.putCard(cardFixture('n1', -1, 'new'));
+    await store.putCard(cardFixture('l1', -1, 'learning'));
+    await store.putCard(cardFixture('r1', -1, 'relearning'));
+    await store.putCard(cardFixture('v1', -1, 'review')); // overdue review
+    void clock;
+
+    const overview = await session.overview();
+    expect(overview).toEqual({ newCount: 1, learningCount: 2, reviewCount: 1, total: 4, newWithheld: 0 });
+    expect(overview.total).toBe(await session.dueCount());
+  });
+
+  it('a not-yet-due review card is excluded (not pulled ahead, unlike learning)', async () => {
+    const { store, session } = setupWithStore();
+    await store.putCard(cardFixture('v1', 30, 'review')); // due in 30 min — not learn-ahead eligible
+    expect(await session.overview()).toEqual({
+      newCount: 0,
+      learningCount: 0,
+      reviewCount: 0,
+      total: 0,
+      newWithheld: 0,
+    });
+  });
+
+  it('a learning card inside the learn-ahead window is counted, matching nextCard()', async () => {
+    const { store, session } = setupWithStore();
+    await store.putCard(cardFixture('l1', 5, 'learning')); // due in 5 min, inside 20-min learn-ahead
+    const overview = await session.overview();
+    expect(overview.learningCount).toBe(1);
+    expect(overview.total).toBe(1);
+    expect((await session.nextCard())?.id).toBe('l1');
+  });
+
+  it('the daily new-card limit reduces newCount and reports newWithheld, leaving other buckets untouched', async () => {
+    const { store, session } = setupWithStore(undefined, 1);
+    await store.putCard(cardFixture('n1', -1, 'new'));
+    await store.putCard(cardFixture('n2', -1, 'new'));
+    await store.putCard(cardFixture('v1', -1, 'review'));
+
+    const overview = await session.overview();
+    expect(overview.newCount).toBe(1);
+    expect(overview.newWithheld).toBe(1);
+    expect(overview.reviewCount).toBe(1);
+    expect(overview.total).toBe(2); // 1 admitted new + 1 review; the withheld new card is not in total
+    expect(overview.total).toBe(await session.dueCount());
+  });
+
+  it('a buried sibling is excluded from the overview, same as from nextCard()/dueCount()', async () => {
+    const { store, session } = setupWithStore();
+    const a = cardFixture('a', -1, 'review');
+    const sibling: Card = { ...cardFixture('b', -1, 'review'), noteId: a.noteId };
+    await store.putCard(a);
+    await store.putCard(sibling);
+
+    expect((await session.overview()).total).toBe(2);
+    await session.answer('a', 'good' as Rating);
+    // 'b' is now buried (same note as the answered 'a'); overview must agree with dueCount().
+    const overview = await session.overview();
+    expect(overview.total).toBe(0);
+    expect(overview.total).toBe(await session.dueCount());
+  });
+});

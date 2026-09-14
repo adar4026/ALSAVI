@@ -332,3 +332,118 @@ body {
 .card-row .delete:hover {
   color: var(--danger);
 }
+
+/* --- TASK_022: "Учиться сегодня" home screen + session progress --- */
+
+.home-panel {
+  gap: 20px;
+}
+
+.home-counts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.home-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.home-count-value {
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.home-count-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.3;
+}
+
+.home-total {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.btn-start {
+  padding: 16px 40px;
+  font-size: 17px;
+  min-height: 52px;
+}
+
+.session-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.save-error {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: var(--danger);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* Larger, easier-to-tap rating buttons; grid degrades to 2 columns on very
+   narrow phones (checked at 320/375/390/430px) instead of squeezing four
+   cramped columns. */
+.answer-buttons button {
+  min-height: 56px;
+}
+
+@media (max-width: 380px) {
+  .app {
+    padding: 20px 12px 64px;
+  }
+
+  .card-panel {
+    padding: 32px 16px;
+    min-height: 220px;
+  }
+
+  .card-front {
+    font-size: 24px;
+  }
+
+  .answer-buttons {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .home-count-value {
+    font-size: 22px;
+  }
+}

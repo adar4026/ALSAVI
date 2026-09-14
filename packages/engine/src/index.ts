@@ -13,7 +13,7 @@ export { renderCard } from './render.js';
 export type { ScheduleUpdate, Scheduler } from './scheduler.js';
 export type { EngineStore } from './store.js';
 export { assertValidNewCardsPerDay, StudySession } from './study-session.js';
-export type { StudySessionOptions } from './study-session.js';
+export type { StudySessionOptions, StudySessionOverview } from './study-session.js';
 export { DEFAULT_DECK_ID } from './types.js';
 export type {
   Card,

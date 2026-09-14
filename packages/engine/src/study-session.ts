@@ -25,6 +25,17 @@ export interface StudySessionOptions {
 
 const DEFAULT_LEARN_AHEAD_MINUTES = 20;
 
+/** Read-only breakdown of the session's eligible cards — see `StudySession.overview()`. */
+export interface StudySessionOverview {
+  newCount: number;
+  learningCount: number;
+  reviewCount: number;
+  /** `newCount + learningCount + reviewCount`; equals `dueCount()`. */
+  total: number;
+  /** Same value as `newCardsWithheldByLimit()`. */
+  newWithheld: number;
+}
+
 /**
  * Mirrors `LearningEngine`'s local-day boundary (local calendar midnight) so
  * the daily new-card limit agrees with `getStats().reviewsToday`/streak.
@@ -158,6 +169,43 @@ export class StudySession {
   async dueCount(): Promise<number> {
     const { dueNow, learningSoon } = await this.selectEligible(this.now());
     return dueNow.length + learningSoon.length;
+  }
+
+  /**
+   * Breakdown of the session's eligible cards by category, for a "today's
+   * plan" overview (TASK_022) — same three buckets Anki-style UIs show.
+   * `newCount + learningCount + reviewCount === total`, and `total` always
+   * equals `dueCount()`: this shares the exact same `selectEligible` call, so
+   * the overview screen and the session it starts can never disagree about
+   * how many cards there are. A read-only categorization of already-selected
+   * cards — no new scheduling logic, no query beyond what `nextCard`/
+   * `dueCount` already perform.
+   *
+   * - `newCount` — `state === 'new'` cards admitted by the daily limit.
+   * - `learningCount` — `learning`/`relearning` cards, whether actually due
+   *   or inside the learn-ahead window (both are shown in this session).
+   * - `reviewCount` — `state === 'review'` cards that are overdue right now.
+   */
+  async overview(): Promise<StudySessionOverview> {
+    const { dueNow, learningSoon, newWithheld } = await this.selectEligible(this.now());
+    let newCount = 0;
+    let learningCount = 0;
+    let reviewCount = 0;
+    for (const card of dueNow) {
+      if (card.state === 'new') newCount += 1;
+      else if (isLearning(card)) learningCount += 1;
+      else reviewCount += 1;
+    }
+    // learningSoon is exclusively learning/relearning cards inside the
+    // learn-ahead window, by construction of selectEligible — see there.
+    learningCount += learningSoon.length;
+    return {
+      newCount,
+      learningCount,
+      reviewCount,
+      total: newCount + learningCount + reviewCount,
+      newWithheld,
+    };
   }
 
   /**
