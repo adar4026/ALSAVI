@@ -1,5 +1,61 @@
 # PROGRESS
 
+## 2026-09-14 — TASK_021: note creation failed where `crypto.randomUUID()` is unavailable — fixed
+
+**Сделано.**
+- **Проблема подтверждена воспроизведением**, не предположением. Dev-сервер,
+  в странице удалён `Crypto.prototype.randomUUID` (имитация non-secure
+  context / iOS Safari < 15.4): «Добавить карточку» → консоль
+  `Uncaught (in promise) TypeError: crypto.randomUUID is not a function`,
+  запись в IndexedDB **не появилась**, UI **ничего не показал** (форма молча
+  осталась заполненной). Точная причина: `packages/engine/src/engine.ts`
+  дефолтный `newId = () => crypto.randomUUID()` вызывался в `addNote()` до
+  `putNote` (и в `review()` до `appendReview`); `CardManager.add()` без
+  `try/catch`, rejection отбрасывался `void add(e)`. Та же причина в миграции
+  v1→v2 `apps/web/src/dexie-store.ts`.
+- **Фикс (Engine + UI):** новый `packages/engine/src/ids.ts` — `generateId()`:
+  `crypto.randomUUID()` при наличии → иначе RFC 4122 v4 UUID из
+  `crypto.getRandomValues()` (тот же канонический формат, 122 бита
+  случайности) → иначе `throw` с понятным сообщением. `Math.random()` не
+  используется. `engine.ts`: `options.newId ?? generateId`; `index.ts`
+  экспортирует `generateId`; `dexie-store.ts` миграция использует его же.
+  `CardManager.tsx`: `try/catch` вокруг `addNote`, ошибка показывается под
+  формой («Не удалось сохранить карточку: …»), текст в полях сохраняется,
+  поля очищаются только после успеха, кнопка `disabled` на время сохранения.
+- **Тесты:** `packages/engine/test/ids.test.ts` (+9), `apps/web/test/add-note-dexie.test.ts`
+  (+3, реальная запись в fake-IndexedDB через `DexieStore` с дефолтным
+  генератором, чтение новым экземпляром адаптера = перезагрузка,
+  сосуществование старых и fallback-id). `npm test` — **180/180** (engine 83,
+  anki-import 18+1 skipped, backup 16, ai 13, cli 23, web 27). `tsc --noEmit`
+  чист (engine, web). `git diff --check` чист.
+- **Ручная проверка в браузере (dev-сервер, локальные данные):** с
+  `randomUUID` — добавлено; без `randomUUID` — добавлено через fallback, id в
+  формате v4, новых ошибок в консоли нет; без обоих источников — ошибка видна,
+  текст сохранён, счётчик не изменился; после перезагрузки страницы все записи
+  на месте, id fallback-заметки неизменен.
+- Задача оформлена: `tasks/TASK_021.md`.
+
+**Решения и почему.**
+- Без источника случайности — `throw`, а не `Math.random`: id — постоянные
+  ключи, тихая коллизия хуже видимого отказа; UI теперь показывает ошибку.
+- Fallback повторяет формат `randomUUID` → старые и новые id неразличимы,
+  ничего не мигрируется, существующие id не трогаются.
+- Тест-изоляция Dexie в `add-note-dexie.test.ts`: сбрасывается и
+  `globalThis.indexedDB`, и `Dexie.dependencies.indexedDB` (Dexie берёт
+  зависимость при создании экземпляра, а не из `globalThis` — ограничение,
+  уже задокументированное в `settings-migration.test.ts`).
+- Окружение: `node_modules` был установлен под x64-Node; на arm64-Node
+  тесты падали (`@rollup/rollup-darwin-arm64` отсутствует). Восстановлено
+  `npm install` по существующему lockfile с временным `--cache`;
+  `package-lock.json` не изменился.
+
+**Отложено и почему.** Обработка ошибок в `remove()`/импорте — вне рамок
+задачи (одна цель). Новая функциональность/AI Layer не начинались.
+
+**Следующий шаг.** По плану владельца (roadmap `M1`); TASK_021 закрыта.
+
+---
+
 ## 2026-07-27 — TASK_020: commit, push, and automatic GitHub Pages deployment verified
 
 **Commit:** `5775fb9a9ddc2acc9310ac41817fd3b82b72571b` (`feat(study): add configurable daily new-card limit`), pushed to `origin/main`.

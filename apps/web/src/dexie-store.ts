@@ -1,4 +1,13 @@
-import type { Card, CardId, CollectionData, EngineStore, Note, NoteId, Review } from '@alsavi/engine';
+import {
+  generateId,
+  type Card,
+  type CardId,
+  type CollectionData,
+  type EngineStore,
+  type Note,
+  type NoteId,
+  type Review,
+} from '@alsavi/engine';
 import Dexie, { type EntityTable } from 'dexie';
 
 /** Shape of a v1 card, before content moved to notes. Used only by migration. */
@@ -49,7 +58,7 @@ class AlsaviDB extends Dexie {
       .upgrade(async (tx) => {
         const cards = await tx.table('cards').toArray();
         for (const raw of cards as CardV1[]) {
-          const noteId = crypto.randomUUID();
+          const noteId = generateId();
           await tx.table('notes').add({ id: noteId, front: raw.front, back: raw.back });
           const { front: _front, back: _back, ...rest } = raw;
           await tx.table('cards').put({ ...rest, noteId, template: 'forward' });

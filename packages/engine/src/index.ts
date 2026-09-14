@@ -7,6 +7,7 @@ export type {
   ReviewResult,
 } from './engine.js';
 export { FsrsScheduler } from './fsrs-scheduler.js';
+export { generateId } from './ids.js';
 export { MemoryStore } from './memory-store.js';
 export { renderCard } from './render.js';
 export type { ScheduleUpdate, Scheduler } from './scheduler.js';

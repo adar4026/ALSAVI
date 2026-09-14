@@ -69,6 +69,8 @@ export function CardManager({
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
   const [alsoReverse, setAlsoReverse] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
   const [limitInput, setLimitInput] = useState(() => formatLimit(newCardsPerDay));
@@ -96,14 +98,25 @@ export function CardManager({
 
   async function add(e: FormEvent) {
     e.preventDefault();
-    if (!front.trim() || !back.trim()) return;
-    await engine.addNote({
-      front,
-      back,
-      directions: alsoReverse ? ['forward', 'reverse'] : ['forward'],
-    });
+    if (!front.trim() || !back.trim() || adding) return;
+    setAdding(true);
+    setAddError(null);
+    try {
+      await engine.addNote({
+        front,
+        back,
+        directions: alsoReverse ? ['forward', 'reverse'] : ['forward'],
+      });
+    } catch (err) {
+      // Nothing was saved (or the write failed): keep the typed text so the
+      // user can retry, and say so instead of silently swallowing the error.
+      setAddError(`Не удалось сохранить карточку: ${err instanceof Error ? err.message : String(err)}`);
+      setAdding(false);
+      return;
+    }
     setFront('');
     setBack('');
+    setAdding(false);
     await reload();
     onChanged();
   }
@@ -207,9 +220,10 @@ export function CardManager({
           />
           Создать также обратную карточку
         </label>
-        <button className="btn-primary" type="submit">
+        <button className="btn-primary" type="submit" disabled={adding}>
           Добавить {alsoReverse ? 'карточки' : 'карточку'}
         </button>
+        {addError && <div className="import-status">{addError}</div>}
       </form>
       <div className="import-row">
         <input

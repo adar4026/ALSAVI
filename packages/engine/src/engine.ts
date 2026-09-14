@@ -1,4 +1,5 @@
 import { FsrsScheduler } from './fsrs-scheduler.js';
+import { generateId } from './ids.js';
 import { renderCard } from './render.js';
 import { replayCardState } from './replay.js';
 import type { Scheduler } from './scheduler.js';
@@ -66,7 +67,7 @@ export class LearningEngine {
     this.store = store;
     this.scheduler = options.scheduler ?? new FsrsScheduler();
     this.now = options.now ?? Date.now;
-    this.newId = options.newId ?? (() => crypto.randomUUID());
+    this.newId = options.newId ?? generateId;
   }
 
   /**
