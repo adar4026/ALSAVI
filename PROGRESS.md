@@ -42,8 +42,20 @@ diff --check` чист. Ручная проверка (dev-сервер, пус�
   задачи — не менять клавиши; отдельная задача.
 - Подсказка «1 · 2 · 3 · 4» на телефоне лишняя — косметика.
 
-**Следующий шаг.** Коммит, пуш в `origin/main`, дождаться деплоя GitHub
-Pages, проверить production.
+**Коммит и деплой.** `b390ea76b7ff7c29284baa38e9575b0c11ee2bf9`
+(`feat(study): show the note's example and personal memo after revealing
+the answer`), запушен в `origin/main`; workflow `38275919947` (build с
+`npm test` + deploy) — успешно; deployment record GitHub Pages — тот же SHA.
+Production `https://adar4026.github.io/ALSAVI/`: HTTP 200, `CACHE_VERSION =
+alsavi-shell-b390ea76b7ff`, бандл `index-DRIx77-z.js` / `index-6-eIzNGj.css`
+(совпадает с локальной сборкой, содержит новые блоки и липкую панель),
+ассеты 200, консоль без ошибок, на 375 px без горизонтального скролла.
+Проверка production — только чтение: данные не создавались, поэтому
+сессия с примером/заметкой интерактивно проверена на dev, а не на
+production.
+
+**Следующий шаг.** По плану владельца; кандидат — исправить Enter на
+сфокусированной кнопке оценки (см. «Отложено»).
 
 ---
 
