@@ -346,55 +346,57 @@ export function CardManager({
           Мои карточки
         </h2>
 
-        <div className="list-controls" hidden={entries.length === 0}>
-          <input
-            type="search"
-            className="search-input"
-            value={filter.query}
-            onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
-            placeholder="Поиск: слово, перевод, пример, заметка"
-            aria-label="Поиск карточек"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            enterKeyHint="search"
-          />
-          <div className="chip-row" role="group" aria-label="Состояние">
-            {STATUS_FILTERS.map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                className="chip"
-                aria-pressed={filter.status === value}
-                onClick={() =>
-                  // Tags of the archive and of the active list differ — reset them only across that switch.
-                  setFilter((f) => ({ ...f, status: value, tags: (value === 'archived') === showingArchive ? f.tags : [] }))
-                }
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {filter.status === 'difficult' && (
-            <div className="hint">Карточки, которые вы хотя бы раз забыли после того, как уже выучили.</div>
-          )}
-          {filterTags.length > 0 && (
-            <div className="chip-row" role="group" aria-label="Фильтр по тегам">
-              {filterTags.map(({ tag, count }) => (
+        {entries.length > 0 && (
+          <div className="list-controls">
+            <input
+              type="search"
+              className="search-input"
+              value={filter.query}
+              onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
+              placeholder="Поиск: слово, перевод, пример, заметка"
+              aria-label="Поиск карточек"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              enterKeyHint="search"
+            />
+            <div className="chip-row" role="group" aria-label="Состояние">
+              {STATUS_FILTERS.map(([value, label]) => (
                 <button
-                  key={tag}
+                  key={value}
                   type="button"
-                  className="chip chip-tag"
-                  aria-pressed={filter.tags.includes(tag)}
-                  aria-label={`Тег ${tag}, карточек: ${count}`}
-                  onClick={() => toggleTag(tag)}
+                  className="chip"
+                  aria-pressed={filter.status === value}
+                  onClick={() =>
+                    // Tags of the archive and of the active list differ — reset them only across that switch.
+                    setFilter((f) => ({ ...f, status: value, tags: (value === 'archived') === showingArchive ? f.tags : [] }))
+                  }
                 >
-                  #{tag} <span className="chip-count">{count}</span>
+                  {label}
                 </button>
               ))}
             </div>
-          )}
-        </div>
+            {filter.status === 'difficult' && (
+              <div className="hint">Карточки, которые вы хотя бы раз забыли после того, как уже выучили.</div>
+            )}
+            {filterTags.length > 0 && (
+              <div className="chip-row" role="group" aria-label="Фильтр по тегам">
+                {filterTags.map(({ tag, count }) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className="chip chip-tag"
+                    aria-pressed={filter.tags.includes(tag)}
+                    aria-label={`Тег ${tag}, карточек: ${count}`}
+                    onClick={() => toggleTag(tag)}
+                  >
+                    #{tag} <span className="chip-count">{count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div aria-live="polite">
           {archiveState.lastArchived && (
