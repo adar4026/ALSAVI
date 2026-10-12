@@ -52,8 +52,19 @@ build` и `git diff --check` чисты. Ручная проверка на dev:
 - «Fix backups rejected for orphan reviews» — отдельная задача, не трогалась.
 - Подсказка «1 · 2 · 3 · 4» на телефоне — косметика (с TASK_024).
 
-**Следующий шаг.** Коммит, пуш в `origin/main`, авто-деплой GitHub Pages,
-проверка production.
+**Коммит и деплой.** `43b17a80ecb0ed2d1208e759ee4ad6eaaef51955`
+(`feat(stats): add a learning statistics screen built from the Review Log`),
+запушен в `origin/main`; workflow `38281044997` (build с `npm test` +
+deploy) — успешно; deployment record GitHub Pages — тот же SHA. Production
+`https://adar4026.github.io/ALSAVI/`: HTTP 200, `CACHE_VERSION =
+alsavi-shell-43b17a80ecb0`, бандл `index-ChzeXtAM.js` / `index-DB20aBWU.css`
+(совпадает с локальной сборкой), три вкладки, «Статистика» открывается с
+пятью разделами и нулями за 7/30 дней, на 375 px без горизонтального скролла
+и мелких целей, консоль без ошибок. Проверка production — только чтение:
+профиль браузерной панели пуст (0/0/0/0) до и после, данные не создавались;
+экран с данными проверен на dev.
+
+**Следующий шаг.** По плану владельца (см. отчёт TASK_026).
 
 ---
 
