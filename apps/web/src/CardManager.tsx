@@ -1,5 +1,5 @@
 import type { CardView, EngineStore, LearningEngine } from '@alsavi/engine';
-import { backupFilename, exportBackup, restoreBackup } from '@alsavi/backup';
+import { backupFilename, createBackup, restoreBackup } from '@alsavi/backup';
 import {
   useCallback,
   useEffect,
@@ -11,6 +11,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { ArchiveFlow, type ArchiveTarget } from './archive-flow';
+import { exportedStatus, restoreConfirmText, restoredStatus } from './backup-messages';
 import {
   buildNoteEntries,
   collectTags,
@@ -239,14 +240,14 @@ export function CardManager({
   async function onExport() {
     setBackupStatus('Формирую резервную копию…');
     try {
-      const json = await exportBackup(store);
+      const { json, retired } = await createBackup(store);
       const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
       const a = document.createElement('a');
       a.href = url;
       a.download = backupFilename();
       a.click();
       URL.revokeObjectURL(url);
-      setBackupStatus('Резервная копия сохранена.');
+      setBackupStatus(exportedStatus(retired));
     } catch (err) {
       setBackupStatus(`Не удалось экспортировать: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -262,14 +263,7 @@ export function CardManager({
       // restoreBackup owns validate → confirm → replace; this callback is
       // only the UI's confirmation policy (window.confirm), given the parsed
       // metadata — no parsing/replace logic lives here.
-      const outcome = await restoreBackup(store, text, (meta) =>
-        window.confirm(
-          `Восстановление заменит ВСЕ текущие данные на копию от ` +
-            `${new Date(meta.exportedAt).toLocaleString()} ` +
-            `(${meta.notes} заметок, ${meta.cards} карточек, ${meta.reviews} повторений).\n\n` +
-            `Это действие необратимо. Продолжить?`
-        )
-      );
+      const outcome = await restoreBackup(store, text, (meta) => window.confirm(restoreConfirmText(meta)));
       switch (outcome.status) {
         case 'rejected':
           setBackupStatus(`Файл отклонён: ${outcome.error} Текущие данные не изменены.`);
@@ -278,9 +272,7 @@ export function CardManager({
           setBackupStatus('Восстановление отменено. Данные не изменены.');
           return;
         case 'restored':
-          setBackupStatus(
-            `Восстановлено: ${outcome.notes} заметок, ${outcome.cards} карточек, ${outcome.reviews} повторений.`
-          );
+          setBackupStatus(restoredStatus(outcome));
           await reload();
           onChanged();
           return;

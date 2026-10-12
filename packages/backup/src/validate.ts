@@ -1,8 +1,26 @@
 import type { Card, CardState, CardTemplate, CollectionData, Note, Rating, Review } from '@alsavi/engine';
-import { BACKUP_FORMAT, BACKUP_VERSION, type BackupFile } from './format.js';
+import {
+  BACKUP_FORMAT,
+  BACKUP_VERSION,
+  BACKUP_VERSION_BASE,
+  BACKUP_VERSION_RETIRED,
+  summarizeRetired,
+  type BackupData,
+  type RetiredHistory,
+} from './format.js';
+
+/**
+ * History of deleted cards found in a valid backup (TASK_027). `legacy` —
+ * found in a version 1 file, which cannot declare such history: those reviews
+ * are indistinguishable from a damaged reference, so the caller must ask the
+ * user before restoring (the restore confirmation shows this).
+ */
+export interface RetiredHistoryReport extends RetiredHistory {
+  legacy: boolean;
+}
 
 export type ValidationResult =
-  | { ok: true; data: CollectionData; exportedAt: number }
+  | { ok: true; data: CollectionData; exportedAt: number; retired?: RetiredHistoryReport }
   | { ok: false; error: string };
 
 const TEMPLATES: CardTemplate[] = ['forward', 'reverse'];
@@ -14,6 +32,15 @@ const RATINGS: Rating[] = ['again', 'hard', 'good', 'easy'];
  * Two levels: structural (format/version/JSON/field types) and referential
  * (every card→note, every review→card, no duplicate ids). On any failure
  * returns `{ ok: false }` with a clear message and touches nothing.
+ *
+ * Reviews of deleted cards (TASK_027): a version 2 file declares them in
+ * `data.retiredReviews`; each must be a valid review whose card is NOT in the
+ * file (otherwise the file is damaged), and a review in `data.reviews` without
+ * its card is still rejected. A version 1 file cannot declare them, so there
+ * reviews without a card are accepted as legacy history and reported with
+ * `retired.legacy` for the caller to confirm. Either way they are returned in
+ * `data.reviews` — one append-only Review Log; they reference no card, so no
+ * study queue or scheduling ever reads them.
  */
 export function parseBackup(text: string): ValidationResult {
   let root: unknown;
@@ -27,17 +54,21 @@ export function parseBackup(text: string): ValidationResult {
   if (root.format !== BACKUP_FORMAT) {
     return fail('Это не файл резервной копии ALSAVI.');
   }
-  if (typeof root.version !== 'number') return fail('Отсутствует или некорректна версия формата.');
-  if (root.version > BACKUP_VERSION) {
-    return fail(`Копия сделана более новой версией ALSAVI (версия формата ${root.version}). Обновите приложение.`);
+  const version = root.version;
+  if (typeof version !== 'number') return fail('Отсутствует или некорректна версия формата.');
+  if (version > BACKUP_VERSION) {
+    return fail(`Копия сделана более новой версией ALSAVI (версия формата ${version}). Обновите приложение.`);
   }
-  if (root.version !== BACKUP_VERSION) {
-    return fail(`Неподдерживаемая версия формата резервной копии: ${root.version}.`);
+  if (version !== BACKUP_VERSION_BASE && version !== BACKUP_VERSION_RETIRED) {
+    return fail(`Неподдерживаемая версия формата резервной копии: ${version}.`);
   }
 
-  const data = (root as Partial<BackupFile>).data;
+  const data = root.data as Partial<Record<keyof BackupData, unknown>> | undefined;
   if (!isObject(data) || !Array.isArray(data.notes) || !Array.isArray(data.cards) || !Array.isArray(data.reviews)) {
     return fail('Повреждённая структура: ожидались data.notes / data.cards / data.reviews.');
+  }
+  if (version === BACKUP_VERSION_RETIRED ? !Array.isArray(data.retiredReviews) : data.retiredReviews !== undefined) {
+    return fail('Повреждённая структура: data.retiredReviews не соответствует версии формата.');
   }
 
   const noteIds = new Set<string>();
@@ -61,21 +92,44 @@ export function parseBackup(text: string): ValidationResult {
   }
 
   const reviewIds = new Set<string>();
+  const retired: Review[] = [];
   for (const [i, r] of data.reviews.entries()) {
     const err = validateReview(r, i);
     if (err) return fail(err);
     const review = r as Review;
     if (reviewIds.has(review.id)) return fail(`Дублирующийся id повторения: ${review.id}.`);
     reviewIds.add(review.id);
-    if (!cardIds.has(review.cardId)) {
+    if (cardIds.has(review.cardId)) continue;
+    if (version !== BACKUP_VERSION_BASE) {
       return fail(`Повторение ${review.id} ссылается на несуществующую карточку ${review.cardId}.`);
     }
+    retired.push(review); // version 1: undeclared history of a deleted card
   }
 
+  const declared = (data.retiredReviews ?? []) as unknown[];
+  for (const [i, r] of declared.entries()) {
+    const err = validateReview(r, i);
+    if (err) return fail(`История удалённых карточек: ${err}`);
+    const review = r as Review;
+    if (reviewIds.has(review.id)) return fail(`Дублирующийся id повторения: ${review.id}.`);
+    reviewIds.add(review.id);
+    if (cardIds.has(review.cardId)) {
+      return fail(`Запись истории ${review.id} относится к существующей карточке ${review.cardId}.`);
+    }
+    retired.push(review);
+  }
+
+  // One Review Log again, in time order (the sort is stable: file order on ties).
+  const reviews =
+    declared.length === 0
+      ? (data.reviews as Review[])
+      : [...(data.reviews as Review[]), ...(declared as Review[])].sort((a, b) => a.reviewedAt - b.reviewedAt);
+  const summary = summarizeRetired(retired);
   return {
     ok: true,
-    data: { notes: data.notes as Note[], cards: data.cards as Card[], reviews: data.reviews as Review[] },
+    data: { notes: data.notes as Note[], cards: data.cards as Card[], reviews },
     exportedAt: typeof root.exportedAt === 'number' ? root.exportedAt : 0,
+    ...(summary ? { retired: { ...summary, legacy: version === BACKUP_VERSION_BASE } } : {}),
   };
 }
 

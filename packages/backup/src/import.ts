@@ -1,5 +1,5 @@
 import type { EngineStore } from '@alsavi/engine';
-import { parseBackup } from './validate.js';
+import { parseBackup, type RetiredHistoryReport } from './validate.js';
 
 export class BackupError extends Error {
   constructor(message: string) {
@@ -19,7 +19,14 @@ export interface RestoreMeta {
   exportedAt: number;
   notes: number;
   cards: number;
+  /** All review records restored, including `retired` ones. */
   reviews: number;
+  /**
+   * History of deleted cards in the file (TASK_027); absent when there is
+   * none. With `legacy: true` (a version 1 file) it could also be a damaged
+   * reference, so a confirming UI should tell the user before approving.
+   */
+  retired?: RetiredHistoryReport;
 }
 
 /**
@@ -60,6 +67,7 @@ export async function restoreBackup(
     notes: result.data.notes.length,
     cards: result.data.cards.length,
     reviews: result.data.reviews.length,
+    ...(result.retired ? { retired: result.retired } : {}),
   };
   const approved = await confirm(meta);
   if (!approved) return { status: 'cancelled' };
