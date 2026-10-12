@@ -40,7 +40,8 @@
   --success-border: #bbf7d0;
   --streak: #ea580c;
   --shadow-card: 0 1px 2px rgba(22, 21, 31, 0.04), 0 8px 24px rgba(30, 41, 80, 0.06);
-  --backdrop: rgba(15, 17, 21, 0.4);
+  --nav-h: 64px;
+  --nav-bg: rgba(255, 255, 255, 0.78);
   --radius: 16px;
   --radius-sm: 12px;
   --radius-lg: 22px;
@@ -75,7 +76,7 @@
   --success-border: rgba(74, 222, 128, 0.3);
   --streak: #fb923c;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 26px rgba(0, 0, 0, 0.28);
-  --backdrop: rgba(0, 0, 0, 0.6);
+  --nav-bg: rgba(26, 29, 37, 0.8);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -106,7 +107,7 @@
     --success-border: rgba(74, 222, 128, 0.3);
     --streak: #fb923c;
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 26px rgba(0, 0, 0, 0.28);
-    --backdrop: rgba(0, 0, 0, 0.6);
+    --nav-bg: rgba(26, 29, 37, 0.8);
   }
 }
 
@@ -124,57 +125,14 @@ body {
 .app {
   max-width: 640px;
   margin: 0 auto;
-  padding: calc(20px + env(safe-area-inset-top, 0px)) 20px 80px;
+  /* Bottom: room for the floating navigation bar and the home indicator. */
+  padding: calc(20px + env(safe-area-inset-top, 0px)) 20px
+    calc(var(--nav-h) + 40px + env(safe-area-inset-bottom, 0px));
 }
 
-/* Top-level sections as a segmented control under the header (until the
-   bottom navigation of the next stage). 44px touch targets. */
-.nav {
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  margin-bottom: 16px;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
-}
-
-.nav button {
-  flex: 1;
-  min-height: 44px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 6px 8px;
-  border-radius: 9px;
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
-}
-
-.nav button.active {
-  background: var(--surface-raised);
-  color: var(--accent-text);
-  box-shadow: var(--shadow-card);
-}
-
-.statsbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 20px;
-  color: var(--text-muted);
-  font-size: 13px;
-  margin-bottom: 20px;
-}
-
-.statsbar span {
-  white-space: nowrap;
-}
-
-.statsbar strong {
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
+/* A study session is a focus mode without the navigation bar. */
+.app.in-session {
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
 
 .card-panel {
@@ -466,8 +424,10 @@ body {
 }
 
 @media (max-width: 380px) {
+  /* Narrower side gutters; top and bottom keep the safe-area / navigation room. */
   .app {
-    padding: 20px 12px 64px;
+    padding-left: 12px;
+    padding-right: 12px;
   }
 
   .card-panel {
@@ -627,8 +587,7 @@ body {
   cursor: default;
 }
 
-:is(.btn-primary, .btn-secondary, .btn-danger, .btn-link, .btn-icon, .chip, .nav button, .answer-buttons button):focus-visible,
-.tools summary:focus-visible {
+:is(.btn-primary, .btn-secondary, .btn-danger, .btn-link, .btn-icon, .chip, .answer-buttons button):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -705,40 +664,6 @@ body {
   display: flex;
   gap: 4px;
   align-items: center;
-}
-
-.tools {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  padding: 0 16px;
-}
-
-.tools summary {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.tools[open] {
-  padding-bottom: 4px;
-}
-
-.tools .import-row {
-  margin: 8px 0 16px;
-}
-
-.tools .btn-secondary {
-  min-height: 44px;
-}
-
-.tools .limit-input {
-  min-height: 44px;
-  font-size: 16px;
 }
 
 .list-controls {
@@ -1617,50 +1542,6 @@ body {
   line-height: 1.45;
 }
 
-/* Settings sheet: a bottom sheet on phones, a centred card on wide screens. */
-.sheet {
-  width: min(440px, 100%);
-  max-width: 100%;
-  margin: auto auto 0;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow-card);
-}
-
-.sheet::backdrop {
-  background: var(--backdrop);
-}
-
-.sheet[open] {
-  animation: sheet-in 0.25s var(--ease);
-}
-
-.sheet-body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
-}
-
-.sheet-title {
-  margin: 0;
-  font-size: 19px;
-  font-weight: 700;
-}
-
-.sheet-link {
-  min-height: 48px;
-  text-align: left;
-  font-weight: 600;
-}
-
-.sheet .btn-primary {
-  min-height: 48px;
-}
-
 .segmented-field {
   margin: 0;
   padding: 0;
@@ -1720,13 +1601,6 @@ body {
   }
 }
 
-@keyframes sheet-in {
-  from {
-    transform: translateY(24px);
-    opacity: 0;
-  }
-}
-
 @media (max-width: 380px) {
   .home-greeting {
     font-size: 24px;
@@ -1773,11 +1647,7 @@ body {
     padding-top: 32px;
   }
 
-  .nav {
-    max-width: 480px;
-  }
-
-  .app > :not(.app-header, .nav, .home-grid, .sheet) {
+  .app > :not(.app-header, .main-nav, .home-grid) {
     max-width: 640px;
   }
 
@@ -1792,10 +1662,6 @@ body {
     font-size: 32px;
   }
 
-  .sheet {
-    margin: auto;
-    border-radius: var(--radius-lg);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1804,5 +1670,254 @@ body {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* --- TASK_030: main navigation, profile, session exit --------------------- */
+
+/* Phones: a floating glass bar above the home indicator (LexCar style).
+   Without backdrop-filter support the bar is simply opaque. */
+.main-nav {
+  position: fixed;
+  left: 50%;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  z-index: 10;
+  width: min(440px, calc(100% - 24px));
+  transform: translateX(-50%);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(15, 17, 21, 0.18);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .main-nav {
+    background: var(--nav-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+  }
+}
+
+.main-nav-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+
+.main-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  min-height: calc(var(--nav-h) - 12px);
+  padding: 4px 2px;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.main-nav-label {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.main-nav-item[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.main-nav-item:hover:not([aria-current='page']) {
+  color: var(--text);
+}
+
+.main-nav-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Session exit, at the end of the progress row. */
+.session-exit {
+  min-height: 44px;
+  padding: 0 4px;
+  align-self: center;
+}
+
+.session-exit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Profile */
+
+.profile-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-head {
+  padding: 4px 2px 0;
+}
+
+.profile-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.profile-lead {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-section .panel-title {
+  margin: 0;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.setting-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.setting-hint {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.profile-section .limit-input {
+  flex-shrink: 0;
+  width: 6.5em;
+  min-height: 44px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.profile-section .import-status {
+  margin: 0;
+}
+
+.data-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.data-group + .data-group {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.data-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.data-group .btn-secondary {
+  min-height: 44px;
+}
+
+.data-group .hint {
+  margin: 0;
+  line-height: 1.45;
+}
+
+@media (max-width: 380px) {
+  .main-nav-label {
+    font-size: 10px;
+  }
+
+  .data-actions,
+  .data-actions .btn-secondary {
+    width: 100%;
+  }
+}
+
+/* Computer: the bar becomes a horizontal tab row under the header; from
+   1100px, where it fits between the brand and the header buttons, it moves
+   into the header row, centred. */
+@media (min-width: 900px) {
+  .app {
+    position: relative;
+    padding-bottom: 80px;
+  }
+
+  .main-nav {
+    position: static;
+    width: fit-content;
+    margin-bottom: 24px;
+    transform: none;
+    border-radius: 16px;
+    box-shadow: var(--shadow-card);
+  }
+
+  .main-nav-list {
+    display: flex;
+    padding: 4px;
+  }
+
+  .main-nav-item {
+    flex-direction: row;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 12px;
+  }
+
+  .main-nav-item .icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .main-nav-label {
+    font-size: 14px;
+  }
+
+  .app-header {
+    min-height: 48px;
+    margin-bottom: 24px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .main-nav {
+    position: absolute;
+    top: 32px;
+    bottom: auto;
+    left: 50%;
+    margin: 0;
+    transform: translateX(-50%);
   }
 }

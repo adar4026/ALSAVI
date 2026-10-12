@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dailyGoal, goalText, greeting, LIMIT_NOTE, quickCount, remainingLabel, WORD_FORMS } from '../src/home-view';
+import { dailyGoal, goalText, greeting, limitNote, quickCount, remainingLabel, WORD_FORMS } from '../src/home-view';
 
 describe('greeting', () => {
   it('follows the local hour', () => {
@@ -22,7 +22,7 @@ describe('dailyGoal — the goal is to finish today\'s queue', () => {
       answered: 0,
       remaining: 12,
       fraction: 0,
-      limitReached: false,
+      withheld: 0,
     });
   });
 
@@ -38,22 +38,46 @@ describe('dailyGoal — the goal is to finish today\'s queue', () => {
     expect(dailyGoal({ answeredToday: 7, remaining: 0, newWithheld: 0 })).toEqual({
       kind: 'done',
       answered: 7,
-      limitReached: false,
+      withheld: 0,
     });
   });
 
   it('is idle — not "done" — when nothing was due and nothing answered', () => {
     expect(dailyGoal({ answeredToday: 0, remaining: 0, newWithheld: 0 })).toEqual({
       kind: 'idle',
-      limitReached: false,
+      withheld: 0,
     });
   });
 
-  it('reports the daily new-card limit in every state', () => {
-    expect(dailyGoal({ answeredToday: 0, remaining: 3, newWithheld: 5 }).limitReached).toBe(true);
-    expect(dailyGoal({ answeredToday: 4, remaining: 0, newWithheld: 5 }).limitReached).toBe(true);
-    expect(dailyGoal({ answeredToday: 0, remaining: 0, newWithheld: 2 }).limitReached).toBe(true);
-    expect(LIMIT_NOTE).toContain('лимит');
+  it('carries the cards held back by the daily new-card limit in every state', () => {
+    expect(dailyGoal({ answeredToday: 0, remaining: 3, newWithheld: 5 }).withheld).toBe(5);
+    expect(dailyGoal({ answeredToday: 4, remaining: 0, newWithheld: 5 }).withheld).toBe(5);
+    expect(dailyGoal({ answeredToday: 0, remaining: 0, newWithheld: 2 }).withheld).toBe(2);
+  });
+});
+
+describe('limitNote', () => {
+  it('no note when the limit holds nothing back', () => {
+    expect(limitNote(dailyGoal({ answeredToday: 0, remaining: 3, newWithheld: 0 }))).toBeNull();
+    expect(limitNote(dailyGoal({ answeredToday: 3, remaining: 0, newWithheld: 0 }))).toBeNull();
+  });
+
+  it('while cards remain: how many new cards wait — the limit is not "reached" yet', () => {
+    expect(limitNote(dailyGoal({ answeredToday: 0, remaining: 2, newWithheld: 1 }))).toBe(
+      'Дневной лимит новых карточек: ещё 1 новая карточка появится в следующие дни.'
+    );
+    expect(limitNote(dailyGoal({ answeredToday: 0, remaining: 2, newWithheld: 3 }))).toBe(
+      'Дневной лимит новых карточек: ещё 3 новые карточки появятся в следующие дни.'
+    );
+    expect(limitNote(dailyGoal({ answeredToday: 0, remaining: 2, newWithheld: 25 }))).toBe(
+      'Дневной лимит новых карточек: ещё 25 новых карточек появятся в следующие дни.'
+    );
+  });
+
+  it('with an empty queue: the limit is reached', () => {
+    const text = 'Дневной лимит новых карточек достигнут — новые вернутся завтра.';
+    expect(limitNote(dailyGoal({ answeredToday: 4, remaining: 0, newWithheld: 5 }))).toBe(text);
+    expect(limitNote(dailyGoal({ answeredToday: 0, remaining: 0, newWithheld: 2 }))).toBe(text);
   });
 });
 

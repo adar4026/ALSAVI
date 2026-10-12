@@ -41,23 +41,23 @@ export interface DailyGoalInput {
  *  - `idle` — nothing is due and nothing was answered today.
  */
 export type DailyGoal =
-  | { kind: 'active'; answered: number; remaining: number; fraction: number; limitReached: boolean }
-  | { kind: 'done'; answered: number; limitReached: boolean }
-  | { kind: 'idle'; limitReached: boolean };
+  | { kind: 'active'; answered: number; remaining: number; fraction: number; withheld: number }
+  | { kind: 'done'; answered: number; withheld: number }
+  | { kind: 'idle'; withheld: number };
 
 export function dailyGoal({ answeredToday, remaining, newWithheld }: DailyGoalInput): DailyGoal {
-  const limitReached = newWithheld > 0;
+  const withheld = newWithheld;
   if (remaining > 0) {
     return {
       kind: 'active',
       answered: answeredToday,
       remaining,
       fraction: answeredToday / (answeredToday + remaining),
-      limitReached,
+      withheld,
     };
   }
-  if (answeredToday > 0) return { kind: 'done', answered: answeredToday, limitReached };
-  return { kind: 'idle', limitReached };
+  if (answeredToday > 0) return { kind: 'done', answered: answeredToday, withheld };
+  return { kind: 'idle', withheld };
 }
 
 /** "осталась 1 карточка" / "осталось 5 карточек" — the verb agrees with the number. */
@@ -90,8 +90,23 @@ export function goalText(goal: DailyGoal): GoalText {
   }
 }
 
-/** Shown under the goal when the daily new-card limit holds cards back. */
-export const LIMIT_NOTE = 'Дневной лимит новых карточек достигнут — новые вернутся завтра.';
+const NEW_CARD_FORMS = ['новая карточка', 'новые карточки', 'новых карточек'] as const;
+
+/**
+ * A note under the goal when the daily new-card limit holds new cards back
+ * (`null` otherwise). While today's queue still has cards, the limit is not
+ * "reached" yet — it only decides how many new cards are in today's queue —
+ * so the note says how many wait for later days; once the queue is empty it
+ * is the TASK_022 home-screen wording.
+ */
+export function limitNote(goal: DailyGoal): string | null {
+  if (goal.withheld === 0) return null;
+  if (goal.kind === 'active') {
+    const verb = pluralRu(goal.withheld, ['появится', 'появятся', 'появятся']);
+    return `Дневной лимит новых карточек: ещё ${countLabel(goal.withheld, NEW_CARD_FORMS)} ${verb} в следующие дни.`;
+  }
+  return 'Дневной лимит новых карточек достигнут — новые вернутся завтра.';
+}
 
 /** Subtitle of a quick action with a count, e.g. "12 карточек" / "пока нет". */
 export function quickCount(n: number, forms: readonly [string, string, string]): string {

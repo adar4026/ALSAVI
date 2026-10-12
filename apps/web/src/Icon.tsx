@@ -6,7 +6,17 @@
  */
 import type { ReactElement } from 'react';
 
-export type IconName = 'flame' | 'sliders' | 'cards' | 'target' | 'plus' | 'arrow-right' | 'chevron-right';
+export type IconName =
+  | 'flame'
+  | 'sliders'
+  | 'cards'
+  | 'target'
+  | 'plus'
+  | 'arrow-right'
+  | 'chevron-right'
+  | 'home'
+  | 'chart'
+  | 'user';
 
 const PATHS: Record<IconName, ReactElement> = {
   flame: (
@@ -36,6 +46,14 @@ const PATHS: Record<IconName, ReactElement> = {
   plus: <path d="M12 5v14M5 12h14" />,
   'arrow-right': <path d="M5 12h14M13 6l6 6-6 6" />,
   'chevron-right': <path d="M9.5 6l6 6-6 6" />,
+  home: <path d="M4 10.5 12 4l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5H15v-6H9v6H5.5A1.5 1.5 0 0 1 4 19v-8.5Z" />,
+  chart: <path d="M5 20V11M12 20V4.5M19 20v-6.5M3.5 20.5h17" />,
+  user: (
+    <>
+      <circle cx="12" cy="8.5" r="4" />
+      <path d="M4.5 20.5c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5" />
+    </>
+  ),
 };
 
 export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {

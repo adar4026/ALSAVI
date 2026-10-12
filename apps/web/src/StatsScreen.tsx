@@ -14,7 +14,7 @@ import {
 
 interface Props {
   engine: LearningEngine;
-  /** Go to "Повторение". */
+  /** Go to the home screen ("Главная"). */
   onStudy: () => void;
   /** Open "Карточки" with the existing "Трудные" filter. */
   onShowDifficult: () => void;

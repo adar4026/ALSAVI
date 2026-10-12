@@ -24,7 +24,12 @@ interface Props {
   engine: LearningEngine;
   session: StudySession;
   onReviewed: () => void;
-  /** Return to the "Учиться сегодня" home screen (empty state or finished screen). */
+  /**
+   * Return to the home screen: from the empty/finished screens, or mid-session
+   * via "Завершить" (TASK_030 — the main navigation is hidden during a
+   * session). Leaving records nothing; `StudySession` lives on in `App`, so
+   * "Продолжить обучение" picks up today's queue where it stands.
+   */
   onExit: () => void;
 }
 
@@ -136,6 +141,10 @@ export function ReviewSession({ engine, session, onReviewed, onExit }: Props) {
         >
           <div className="progress-bar-fill" style={{ width: `${progressPct}%` }} />
         </div>
+        {/* Disabled while an answer is being saved: leave only after it is recorded. */}
+        <button type="button" className="btn-link session-exit" onClick={onExit} disabled={saving}>
+          Завершить
+        </button>
       </div>
       <div className="card-panel">
         <span className={`state-badge state-${current.card.state}`}>{STATE_LABELS[current.card.state]}</span>

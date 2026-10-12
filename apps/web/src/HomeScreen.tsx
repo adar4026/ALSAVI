@@ -6,7 +6,7 @@ import {
   dailyGoal,
   goalText,
   greeting,
-  LIMIT_NOTE,
+  limitNote,
   quickCount,
   WORD_FORMS,
   type DailyGoal,
@@ -166,6 +166,7 @@ function GoalCard({
   onRecheck: () => void;
 }) {
   const text = goalText(goal);
+  const note = limitNote(goal);
   const fraction = goal.kind === 'active' ? goal.fraction : goal.kind === 'done' ? 1 : null;
 
   return (
@@ -190,7 +191,7 @@ function GoalCard({
         </div>
       )}
 
-      {goal.limitReached && <p className="hint goal-note">{LIMIT_NOTE}</p>}
+      {note && <p className="hint goal-note">{note}</p>}
 
       {goal.kind === 'active' ? (
         <>

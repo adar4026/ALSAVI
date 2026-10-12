@@ -6,7 +6,7 @@ interface Props {
   streakDays: number | null;
   /** Today already has an answer, i.e. today is counted in the streak. */
   reviewedToday: boolean;
-  /** Opens the settings sheet; omitted (no button) during a study session. */
+  /** Opens "Профиль" (settings live there); omitted (no button) during a study session. */
   onOpenSettings?: () => void;
 }
 

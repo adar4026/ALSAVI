@@ -1,5 +1,4 @@
-import type { CardView, EngineStore, LearningEngine } from '@alsavi/engine';
-import { backupFilename, createBackup, restoreBackup } from '@alsavi/backup';
+import type { CardView, LearningEngine } from '@alsavi/engine';
 import {
   useCallback,
   useEffect,
@@ -7,11 +6,9 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type ChangeEvent,
   type KeyboardEvent,
 } from 'react';
 import { ArchiveFlow, type ArchiveTarget } from './archive-flow';
-import { exportedStatus, restoreConfirmText, restoredStatus } from './backup-messages';
 import {
   buildNoteEntries,
   collectTags,
@@ -23,27 +20,8 @@ import {
   type StatusFilter,
 } from './card-list';
 import { formatInterval } from './format';
-import { importApkgFile, type ImportReport } from './importApkg';
 import { draftFromNote, NoteFormController } from './note-form';
 import { NoteForm } from './NoteForm';
-
-const SKIP_LABELS: Record<string, string> = {
-  'cloze-note-type': 'cloze',
-  'fewer-than-2-fields': 'меньше 2 полей',
-  'unsupported-template': 'неподдерживаемый шаблон',
-  'empty-after-cleanup': 'пустой текст',
-};
-
-function describeReport(r: ImportReport): string {
-  const skipped = r.skipped.reduce((n, s) => n + s.count, 0);
-  let msg = `Импортировано ${r.importedNotes} заметок (${r.importedCards} карточек).`;
-  if (skipped > 0) {
-    const parts = r.skipped.map((s) => `${SKIP_LABELS[s.reason] ?? s.reason} — ${s.count}`);
-    msg += ` Пропущено ${skipped}: ${parts.join(', ')}.`;
-  }
-  if (r.error) msg += ` Прервано с ошибкой: ${r.error}`;
-  return msg;
-}
 
 const STATUS_FILTERS: Array<[StatusFilter, string]> = [
   ['all', 'Все'],
@@ -66,48 +44,19 @@ function statusLabel(entry: NoteEntry, now: number): string {
 
 interface Props {
   engine: LearningEngine;
-  store: EngineStore;
   onChanged: () => void;
-  /** Current daily new-card limit (`null` = unlimited). Owned by `App`. */
-  newCardsPerDay: number | null;
-  /** Persist + apply a new daily new-card limit. Owned by `App`. */
-  onLimitChange: (value: number | null) => void;
-  /** A save is in flight — the control is disabled to prevent overlapping saves. */
-  limitSaving: boolean;
-  /** Set only when the most recent save attempt failed; cleared on the next attempt. */
-  limitSaveError: string | null;
   /** State filter to open the list with (e.g. 'difficult' from the statistics screen). */
   initialStatus?: StatusFilter;
   /**
-   * Where to put the learner on open (TASK_029): 'add' — the new-card form
-   * ("Добавить слово" on the home screen), 'tools' — the import / backup /
-   * limit block, expanded (from the settings sheet).
+   * 'add' — open with the new-card form focused ("Добавить слово" on the home
+   * screen, TASK_029).
    */
-  initialFocus?: 'add' | 'tools';
-}
-
-/** `null` -> empty (unlimited); a number -> its decimal string. */
-function formatLimit(value: number | null): string {
-  return value === null ? '' : String(value);
-}
-
-/** Empty/invalid/negative input -> unlimited (`null`); otherwise a non-negative integer. */
-function parseLimit(text: string): number | null {
-  const trimmed = text.trim();
-  if (trimmed === '') return null;
-  const n = Number(trimmed);
-  if (!Number.isFinite(n) || n < 0) return null;
-  return Math.floor(n);
+  initialFocus?: 'add';
 }
 
 export function CardManager({
   engine,
-  store,
   onChanged,
-  newCardsPerDay,
-  onLimitChange,
-  limitSaving,
-  limitSaveError,
   initialStatus = 'all',
   initialFocus,
 }: Props) {
@@ -120,29 +69,13 @@ export function CardManager({
   const [filter, setFilter] = useState<ListFilter>(() => ({ ...EMPTY_FILTER, status: initialStatus }));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [scrollToId, setScrollToId] = useState<string | null>(null);
-  const [importStatus, setImportStatus] = useState<string | null>(null);
-  const [backupStatus, setBackupStatus] = useState<string | null>(null);
-  const [limitInput, setLimitInput] = useState(() => formatLimit(newCardsPerDay));
   const listTitle = useRef<HTMLHeadingElement>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const backupInput = useRef<HTMLInputElement>(null);
   const frontInput = useRef<HTMLInputElement>(null);
   const undoButton = useRef<HTMLButtonElement>(null);
-  const tools = useRef<HTMLDetailsElement>(null);
 
   const createForm = useMemo(() => new NoteFormController(engine, { kind: 'create' }), [engine]);
   const archive = useMemo(() => new ArchiveFlow(engine), [engine]);
   const archiveState = useSyncExternalStore(archive.subscribe, archive.getState);
-
-  useEffect(() => {
-    setLimitInput(formatLimit(newCardsPerDay));
-  }, [newCardsPerDay]);
-
-  function commitLimit() {
-    const parsed = parseLimit(limitInput);
-    setLimitInput(formatLimit(parsed));
-    onLimitChange(parsed);
-  }
 
   const reload = useCallback(async () => {
     try {
@@ -217,13 +150,7 @@ export function CardManager({
 
   // Mount-only: the parent re-mounts this screen (new `key`) for each entry.
   useEffect(() => {
-    if (initialFocus === 'add') {
-      focusFirstCardField();
-    } else if (initialFocus === 'tools' && tools.current) {
-      tools.current.open = true;
-      tools.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
-      tools.current.querySelector('summary')?.focus({ preventScroll: true });
-    }
+    if (initialFocus === 'add') focusFirstCardField();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -242,66 +169,6 @@ export function CardManager({
     if (e.key === 'Escape') archive.cancel();
   }
 
-  async function onImport(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // allow re-selecting the same file
-    if (!file) return;
-    setImportStatus(`Импорт «${file.name}»…`);
-    try {
-      const report = await importApkgFile(file, engine);
-      setImportStatus(describeReport(report));
-      await reload();
-      onChanged();
-    } catch (err) {
-      setImportStatus(`Не удалось импортировать: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
-  async function onExport() {
-    setBackupStatus('Формирую резервную копию…');
-    try {
-      const { json, retired } = await createBackup(store);
-      const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = backupFilename();
-      a.click();
-      URL.revokeObjectURL(url);
-      setBackupStatus(exportedStatus(retired));
-    } catch (err) {
-      setBackupStatus(`Не удалось экспортировать: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
-  async function onRestore(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setBackupStatus(null);
-    const text = await file.text();
-    try {
-      // restoreBackup owns validate → confirm → replace; this callback is
-      // only the UI's confirmation policy (window.confirm), given the parsed
-      // metadata — no parsing/replace logic lives here.
-      const outcome = await restoreBackup(store, text, (meta) => window.confirm(restoreConfirmText(meta)));
-      switch (outcome.status) {
-        case 'rejected':
-          setBackupStatus(`Файл отклонён: ${outcome.error} Текущие данные не изменены.`);
-          return;
-        case 'cancelled':
-          setBackupStatus('Восстановление отменено. Данные не изменены.');
-          return;
-        case 'restored':
-          setBackupStatus(restoredStatus(outcome));
-          await reload();
-          onChanged();
-          return;
-      }
-    } catch (err) {
-      setBackupStatus(`Ошибка восстановления: ${err instanceof Error ? err.message : String(err)}. Данные могли не измениться.`);
-    }
-  }
-
   return (
     <div className="cards-screen">
       <section className="panel" aria-labelledby="add-title">
@@ -316,57 +183,6 @@ export function CardManager({
           frontInputRef={frontInput}
         />
       </section>
-
-      <details className="tools" ref={tools}>
-        <summary>Импорт, резервная копия и лимит новых карточек</summary>
-        <div className="import-row">
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".apkg"
-            style={{ display: 'none' }}
-            onChange={(e) => void onImport(e)}
-          />
-          <button className="btn-secondary" onClick={() => fileInput.current?.click()}>
-            Импорт из Anki (.apkg)
-          </button>
-          {importStatus && <span className="import-status">{importStatus}</span>}
-        </div>
-        <div className="import-row">
-          <label className="reverse-toggle">
-            Новых карточек в день:
-            <input
-              className="limit-input"
-              type="number"
-              min={0}
-              step={1}
-              placeholder="не ограничено"
-              value={limitInput}
-              disabled={limitSaving}
-              onChange={(e) => setLimitInput(e.target.value)}
-              onBlur={commitLimit}
-            />
-          </label>
-          {limitSaving && <span className="import-status">Сохранение…</span>}
-          {limitSaveError && <span className="import-status">{limitSaveError}</span>}
-        </div>
-        <div className="import-row">
-          <input
-            ref={backupInput}
-            type="file"
-            accept=".json,application/json"
-            style={{ display: 'none' }}
-            onChange={(e) => void onRestore(e)}
-          />
-          <button className="btn-secondary" onClick={() => void onExport()}>
-            Экспорт (резервная копия)
-          </button>
-          <button className="btn-secondary" onClick={() => backupInput.current?.click()}>
-            Восстановить из копии
-          </button>
-          {backupStatus && <span className="import-status">{backupStatus}</span>}
-        </div>
-      </details>
 
       <section aria-labelledby="list-title">
         <h2 id="list-title" className="panel-title" ref={listTitle} tabIndex={-1}>
@@ -470,7 +286,7 @@ export function CardManager({
 
         {loaded && !loadError && entries.length === 0 && (
           <div className="list-empty">
-            <div className="empty-state">Карточек пока нет. Добавьте первое слово — оно сразу появится в «Учиться сегодня».</div>
+            <div className="empty-state">Карточек пока нет. Добавьте первое слово — оно сразу появится в очереди на Главной.</div>
             <button type="button" className="btn-primary" onClick={focusFirstCardField}>
               Добавить первую карточку
             </button>

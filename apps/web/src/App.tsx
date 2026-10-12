@@ -5,18 +5,12 @@ import type { StatusFilter } from './card-list';
 import { CardManager } from './CardManager';
 import { DexieStore } from './dexie-store';
 import { HomeScreen, type CardsIntent } from './HomeScreen';
+import { MainNav } from './MainNav';
+import { urlForView, viewFromHash, type View } from './nav';
+import { ProfileScreen } from './ProfileScreen';
 import { ReviewSession } from './ReviewSession';
-import { SettingsSheet } from './SettingsSheet';
 import { StatsScreen } from './StatsScreen';
 import { applyTheme, readThemePreference, writeThemePreference, type ThemePreference } from './theme';
-
-type View = 'review' | 'cards' | 'stats';
-
-const VIEWS: Array<[View, string]> = [
-  ['review', 'Главная'],
-  ['cards', 'Карточки'],
-  ['stats', 'Статистика'],
-];
 
 /**
  * How "Карточки" opens: list filter plus an optional focus target (TASK_029).
@@ -25,7 +19,7 @@ const VIEWS: Array<[View, string]> = [
  */
 interface CardsEntry {
   status: StatusFilter;
-  focus?: 'add' | 'tools';
+  focus?: 'add';
   seq: number;
 }
 
@@ -39,7 +33,7 @@ function safeLocalStorage(): Storage | null {
 }
 
 /**
- * Sub-state of the "Главная" tab (TASK_022, TASK_029): the home screen
+ * Sub-state of the "Главная" section (TASK_022, TASK_029): the home screen
  * before the per-card flow, and the flow itself. Local
  * UI navigation only — `StudySession` itself stays the same long-lived
  * instance for the whole app (its own bury-state lifetime is unaffected by
@@ -61,21 +55,19 @@ export function App() {
   const store = useMemo(() => new DexieStore(), []);
   const engine = useMemo(() => new LearningEngine(store), [store]);
   const session = useMemo(() => new StudySession(engine), [engine]);
-  const [view, setView] = useState<View>('review');
-  // How the "Карточки" tab opens: 'all' from the navigation, 'difficult' from
-  // the statistics screen (TASK_026) and the home screen, the form or the
-  // tools from the home screen / settings (TASK_029).
+  // The section comes from the address (TASK_030): `#/stats` opens
+  // "Статистика", no hash — the home screen.
+  const [view, setView] = useState<View>(() => viewFromHash(window.location.hash));
+  // How "Карточки" opens: 'all' from the navigation, 'difficult' from the
+  // statistics and home screens (TASK_026), the form from "Добавить слово"
+  // (TASK_029).
   const [cardsEntry, setCardsEntry] = useState<CardsEntry>({ status: 'all', seq: 0 });
-  const [settingsOpen, setSettingsOpen] = useState(false);
   // Initial value: the same stored choice the inline script in index.html
   // already applied before the first paint.
   const [theme, setTheme] = useState<ThemePreference>(() => readThemePreference(safeLocalStorage()));
   const [reviewPhase, setReviewPhase] = useState<ReviewPhase>('home');
+  // For the header's streak only; every screen reads its own numbers.
   const [stats, setStats] = useState<EngineStats | null>(null);
-  // "К повторению" reflects the session queue (due + learn-ahead), so it stays
-  // in sync with what StudySession.nextCard() will actually show — not the
-  // strict `stats.dueNow` engine counter.
-  const [dueCount, setDueCount] = useState<number | null>(null);
   const [newCardsPerDay, setNewCardsPerDayState] = useState<number | null>(null);
   // TASK_020 initialization gate: the persisted daily new-card limit must be
   // loaded and applied to `session` before ReviewSession is allowed to call
@@ -120,10 +112,40 @@ export function App() {
     writeThemePreference(safeLocalStorage(), next);
   }, []);
 
-  const openCards = useCallback((status: StatusFilter, focus?: CardsEntry['focus']) => {
-    setCardsEntry((prev) => ({ status, focus, seq: prev.seq + 1 }));
-    setView('cards');
+  // Back/Forward and hand-edited addresses switch the section too.
+  useEffect(() => {
+    const sync = () => setView(viewFromHash(window.location.hash));
+    window.addEventListener('popstate', sync);
+    window.addEventListener('hashchange', sync);
+    return () => {
+      window.removeEventListener('popstate', sync);
+      window.removeEventListener('hashchange', sync);
+    };
   }, []);
+
+  const navigate = useCallback((next: View) => {
+    const url = urlForView(next, window.location);
+    if (url !== null) window.history.pushState(null, '', url);
+    setView(next);
+    window.scrollTo(0, 0);
+  }, []);
+
+  const openCards = useCallback(
+    (status: StatusFilter, focus?: CardsEntry['focus']) => {
+      setCardsEntry((prev) => ({ status, focus, seq: prev.seq + 1 }));
+      navigate('cards');
+    },
+    [navigate]
+  );
+
+  const onNavigate = useCallback(
+    (next: View) => {
+      // "Карточки" from the navigation always opens the full list.
+      if (next === 'cards') openCards('all');
+      else navigate(next);
+    },
+    [navigate, openCards]
+  );
 
   const onHomeOpenCards = useCallback(
     (intent: CardsIntent) => {
@@ -134,14 +156,8 @@ export function App() {
   );
 
   const refreshStats = useCallback(async () => {
-    const nextStats = await engine.getStats();
-    setStats(nextStats);
-    // Guarded like ReviewSession: don't read the study queue through a
-    // session whose daily-limit policy hasn't been confirmed applied yet.
-    if (bootstrap === 'ready') {
-      setDueCount(await session.dueCount());
-    }
-  }, [engine, session, bootstrap]);
+    setStats(await engine.getStats());
+  }, [engine]);
 
   useEffect(() => {
     void refreshStats();
@@ -180,62 +196,19 @@ export function App() {
     [store, session, refreshStats]
   );
 
-  const inSession = view === 'review' && reviewPhase === 'session';
-  const onHome = view === 'review' && reviewPhase === 'home';
+  // A study session is a focus mode: no navigation and no settings button —
+  // the session's number hotkeys stay its own; "Завершить" leads back.
+  const inSession = view === 'home' && reviewPhase === 'session';
 
   return (
-    <div className="app">
+    <div className={inSession ? 'app in-session' : 'app'}>
       <AppHeader
         streakDays={stats ? stats.streakDays : null}
         reviewedToday={(stats?.reviewsToday ?? 0) > 0}
-        // No settings mid-card: the session's number hotkeys must not meet an open dialog.
-        onOpenSettings={inSession ? undefined : () => setSettingsOpen(true)}
+        onOpenSettings={inSession ? undefined : () => navigate('profile')}
       />
-      <nav className="nav" aria-label="Разделы">
-        {VIEWS.map(([value, label]) => (
-          <button
-            key={value}
-            className={view === value ? 'active' : ''}
-            aria-current={view === value ? 'page' : undefined}
-            onClick={() => {
-              if (value === 'cards') openCards('all');
-              else setView(value);
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
-      {/* The home screen shows today's numbers itself; the bar stays on the
-          other screens until the next stage re-arranges navigation. */}
-      {!onHome && (
-        <div className="statsbar">
-          {stats && (
-            <>
-              <span>
-                К повторению: <strong>{dueCount ?? stats.dueNow}</strong>
-              </span>
-              <span>
-                Всего: <strong>{stats.totalCards}</strong>
-              </span>
-              <span>
-                Сегодня: <strong>{stats.reviewsToday}</strong>
-              </span>
-              {stats.accuracy !== null && (
-                <span>
-                  Точность: <strong>{Math.round(stats.accuracy * 100)}%</strong>
-                </span>
-              )}
-              {stats.streakDays > 0 && (
-                <span>
-                  Серия: <strong>{stats.streakDays} дн</strong>
-                </span>
-              )}
-            </>
-          )}
-        </div>
-      )}
-      {view === 'review' ? (
+      {!inSession && <MainNav view={view} onNavigate={onNavigate} />}
+      {view === 'home' ? (
         bootstrap === 'ready' ? (
           reviewPhase === 'home' ? (
             <HomeScreen
@@ -243,7 +216,7 @@ export function App() {
               session={session}
               onStart={() => setReviewPhase('session')}
               onOpenCards={onHomeOpenCards}
-              onOpenStats={() => setView('stats')}
+              onOpenStats={() => navigate('stats')}
             />
           ) : (
             <ReviewSession
@@ -269,8 +242,21 @@ export function App() {
       ) : view === 'stats' ? (
         <StatsScreen
           engine={engine}
-          onStudy={() => setView('review')}
+          onStudy={() => navigate('home')}
           onShowDifficult={() => openCards('difficult')}
+        />
+      ) : view === 'profile' ? (
+        <ProfileScreen
+          engine={engine}
+          store={store}
+          onChanged={() => void refreshStats()}
+          newCardsPerDay={newCardsPerDay}
+          limitReady={bootstrap === 'ready'}
+          onLimitChange={onLimitChange}
+          limitSaving={limitSaving}
+          limitSaveError={limitSaveError}
+          theme={theme}
+          onThemeChange={onThemeChange}
         />
       ) : (
         <CardManager
@@ -278,24 +264,9 @@ export function App() {
           initialStatus={cardsEntry.status}
           initialFocus={cardsEntry.focus}
           engine={engine}
-          store={store}
           onChanged={() => void refreshStats()}
-          newCardsPerDay={newCardsPerDay}
-          onLimitChange={onLimitChange}
-          limitSaving={limitSaving}
-          limitSaveError={limitSaveError}
         />
       )}
-      <SettingsSheet
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        theme={theme}
-        onThemeChange={onThemeChange}
-        onOpenTools={() => {
-          setSettingsOpen(false);
-          openCards('all', 'tools');
-        }}
-      />
     </div>
   );
 }
