@@ -44,7 +44,17 @@
 
 **Отложено и почему.** Подсказка «1 · 2 · 3 · 4» на телефоне — косметика.
 
-**Следующий шаг.** Коммит, пуш, деплой, проверка production.
+**Коммит и деплой.** `fd0768e8480b177cb2f3b75cd6b94e43082a9951` (`fix(study):
+let Enter/Space on a focused rating button record that rating`), запушен в
+`origin/main`; workflow `38278004439` (build с `npm test` + deploy) —
+успешно; deployment record GitHub Pages — тот же SHA. Production
+`https://adar4026.github.io/ALSAVI/`: HTTP 200, `CACHE_VERSION =
+alsavi-shell-fd0768e8480b`, бандл `index-Dc7DvR5Y.js` (совпадает с локальной
+сборкой, содержит новую логику клавиш), консоль без ошибок, без
+горизонтального скролла. Проверка production — только чтение: данные не
+создавались, нажатия клавиш проверены на dev.
+
+**Следующий шаг.** По плану владельца.
 
 ---
 
