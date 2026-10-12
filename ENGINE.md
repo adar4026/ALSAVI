@@ -34,7 +34,7 @@ embeddings или индексов (см. `ARCHITECTURE.md` §11, §11c). Пуб
 ответственность `StudySession` (см. §2).
 
 Публичный API: `addNote`, `addCard` (сахар 1:1), `updateNoteContent`,
-`deleteNote`, `deleteCard`, `getNote`, `getCard`, `getCardView`, `listCards`,
+`archiveNote`, `unarchiveNote`, `deleteNote`, `deleteCard`, `getNote`, `getCard`, `getCardView`, `listCards`,
 `listCardViews`, `getDueCards`, `getCardsDueBy`, `rebuildCardState`, `review`,
 `previewIntervals`, `getStats`. `updateCardContent` — `@deprecated` мостик
 (только forward-карта без сестёр, иначе бросает ошибку; в UI не используется).
@@ -51,7 +51,28 @@ embeddings или индексов (см. `ARCHITECTURE.md` §11, §11c). Пуб
   всех картах-сёстрах — рассинхронизация контента структурно невозможна;
 - у каждой карты заметки **своё независимое** планирование и `state`;
 - UI получает готовый к показу контент через `getCardView(id)` /
-  `listCardViews()` — логика рендера живёт в одном месте (ядро).
+  `listCardViews()` — логика рендера живёт в одном месте (ядро); `CardView`
+  несёт и саму заметку (`view.note`) — для списка/поиска/редактирования.
+
+**Необязательные поля заметки (TASK_023):** `example` (пример), `memo` (личная
+заметка), `tags` (теги), `archivedAt` (архив). Старые заметки хранятся как
+есть, без миграции и без смены схемы IndexedDB; чтения ядра (`getNote`,
+`getCardView`, `listCardViews`) отдают отсутствующие `tags` как `[]`. Ядро
+нормализует теги на каждой записи (`normalizeTags`: trim, схлопывание пробелов,
+без ведущего `#`, нижний регистр, без пустых и дублей). `updateNoteContent`
+пишет **только** строку заметки (тот же id): не трогает карты, scheduling и
+Review Log; `undefined` в необязательном поле = «оставить как есть», пустая
+строка = «убрать».
+
+**Архив вместо удаления (TASK_023).** `archiveNote(noteId)` ставит
+`archivedAt` и больше ничего не меняет: заметка, карты (со scheduling) и Review
+Log целы. Карты архивной заметки исключаются из `getDueCards`/`getCardsDueBy`
+(а значит, из любой очереди `StudySession`) и из счётчиков карт `getStats`
+(`totalCards`/`newCards`/`dueNow`); статистика по логу (сегодня, точность,
+серия) историю сохраняет. `unarchiveNote` возвращает заметку с тем же
+расписанием. Оба идемпотентны. UI предлагает только архив: жёсткое
+`deleteCard`/`deleteNote` у карты с историей оставляет в логе повторения без
+карты, а такой бэкап `parseBackup` отклоняет (см. PROGRESS.md, TASK_023).
 
 `addNote` — это тот же публичный шов, через который импорт Anki
 (`packages/anki-import`, отдельный пакет-потребитель вне ядра) создаёт заметки;
@@ -195,6 +216,8 @@ review(Good) ×N      → state=review,     due=+дни             («выпу�
 review(Easy) на new  → state=review,     due=+дни             (сразу выпуск)
 review(Again) в review → state=relearning, due≈+10m           lapses++, relearning-шаги
 updateNoteContent()  → контент всех карт-сестёр меняется, due/scheduling НЕ меняются
+archiveNote()        → карты заметки уходят из очередей/счётчиков; ничего не удаляется; due/scheduling/лог целы
+unarchiveNote()      → карты возвращаются в очереди с прежним расписанием
 deleteCard()         → карта удалена (+ заметка, если это была последняя); Review Log сохранён
 deleteNote()         → заметка и все её карты удалены; Review Log сохранён
 ```

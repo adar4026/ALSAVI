@@ -2,6 +2,7 @@ import { FsrsScheduler } from './fsrs-scheduler.js';
 import { generateId } from './ids.js';
 import { renderCard } from './render.js';
 import { replayCardState } from './replay.js';
+import { normalizeTags } from './tags.js';
 import type { Scheduler } from './scheduler.js';
 import type { EngineStore } from './store.js';
 import {
@@ -18,9 +19,20 @@ import {
   type Review,
 } from './types.js';
 
-export interface AddNoteInput {
+/**
+ * Editable content of a note. `front`/`back` are required; the optional
+ * fields (TASK_023) are trimmed (an empty string removes the field) and tags
+ * are normalized with `normalizeTags`.
+ */
+export interface NoteContent {
   front: string;
   back: string;
+  example?: string;
+  memo?: string;
+  tags?: readonly string[];
+}
+
+export interface AddNoteInput extends NoteContent {
   deckId?: string;
   /** Which cards to generate. Defaults to a single forward card. */
   directions?: CardTemplate[];
@@ -75,17 +87,13 @@ export class LearningEngine {
    * direction produces one card with its own independent scheduling.
    */
   async addNote(input: AddNoteInput): Promise<NoteResult> {
-    const front = input.front.trim();
-    const back = input.back.trim();
-    if (!front || !back) {
-      throw new Error('Note must have non-empty front and back');
-    }
     const directions = dedupe(input.directions ?? DEFAULT_DIRECTIONS);
     if (directions.length === 0) {
       throw new Error('Note must produce at least one card');
     }
+    const content = applyContent({ id: '', front: '', back: '', tags: [] }, input);
     const now = this.now();
-    const note: Note = { id: this.newId(), front, back };
+    const note: Note = { ...content, id: this.newId() };
     await this.store.putNote(note);
     const cards: Card[] = [];
     for (const template of directions) {
@@ -117,17 +125,42 @@ export class LearningEngine {
   /**
    * Edit a note's content — the primary content-editing API. Content is the
    * note's single source of truth, so this updates every sibling card at once;
-   * scheduling is never touched.
+   * scheduling is never touched (only the note row is written — same id, no
+   * card or Review Log write). Optional fields left `undefined` keep their
+   * current value; archive status is not content and is never changed here.
    */
-  async updateNoteContent(noteId: NoteId, content: { front: string; back: string }): Promise<Note> {
+  async updateNoteContent(noteId: NoteId, content: NoteContent): Promise<Note> {
     const note = await this.store.getNote(noteId);
     if (!note) throw new Error(`Note not found: ${noteId}`);
-    const updated: Note = { ...note, front: content.front.trim(), back: content.back.trim() };
-    if (!updated.front || !updated.back) {
-      throw new Error('Note must have non-empty front and back');
-    }
+    const updated = applyContent(withNoteDefaults(note), content);
     await this.store.putNote(updated);
     return updated;
+  }
+
+  /**
+   * Archive a note (TASK_023) — the safe way to take a word out of the active
+   * collection. Nothing is deleted: the note, its cards (with scheduling) and
+   * the Review Log stay intact, so history, backups (which require every
+   * review to reference an existing card) and `rebuildCardState` keep working.
+   * Archived notes' cards are left out of `getDueCards`/`getCardsDueBy` (hence
+   * out of every StudySession queue) and out of the active counts in
+   * `getStats`. Idempotent; reversible with {@link unarchiveNote}.
+   */
+  async archiveNote(noteId: NoteId): Promise<Note> {
+    const note = withNoteDefaults(await this.mustGetNote(noteId));
+    if (note.archivedAt !== undefined) return note;
+    const archived: Note = { ...note, archivedAt: this.now() };
+    await this.store.putNote(archived);
+    return archived;
+  }
+
+  /** Return an archived note to the active collection, scheduling unchanged. Idempotent. */
+  async unarchiveNote(noteId: NoteId): Promise<Note> {
+    const note = withNoteDefaults(await this.mustGetNote(noteId));
+    if (note.archivedAt === undefined) return note;
+    const { archivedAt: _archivedAt, ...active } = note;
+    await this.store.putNote(active);
+    return active;
   }
 
   /**
@@ -169,7 +202,8 @@ export class LearningEngine {
   }
 
   async getNote(id: NoteId): Promise<Note | undefined> {
-    return this.store.getNote(id);
+    const note = await this.store.getNote(id);
+    return note && withNoteDefaults(note);
   }
 
   async listCards(): Promise<Card[]> {
@@ -182,7 +216,7 @@ export class LearningEngine {
     if (!card) return undefined;
     const note = await this.store.getNote(card.noteId);
     if (!note) return undefined;
-    return { card, ...renderCard(card, note) };
+    return { card, ...renderCard(card, note), note: withNoteDefaults(note) };
   }
 
   /**
@@ -197,17 +231,19 @@ export class LearningEngine {
     const cards = await this.store.listCards();
     const noteIds = [...new Set(cards.map((c) => c.noteId))];
     const notes = await this.store.getNotesByIds(noteIds);
-    const byId = new Map(notes.map((n) => [n.id, n]));
+    const byId = new Map(notes.map((n) => [n.id, withNoteDefaults(n)]));
     const views: CardView[] = [];
     for (const card of cards) {
       const note = byId.get(card.noteId);
-      if (note) views.push({ card, ...renderCard(card, note) });
+      if (note) views.push({ card, ...renderCard(card, note), note });
     }
     return views;
   }
 
+  /** Due cards of active (non-archived) notes, by `due` ascending. */
   async getDueCards(limit?: number): Promise<Card[]> {
-    return this.store.listDueCards(this.now(), limit);
+    const due = await this.withoutArchived(await this.store.listDueCards(this.now()));
+    return limit === undefined ? due : due.slice(0, limit);
   }
 
   /**
@@ -217,7 +253,7 @@ export class LearningEngine {
    * scan. Session policy (windowing, ordering, partitioning) stays in the caller.
    */
   async getCardsDueBy(threshold: number): Promise<Card[]> {
-    return this.store.listDueCards(threshold);
+    return this.withoutArchived(await this.store.listDueCards(threshold));
   }
 
   /** Records the user's answer: reschedules the card and appends to the review log. */
@@ -265,7 +301,15 @@ export class LearningEngine {
 
   async getStats(): Promise<EngineStats> {
     const now = this.now();
-    const [cards, reviews] = await Promise.all([this.store.listCards(), this.store.listReviews()]);
+    const [allCards, notes, reviews] = await Promise.all([
+      this.store.listCards(),
+      this.store.listNotes(),
+      this.store.listReviews(),
+    ]);
+    // Card counts describe the active collection; the log-based numbers below
+    // (today, accuracy, streak) keep archived notes' history — it happened.
+    const archived = new Set(notes.filter((n) => n.archivedAt !== undefined).map((n) => n.id));
+    const cards = allCards.filter((c) => !archived.has(c.noteId));
     const todayStart = startOfLocalDay(now);
     const reviewsToday = reviews.filter((r) => r.reviewedAt >= todayStart).length;
     const successful = reviews.filter((r) => r.rating !== 'again').length;
@@ -297,6 +341,23 @@ export class LearningEngine {
     return ids.size;
   }
 
+  /**
+   * Drops cards whose note is archived; order is preserved, so with no
+   * archived notes the result is exactly the input. One batched note read.
+   */
+  private async withoutArchived(cards: Card[]): Promise<Card[]> {
+    if (cards.length === 0) return cards;
+    const notes = await this.store.getNotesByIds([...new Set(cards.map((c) => c.noteId))]);
+    const archived = new Set(notes.filter((n) => n.archivedAt !== undefined).map((n) => n.id));
+    return archived.size === 0 ? cards : cards.filter((c) => !archived.has(c.noteId));
+  }
+
+  private async mustGetNote(id: NoteId): Promise<Note> {
+    const note = await this.store.getNote(id);
+    if (!note) throw new Error(`Note not found: ${id}`);
+    return note;
+  }
+
   private async mustGetCard(id: CardId): Promise<Card> {
     const card = await this.store.getCard(id);
     if (!card) throw new Error(`Card not found: ${id}`);
@@ -305,6 +366,35 @@ export class LearningEngine {
 }
 
 const DEFAULT_DIRECTIONS: CardTemplate[] = ['forward'];
+
+/** Notes stored before TASK_023 have no `tags`; reads expose them as `[]`. */
+function withNoteDefaults(note: Note): Note {
+  return note.tags ? note : { ...note, tags: [] };
+}
+
+/**
+ * Applies validated content to a note. Required fields are trimmed and must be
+ * non-empty; optional text fields are trimmed and removed when empty;
+ * `undefined` leaves the current value untouched. Non-content fields (`id`,
+ * `archivedAt`) pass through unchanged.
+ */
+function applyContent(note: Note, content: NoteContent): Note {
+  const front = content.front.trim();
+  const back = content.back.trim();
+  if (!front || !back) {
+    throw new Error('Note must have non-empty front and back');
+  }
+  const next: Note = { ...note, front, back };
+  for (const key of ['example', 'memo'] as const) {
+    const value = content[key];
+    if (value === undefined) continue;
+    const trimmed = value.trim();
+    if (trimmed) next[key] = trimmed;
+    else delete next[key];
+  }
+  if (content.tags !== undefined) next.tags = normalizeTags(content.tags);
+  return next;
+}
 
 function dedupe<T>(items: T[]): T[] {
   return [...new Set(items)];

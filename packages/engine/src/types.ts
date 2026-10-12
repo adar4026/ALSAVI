@@ -35,6 +35,23 @@ export interface Note {
   id: NoteId;
   front: string;
   back: string;
+  /**
+   * Optional fields (TASK_023). All are absent on notes created before them —
+   * old rows are read as-is, no migration: a missing `example`/`memo` means
+   * "none", missing `tags` means `[]` (the Engine's read paths fill it in).
+   */
+  /** Usage example, e.g. a sentence with the word. */
+  example?: string;
+  /** The learner's own personal note (mnemonic, context, reminder). */
+  memo?: string;
+  /** User tags, always normalized by the Engine — see `normalizeTags`. */
+  tags?: string[];
+  /**
+   * epoch ms when the note was archived; absent = active. An archived note
+   * and its cards stay stored intact (scheduling, Review Log), but its cards
+   * are left out of study queries and active stats. Reversible.
+   */
+  archivedAt?: number;
 }
 
 /**
@@ -72,6 +89,8 @@ export interface CardView {
   card: Card;
   front: string;
   back: string;
+  /** The owning note (content incl. optional fields; `tags` always set). */
+  note: Note;
 }
 
 /** A complete, self-contained snapshot of the collection (backup payload). */

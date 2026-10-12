@@ -265,3 +265,55 @@ describe('restoreBackup — shared confirm-gated orchestration (TASK_019)', () =
 function byId<T extends { id: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
+
+describe('backup — TASK_023 note fields and archive', () => {
+  it('example/memo/tags/archivedAt round-trip; archived note stays archived and out of study', async () => {
+    const src = new MemoryStore();
+    const engine = new LearningEngine(src, { now: () => T0 });
+    const { note, cards } = await engine.addNote({
+      front: 'la escritura',
+      back: 'купчая',
+      example: 'Firmamos la escritura ante notario.',
+      memo: 'у нотариуса',
+      tags: ['недвижимость', 'документы'],
+    });
+    await engine.review(cards[0]!.id, 'again');
+    await engine.archiveNote(note.id);
+    // A note without the new fields (pre-TASK_023 shape) in the same file.
+    await src.putNote({ id: 'legacy', front: 'viejo', back: 'старый' });
+
+    const dst = new MemoryStore();
+    await importBackup(dst, await exportBackup(src));
+    expect(byId(await dst.listNotes())).toEqual(byId(await src.listNotes()));
+    expect(await dst.listReviews()).toEqual(await src.listReviews());
+
+    const restored = new LearningEngine(dst, { now: () => T0 + 86_400_000 });
+    expect(await restored.getDueCards()).toHaveLength(0);
+    expect((await restored.getNote('legacy'))!.tags).toEqual([]);
+  });
+
+  it('an archived note with review history keeps the backup restorable (no orphan reviews)', async () => {
+    const src = new MemoryStore();
+    const engine = new LearningEngine(src, { now: () => T0 });
+    const { note, cards } = await engine.addNote({ front: 'a', back: 'b' });
+    await engine.review(cards[0]!.id, 'good');
+    await engine.archiveNote(note.id);
+    expect(parseBackup(await exportBackup(src)).ok).toBe(true);
+  });
+
+  it.each([
+    ['tags not an array', { tags: 'недвижимость' }],
+    ['tags with a non-string', { tags: ['ok', 3] }],
+    ['example not a string', { example: 5 }],
+    ['memo not a string', { memo: null }],
+    ['archivedAt not a number', { archivedAt: 'yesterday' }],
+  ])('rejects a note with %s', (_label, extra) => {
+    const file = {
+      format: 'alsavi-backup',
+      version: 1,
+      exportedAt: T0,
+      data: { notes: [{ id: 'n', front: 'a', back: 'b', ...extra }], cards: [], reviews: [] },
+    };
+    expect(parseBackup(JSON.stringify(file)).ok).toBe(false);
+  });
+});

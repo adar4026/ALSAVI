@@ -83,6 +83,14 @@ function validateNote(n: unknown, i: number): string | null {
   if (!isObject(n)) return `Заметка #${i}: не объект.`;
   if (!isNonEmptyString(n.id)) return `Заметка #${i}: некорректный id.`;
   if (typeof n.front !== 'string' || typeof n.back !== 'string') return `Заметка ${n.id}: front/back должны быть строками.`;
+  // Optional fields (TASK_023): absent in older backups — still valid as-is.
+  for (const key of ['example', 'memo'] as const) {
+    if (n[key] !== undefined && typeof n[key] !== 'string') return `Заметка ${n.id}: ${key} должно быть строкой.`;
+  }
+  if (n.tags !== undefined && (!Array.isArray(n.tags) || !n.tags.every((t) => typeof t === 'string'))) {
+    return `Заметка ${n.id}: tags должно быть списком строк.`;
+  }
+  if (n.archivedAt !== undefined && !isFiniteNumber(n.archivedAt)) return `Заметка ${n.id}: некорректный archivedAt.`;
   return null;
 }
 

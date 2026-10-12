@@ -118,19 +118,20 @@ Engine **только через публичный интерфейс** — н�
 
 | Метод | Назначение |
 |---|---|
-| `addNote({front, back, directions?})` | создать заметку + 1..N карт (due сразу, `new`) |
+| `addNote({front, back, example?, memo?, tags?, directions?})` | создать заметку + 1..N карт (due сразу, `new`); теги нормализуются |
 | `addCard({front, back, deckId?})` | сахар: одна forward-карта (Note 1:1) |
-| `updateNoteContent(noteId, {front, back})` | правка контента заметки → все сёстры; scheduling не трогается |
+| `updateNoteContent(noteId, {front, back, example?, memo?, tags?})` | правка контента заметки (тот же id) → все сёстры; пишет только заметку — карты, scheduling и лог не трогаются |
+| `archiveNote(noteId)` / `unarchiveNote(noteId)` | архив (TASK_023): карты заметки уходят из due-запросов и счётчиков карт / возвращаются; ничего не удаляется, расписание и лог целы; идемпотентно |
 | `updateCardContent(id, …)` | `@deprecated` мостик: только forward без сестёр, иначе ошибка |
-| `deleteCard(id)` | удалить карту (+ заметку, если последняя); лог сохраняется |
+| `deleteCard(id)` | удалить карту (+ заметку, если последняя); лог сохраняется. **UI не использует** (TASK_023): у карты с историей оставляет в логе повторения без карты — такой бэкап не проходит `parseBackup` |
 | `deleteNote(id)` | удалить заметку и её карты; лог сохраняется |
 | `getNote(id)` / `getCard(id)` / `listCards()` | чтение |
-| `getCardView(id)` / `listCardViews()` | карта(ы) с контентом из заметки (список — batch-загрузка заметок) |
-| `getDueCards(limit?)` | карты с `due <= now`, по возрастанию `due` |
-| `getCardsDueBy(threshold)` | индексированный факт-запрос `due <= threshold` (для learn-ahead StudySession) |
+| `getCardView(id)` / `listCardViews()` | карта(ы) с контентом из заметки + сама заметка `view.note` (список — batch-загрузка заметок; архивные включены) |
+| `getDueCards(limit?)` | карты активных заметок с `due <= now`, по возрастанию `due` |
+| `getCardsDueBy(threshold)` | индексированный факт-запрос `due <= threshold` по картам активных (не архивных) заметок (для learn-ahead StudySession) |
 | `review(cardId, rating)` | записать ответ: пересчёт + append в Review Log |
 | `previewIntervals(cardId)` | due-даты для каждого рейтинга (для кнопок) |
-| `getStats()` | totalCards, newCards, dueNow, reviewsToday, accuracy, streak |
+| `getStats()` | totalCards, newCards, dueNow (по активным картам), reviewsToday, accuracy, streak (по всему логу) |
 | `countNewCardsAnsweredSince(dayStart)` | уникальные карты с первым (`stateBefore === 'new'`) ответом `>= dayStart`; для дневного лимита `StudySession` (TASK_020), derived, не персистится |
 
 Зависимости внедряются: `store: EngineStore`, `scheduler?` (по умолчанию
@@ -154,6 +155,23 @@ Engine **только через публичный интерфейс** — н�
 `Deck` (пока строка `deckId` на карте) и `CardType` (система шаблонов) как
 сущности **не** реализованы: `template` — ограниченный enum `forward|reverse`.
 Модель допускает их добавление позже без ре-миграции Note.
+
+**Необязательные поля и архив (TASK_023).** `Note` получила необязательные
+`example`, `memo`, `tags`, `archivedAt`. Обратная совместимость — без миграции:
+схема Dexie не менялась (поля не индексируются), старые строки читаются как
+есть, ядро отдаёт отсутствующие `tags` как `[]`. Теги нормализуются ядром на
+каждой записи (`normalizeTags`, `packages/engine/src/tags.ts`). Карточка рендерит
+по-прежнему только `front/back` — новые поля не влияют на показ в сессии.
+
+Удаление из активной базы — **архив**, а не физическое удаление:
+`archiveNote` ставит `archivedAt` и только; заметка, карты (со scheduling) и
+Review Log остаются, поэтому INV-4/INV-5 и ссылочная целостность бэкапа
+сохраняются по построению. Исключение архивных карт происходит в ядре, в
+due-запросах (`getDueCards`/`getCardsDueBy`), — `StudySession`, его порядок
+выборки, learn-ahead, bury и дневной лимит не менялись; без архивных заметок
+результат запросов идентичен прежнему (порядок сохраняется). Поиск, фильтры и
+проверка дублей — политика потребителя (`apps/web/src/card-list.ts`) поверх
+`listCardViews()` (принцип №8: ядро — не query-слой).
 
 ## 6. StudySession (`packages/engine/src/study-session.ts`)
 
@@ -382,6 +400,10 @@ node с `MemoryStore`.
   валидации/несовместимой версии/сбое транзакции — прежние данные целы.
 - **`replaceAll` принимает только провалидированные данные** — хранилище бэкап не
   валидирует.
+- Необязательные поля заметки (TASK_023: `example`, `memo`, `tags`,
+  `archivedAt`) проверяются по типу, если присутствуют; их отсутствие валидно.
+  `BACKUP_VERSION` остаётся `1`: старые копии восстанавливаются как есть, а
+  прежняя валидация игнорирует неизвестные поля.
 - Deadlock TASK_007 **закрыт**: restore не зовёт сырой `deleteDatabase`, а
   заменяет строки транзакционно на живом соединении; managed close/reopen не
   нужен (транзакция делает его излишним — см. решение TASK_009).
