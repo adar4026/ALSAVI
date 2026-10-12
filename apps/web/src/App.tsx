@@ -1,11 +1,19 @@
 import { assertValidNewCardsPerDay, LearningEngine, StudySession, type EngineStats } from '@alsavi/engine';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { StatusFilter } from './card-list';
 import { CardManager } from './CardManager';
 import { DexieStore } from './dexie-store';
 import { ReviewHome } from './ReviewHome';
 import { ReviewSession } from './ReviewSession';
+import { StatsScreen } from './StatsScreen';
 
-type View = 'review' | 'cards';
+type View = 'review' | 'cards' | 'stats';
+
+const VIEWS: Array<[View, string]> = [
+  ['review', 'Повторение'],
+  ['cards', 'Карточки'],
+  ['stats', 'Статистика'],
+];
 
 /**
  * Sub-state of the "Повторение" tab (TASK_022): the home/overview screen
@@ -31,6 +39,9 @@ export function App() {
   const engine = useMemo(() => new LearningEngine(store), [store]);
   const session = useMemo(() => new StudySession(engine), [engine]);
   const [view, setView] = useState<View>('review');
+  // Filter the "Карточки" tab opens with: 'all' from the navigation, 'difficult'
+  // from the statistics screen's "Трудные слова" link (TASK_026).
+  const [cardsStatus, setCardsStatus] = useState<StatusFilter>('all');
   const [reviewPhase, setReviewPhase] = useState<ReviewPhase>('home');
   const [stats, setStats] = useState<EngineStats | null>(null);
   // "К повторению" reflects the session queue (due + learn-ahead), so it stays
@@ -123,12 +134,19 @@ export function App() {
       <div className="topbar">
         <div className="logo">ALSAVI</div>
         <nav className="nav">
-          <button className={view === 'review' ? 'active' : ''} onClick={() => setView('review')}>
-            Повторение
-          </button>
-          <button className={view === 'cards' ? 'active' : ''} onClick={() => setView('cards')}>
-            Карточки
-          </button>
+          {VIEWS.map(([value, label]) => (
+            <button
+              key={value}
+              className={view === value ? 'active' : ''}
+              aria-current={view === value ? 'page' : undefined}
+              onClick={() => {
+                setCardsStatus('all');
+                setView(value);
+              }}
+            >
+              {label}
+            </button>
+          ))}
         </nav>
       </div>
       <div className="statsbar">
@@ -186,8 +204,19 @@ export function App() {
           // is confirmed applied to `session`.
           <div className="card-panel" />
         )
+      ) : view === 'stats' ? (
+        <StatsScreen
+          engine={engine}
+          onStudy={() => setView('review')}
+          onShowDifficult={() => {
+            setCardsStatus('difficult');
+            setView('cards');
+          }}
+        />
       ) : (
         <CardManager
+          key={cardsStatus}
+          initialStatus={cardsStatus}
           engine={engine}
           store={store}
           onChanged={() => void refreshStats()}

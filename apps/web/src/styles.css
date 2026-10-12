@@ -863,3 +863,332 @@ body {
     flex: 1;
   }
 }
+
+/* --- TASK_026: "Статистика" --- */
+
+/* Navigation got a third tab: keep it on one line next to the logo where it
+   fits, wrap under the logo on the narrowest phones; 44px touch targets. */
+.topbar {
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.nav button {
+  min-height: 44px;
+}
+
+#list-title:focus {
+  outline: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.stats-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stats-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.stats-section .panel-title {
+  margin: 0;
+}
+
+.stats-section .hint {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.stats-section .empty-state {
+  margin: 0;
+}
+
+.stats-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.stats-empty .btn-secondary,
+.stats-link {
+  min-height: 44px;
+}
+
+.stats-link {
+  align-self: flex-start;
+}
+
+.stats-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.stat-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.stat-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* A headline total above its breakdown (e.g. all active cards). */
+.stat-wide {
+  grid-column: 1 / -1;
+}
+
+/* Label in the markup comes first (dt → dd); the number is shown on top. */
+.stat {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-width: 0;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.3;
+  overflow-wrap: break-word;
+}
+
+.stat-value {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.stat-unit {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Bars: a light track with the filled part at the bottom. A day without
+   reviews keeps a thin baseline so zeros stay visible, not hidden. */
+.bar-track {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-track::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--border);
+}
+
+.bar {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  background: var(--accent);
+  border-radius: 4px 4px 0 0;
+}
+
+.week-chart {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.week-day {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+  text-align: center;
+}
+
+.week-day .bar-track {
+  height: 72px;
+}
+
+.week-count {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.week-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.week-day.is-today .week-label {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.month-chart {
+  display: grid;
+  grid-template-columns: repeat(30, minmax(0, 1fr));
+  gap: 2px;
+  height: 56px;
+}
+
+.month-chart .bar-track {
+  border-radius: 2px;
+}
+
+.month-chart .bar {
+  border-radius: 2px 2px 0 0;
+}
+
+.month-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.stats-details summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.stats-details summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-table th,
+.stats-table td {
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.stats-table th:last-child,
+.stats-table td:last-child {
+  text-align: right;
+}
+
+.stats-table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.difficult-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.difficult-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+.difficult-item:last-child {
+  border-bottom: none;
+}
+
+.difficult-word {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.difficult-word .front {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.difficult-word .back {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.difficult-lapses {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--danger);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 380px) {
+  .stat {
+    padding: 10px 8px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+  }
+
+  .stat-value {
+    font-size: 20px;
+  }
+
+  .week-chart {
+    gap: 4px;
+  }
+}

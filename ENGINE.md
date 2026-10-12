@@ -36,7 +36,7 @@ embeddings или индексов (см. `ARCHITECTURE.md` §11, §11c). Пуб
 Публичный API: `addNote`, `addCard` (сахар 1:1), `updateNoteContent`,
 `archiveNote`, `unarchiveNote`, `deleteNote`, `deleteCard`, `getNote`, `getCard`, `getCardView`, `listCards`,
 `listCardViews`, `getDueCards`, `getCardsDueBy`, `rebuildCardState`, `review`,
-`previewIntervals`, `getStats`. `updateCardContent` — `@deprecated` мостик
+`previewIntervals`, `getStats`, `getLearningStats`. `updateCardContent` — `@deprecated` мостик
 (только forward-карта без сестёр, иначе бросает ошибку; в UI не используется).
 
 ### Note → Card (1:N)
@@ -205,6 +205,16 @@ Append-only журнал ответов — **source of truth**. `SchedulingStat
 `rating`, `reviewedAt`, `stateBefore`, `stateAfter`, `dueAfter`, `stability`,
 `difficulty`, `scheduledDays`.
 
+## 6a. Статистика
+
+`getStats()` (строка статистики) и `getLearningStats()` (экран «Статистика»,
+TASK_026) — read-only производные от карт, заметок и Review Log; ничего не
+пишут. Расчёт — чистая функция `computeLearningStats` в `src/stats.ts`, там же
+нормативные определения: успешный ответ — `hard`/`good`/`easy`, неуспешный —
+`again`; день — локальный календарный (`startOfLocalDay`); серия — учебные дни
+подряд по сегодня (или по вчера, пока сегодня ответов нет); трудное слово —
+активная заметка с `lapses > 0`. Подробно — `ARCHITECTURE.md` §5b.
+
 ## 7. Жизненный цикл карточки
 
 ```
@@ -270,8 +280,9 @@ UI одновременно вызывает и `StudySession` (что пока�
 - typecheck: `npx tsc --noEmit` внутри пакета.
 
 Тесты ядра: `packages/engine/test/engine.test.ts` (жизненный цикл, learning
-steps, детерминизм, статистика, `layer boundary`) и `study-session.test.ts`
-(поток сессии, learn-ahead, детерминизм).
+steps, детерминизм, статистика, `layer boundary`), `study-session.test.ts`
+(поток сессии, learn-ahead, детерминизм) и `stats.test.ts` (статистика
+обучения: границы дня, часовые пояса, серии, окна активности, трудные слова).
 
 [ADR-001]: docs/adr/ADR-001-scheduler-abstraction.md
 [ADR-002]: docs/adr/ADR-002-review-log-source-of-truth.md

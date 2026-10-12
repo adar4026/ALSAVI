@@ -132,9 +132,13 @@ export interface EngineStats {
   newCards: number;
   dueNow: number;
   reviewsToday: number;
-  /** share of reviews that were not 'again', over the whole log; null if no reviews */
+  /** share of successful reviews (hard/good/easy — not 'again'), over the whole log; null if no reviews */
   accuracy: number | null;
-  /** consecutive calendar days with at least one review, counting back from today */
+  /**
+   * Current streak: consecutive local calendar days with at least one review,
+   * ending today — or ending yesterday while today has no review yet (the day
+   * is not over). Same definition as `getLearningStats().streak.current`.
+   */
   streakDays: number;
 }
 

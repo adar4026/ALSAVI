@@ -75,6 +75,8 @@ interface Props {
   limitSaving: boolean;
   /** Set only when the most recent save attempt failed; cleared on the next attempt. */
   limitSaveError: string | null;
+  /** State filter to open the list with (e.g. 'difficult' from the statistics screen). */
+  initialStatus?: StatusFilter;
 }
 
 /** `null` -> empty (unlimited); a number -> its decimal string. */
@@ -99,6 +101,7 @@ export function CardManager({
   onLimitChange,
   limitSaving,
   limitSaveError,
+  initialStatus = 'all',
 }: Props) {
   // A render snapshot of `engine.listCardViews()`, re-read after every write —
   // the Engine stays the only source of truth (no parallel copy is edited).
@@ -106,12 +109,13 @@ export function CardManager({
   const [loadedAt, setLoadedAt] = useState(() => Date.now());
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<ListFilter>(EMPTY_FILTER);
+  const [filter, setFilter] = useState<ListFilter>(() => ({ ...EMPTY_FILTER, status: initialStatus }));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [scrollToId, setScrollToId] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
   const [limitInput, setLimitInput] = useState(() => formatLimit(newCardsPerDay));
+  const listTitle = useRef<HTMLHeadingElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const backupInput = useRef<HTMLInputElement>(null);
   const frontInput = useRef<HTMLInputElement>(null);
@@ -147,6 +151,17 @@ export function CardManager({
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // Opened on a specific filter (from "Статистика"): once the list has loaded
+  // (before that the page may be too short to scroll), bring the list — not
+  // the add form — into view and move focus to its heading. Only once.
+  const revealedList = useRef(false);
+  useEffect(() => {
+    if (initialStatus === 'all' || !loaded || revealedList.current) return;
+    revealedList.current = true;
+    listTitle.current?.scrollIntoView({ block: 'start' });
+    listTitle.current?.focus({ preventScroll: true });
+  }, [initialStatus, loaded]);
 
   const entries = useMemo(() => buildNoteEntries(views, loadedAt), [views, loadedAt]);
   const activeEntries = useMemo(() => entries.filter((e) => !e.archived), [entries]);
@@ -342,7 +357,7 @@ export function CardManager({
       </details>
 
       <section aria-labelledby="list-title">
-        <h2 id="list-title" className="panel-title">
+        <h2 id="list-title" className="panel-title" ref={listTitle} tabIndex={-1}>
           Мои карточки
         </h2>
 

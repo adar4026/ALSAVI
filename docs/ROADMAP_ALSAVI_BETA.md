@@ -162,6 +162,7 @@ Complexity: S/M/L. "Engine-risk" flags changes to the deterministic core (regres
 - **Complexity:** M (compute trivial, viz is the work). Engine-risk: **none** (read-only).
 - **Task breakdown:** future-due forecast; counts-by-state; reviews/day history; retention; per-deck breakdown.
 - **Event direction:** `StatsService` is a **consumer** — it subscribes to the `ReviewRecorded` domain event (emitted by the write-path in M0) and reads the Review Log to derive statistical views. **It emits no events of its own.** The same domain-event stream is what Health/Finance/Ministry would independently subscribe to; Stats is one consumer among peers, never the source.
+- **Update (TASK_026, first slice).** Delivered without `StatsService` or domain events — neither M0 nor an accepted ADR for them exists (ADR-005 is `Proposed`). The first slice is a pure, read-only module in the Engine (`packages/engine/src/stats.ts`, `LearningEngine.getLearningStats()`): today's answers, current/longest streak, reviews/day for 7 and 30 days, counts-by-state, most-forgotten words; UI — the «Статистика» tab. Read on demand from the Review Log, nothing stored. Future-due forecast, retention and per-deck breakdown remain open M4 items. See `ARCHITECTURE.md` §5b and `tasks/TASK_026.md`.
 
 ### M5 — Extensible Note Model *(seam early; implementation post-Beta)*
 - **Objective:** evolve the current fixed content shape (`Note = {front, back}` + bounded `forward`/`reverse` enum) into an **extensible note model** — supporting arbitrary fields, note types, templates, and media references.

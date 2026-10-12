@@ -2,6 +2,14 @@ import { FsrsScheduler } from './fsrs-scheduler.js';
 import { generateId } from './ids.js';
 import { renderCard } from './render.js';
 import { replayCardState } from './replay.js';
+import {
+  computeLearningStats,
+  computeStreaks,
+  countReviewsToday,
+  isSuccessfulRating,
+  startOfLocalDay,
+  type LearningStats,
+} from './stats.js';
 import { normalizeTags } from './tags.js';
 import type { Scheduler } from './scheduler.js';
 import type { EngineStore } from './store.js';
@@ -310,17 +318,34 @@ export class LearningEngine {
     // (today, accuracy, streak) keep archived notes' history — it happened.
     const archived = new Set(notes.filter((n) => n.archivedAt !== undefined).map((n) => n.id));
     const cards = allCards.filter((c) => !archived.has(c.noteId));
-    const todayStart = startOfLocalDay(now);
-    const reviewsToday = reviews.filter((r) => r.reviewedAt >= todayStart).length;
-    const successful = reviews.filter((r) => r.rating !== 'again').length;
+    // Definitions (successful answer, local day, streak) live in stats.ts and
+    // are shared with getLearningStats, so the stats bar and the "Статистика"
+    // screen can never disagree.
+    const successful = reviews.filter((r) => isSuccessfulRating(r.rating)).length;
     return {
       totalCards: cards.length,
       newCards: cards.filter((c) => c.state === 'new').length,
       dueNow: cards.filter((c) => c.due <= now).length,
-      reviewsToday,
+      reviewsToday: countReviewsToday(reviews, now),
       accuracy: reviews.length === 0 ? null : successful / reviews.length,
-      streakDays: computeStreak(reviews, now),
+      streakDays: computeStreaks(reviews.map((r) => startOfLocalDay(r.reviewedAt)), now).current,
     };
+  }
+
+  /**
+   * Learning statistics for the "Статистика" screen (TASK_026): today's
+   * answers, current/longest streak, review activity over the last 7 and 30
+   * days, active cards by state, and the most-forgotten words. Read-only — a
+   * pure derivation from cards, notes and the Review Log (`computeLearningStats`,
+   * where every definition is documented); nothing is written or cached.
+   */
+  async getLearningStats(): Promise<LearningStats> {
+    const [cards, notes, reviews] = await Promise.all([
+      this.store.listCards(),
+      this.store.listNotes(),
+      this.store.listReviews(),
+    ]);
+    return computeLearningStats({ cards, notes, reviews, now: this.now() });
   }
 
   /**
@@ -398,22 +423,4 @@ function applyContent(note: Note, content: NoteContent): Note {
 
 function dedupe<T>(items: T[]): T[] {
   return [...new Set(items)];
-}
-
-function startOfLocalDay(epochMs: number): number {
-  const d = new Date(epochMs);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-/** Consecutive local-calendar days with >= 1 review, counting back from today. */
-function computeStreak(reviews: Review[], now: number): number {
-  const days = new Set(reviews.map((r) => startOfLocalDay(r.reviewedAt)));
-  let streak = 0;
-  let cursor = startOfLocalDay(now);
-  while (days.has(cursor)) {
-    streak += 1;
-    cursor = startOfLocalDay(cursor - 1);
-  }
-  return streak;
 }
