@@ -1,4 +1,4 @@
-import type { CardView, IntervalPreview, LearningEngine, Rating, StudySession } from '@alsavi/engine';
+import type { CardView, IntervalPreview, LearningEngine, Note, Rating, StudySession } from '@alsavi/engine';
 
 /**
  * Per-card study session flow (TASK_022) — the state machine behind the
@@ -24,11 +24,38 @@ export interface ReviewFlowSummary {
   newReviewed: number;
 }
 
+/**
+ * The note's optional context shown under the answer (TASK_024). `null` = the
+ * field is absent or blank, so no heading/block is rendered for it.
+ */
+export interface AnswerContext {
+  example: string | null;
+  memo: string | null;
+}
+
+/**
+ * Pure: a note's example and personal memo for display. The Engine already
+ * trims and drops empty optional fields on write, but rows restored from a
+ * backup are only type-checked — so blank values are filtered here too.
+ */
+export function answerContext(note: Note): AnswerContext {
+  const clean = (value: string | undefined) => (value && value.trim() ? value.trim() : null);
+  return { example: clean(note.example), memo: clean(note.memo) };
+}
+
 export interface ReviewFlowState {
   status: ReviewFlowStatus;
   current: CardView | null;
   preview: IntervalPreview | null;
   revealed: boolean;
+  /**
+   * Example + memo of the current card's note — set only once the answer is
+   * revealed, `null` before. Both fields belong to the note, not to a card
+   * direction: an example usually contains the word itself, so on a reverse
+   * card it would give the answer away. Hence: never before reveal, in
+   * either direction.
+   */
+  context: AnswerContext | null;
   /** Set only after a failed save; the same card stays current so the user can retry. */
   error: string | null;
   /** True in 'empty' status when the reason is the daily new-card limit, not "nothing left". */
@@ -44,6 +71,7 @@ const INITIAL_STATE: ReviewFlowState = {
   current: null,
   preview: null,
   revealed: false,
+  context: null,
   error: null,
   limitReached: false,
   progress: { done: 0, total: 0 },
@@ -106,6 +134,7 @@ export class ReviewFlowController {
           current: null,
           preview: null,
           revealed: false,
+          context: null,
           error: null,
           limitReached,
           progress: { done: 0, total: 0 },
@@ -116,6 +145,7 @@ export class ReviewFlowController {
           current: null,
           preview: null,
           revealed: false,
+          context: null,
           error: null,
           // Nothing remains: `total` catches up to `done`. Also the reason
           // this field must be set here explicitly, not left over from the
@@ -141,15 +171,16 @@ export class ReviewFlowController {
       current: view ?? null,
       preview,
       revealed: false,
+      context: null,
       error: null,
       progress: { done: this.done, total: this.done + remaining },
     });
   }
 
-  /** Reveal the back of the current card. No-op outside the active/unrevealed state. */
+  /** Reveal the back of the current card (and its note's context). No-op outside the active/unrevealed state. */
   reveal(): void {
-    if (this.state.status !== 'active' || this.state.revealed) return;
-    this.setState({ revealed: true });
+    if (this.state.status !== 'active' || this.state.revealed || !this.state.current) return;
+    this.setState({ revealed: true, context: answerContext(this.state.current.note) });
   }
 
   /**

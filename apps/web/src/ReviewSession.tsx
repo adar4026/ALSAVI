@@ -28,9 +28,10 @@ interface Props {
 }
 
 /**
- * Per-card session screen (TASK_022): front → "Показать ответ" → back + four
- * rating buttons with real intervals from `engine.previewIntervals()` →
- * progress → finished summary. All sequencing, save-locking and error
+ * Per-card session screen (TASK_022): front → "Показать ответ" → back (+ the
+ * note's example and memo when filled in, TASK_024) + four rating buttons
+ * with real intervals from `engine.previewIntervals()` → progress → finished
+ * summary. All sequencing, save-locking and error
  * recovery live in `ReviewFlowController`; this component only renders its
  * state and forwards user actions.
  */
@@ -158,7 +159,29 @@ export function ReviewSession({ engine, session, onReviewed, onExit }: Props) {
         <span className={`state-badge state-${current.card.state}`}>{STATE_LABELS[current.card.state]}</span>
         <div className="card-front">{current.front}</div>
         {state.revealed ? (
-          <div className="card-back">{current.back}</div>
+          <>
+            <div className="card-back">{current.back}</div>
+            {(state.context?.example || state.context?.memo) && (
+              <div className="answer-details">
+                {state.context?.example && (
+                  <section className="answer-context" aria-labelledby="answer-example-label">
+                    <h3 id="answer-example-label" className="answer-context-label">
+                      Пример
+                    </h3>
+                    <p className="answer-context-text answer-example">{state.context.example}</p>
+                  </section>
+                )}
+                {state.context?.memo && (
+                  <section className="answer-context" aria-labelledby="answer-memo-label">
+                    <h3 id="answer-memo-label" className="answer-context-label">
+                      Моя заметка
+                    </h3>
+                    <p className="answer-context-text">{state.context.memo}</p>
+                  </section>
+                )}
+              </div>
+            )}
+          </>
         ) : (
           <>
             <button className="btn-primary" onClick={() => controller.reveal()} aria-label="Показать ответ">
@@ -174,7 +197,9 @@ export function ReviewSession({ engine, session, onReviewed, onExit }: Props) {
         </div>
       )}
       {state.revealed && (
-        <>
+        // Sticky to the bottom of the viewport: a long example/memo scrolls
+        // the page, but the rating buttons never leave the screen.
+        <div className="answer-bar">
           <div className="answer-buttons">
             {RATINGS.map((r) => (
               <button
@@ -189,7 +214,7 @@ export function ReviewSession({ engine, session, onReviewed, onExit }: Props) {
             ))}
           </div>
           <div className="hotkey-hint">1 · 2 · 3 · 4</div>
-        </>
+        </div>
       )}
     </div>
   );

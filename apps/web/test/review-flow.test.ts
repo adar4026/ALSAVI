@@ -4,7 +4,7 @@ import { LearningEngine, MemoryStore, StudySession, type Card, type Rating, type
 import Dexie from 'dexie';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DexieStore } from '../src/dexie-store.js';
-import { ReviewFlowController } from '../src/review-flow.js';
+import { answerContext, ReviewFlowController } from '../src/review-flow.js';
 
 /**
  * `ReviewFlowController` — the "Учиться сегодня" session state machine
@@ -283,5 +283,208 @@ describe('ReviewFlowController — reload persists through IndexedDB', () => {
     // The already-recorded review survived the "reload" in IndexedDB: the
     // answered card is no longer 'new' and was not re-presented above.
     expect(await engine2.getCard(firstCardId!)).toMatchObject({ state: 'review' });
+  });
+});
+
+describe('answerContext — example and memo for display (TASK_024)', () => {
+  const base = { id: 'n', front: 'la casa', back: 'дом', tags: [] };
+
+  it.each([
+    ['neither', {}, { example: null, memo: null }],
+    ['example only', { example: 'Mi casa es tu casa.' }, { example: 'Mi casa es tu casa.', memo: null }],
+    ['memo only', { memo: 'Как «касса» без одной с' }, { example: null, memo: 'Как «касса» без одной с' }],
+    [
+      'both',
+      { example: 'Mi casa es tu casa.', memo: 'Как «касса»' },
+      { example: 'Mi casa es tu casa.', memo: 'Как «касса»' },
+    ],
+  ])('%s', (_label, fields, expected) => {
+    expect(answerContext({ ...base, ...fields })).toEqual(expected);
+  });
+
+  it('treats blank values (e.g. from a restored backup) as absent, but keeps inner line breaks', () => {
+    expect(answerContext({ ...base, example: '   ', memo: '\n\t' })).toEqual({ example: null, memo: null });
+    expect(answerContext({ ...base, example: '  Línea 1\nLínea 2  ' }).example).toBe('Línea 1\nLínea 2');
+  });
+
+  it('passes markup through as plain text — escaping is left to React, nothing is interpreted', () => {
+    const memo = '<img src=x onerror="alert(1)"> <b>жирный</b>';
+    expect(answerContext({ ...base, memo }).memo).toBe(memo);
+  });
+});
+
+describe('ReviewFlowController — answer context (TASK_024)', () => {
+  it.each([
+    ['no example, no memo', {}, { example: null, memo: null }],
+    ['example only', { example: 'Vivo en una casa grande.' }, { example: 'Vivo en una casa grande.', memo: null }],
+    ['memo only', { memo: 'Ударение на первый слог' }, { example: null, memo: 'Ударение на первый слог' }],
+    [
+      'example and memo',
+      { example: 'Vivo en una casa grande.', memo: 'Ударение на первый слог' },
+      { example: 'Vivo en una casa grande.', memo: 'Ударение на первый слог' },
+    ],
+  ])('%s: hidden before reveal(), shown after', async (_label, fields, expected) => {
+    const { engine, controller } = setup();
+    await engine.addNote({ front: 'la casa', back: 'дом', ...fields });
+
+    await controller.start();
+    expect(controller.getState().revealed).toBe(false);
+    expect(controller.getState().context).toBeNull();
+
+    controller.reveal();
+    expect(controller.getState().context).toEqual(expected);
+  });
+
+  it('forward and reverse cards: question side swaps, context is the same and only after reveal', async () => {
+    const { engine } = setup();
+    const { cards } = await engine.addNote({
+      front: 'la casa',
+      back: 'дом',
+      example: 'Vivo en una casa grande.',
+      memo: 'Ударение на первый слог',
+      directions: ['forward', 'reverse'],
+    });
+    const expected = { example: 'Vivo en una casa grande.', memo: 'Ударение на первый слог' };
+    const seen: Record<string, { front: string; back: string }> = {};
+
+    // Bury-siblings hides the sister card for the rest of a session, so each
+    // direction is checked in its own session (a fresh StudySession = a new session).
+    for (let i = 0; i < cards.length; i++) {
+      const session = new StudySession(engine, { now: () => T0 });
+      const controller = new ReviewFlowController(engine, session);
+      await controller.start();
+      const current = controller.getState().current!;
+      expect(controller.getState().context).toBeNull();
+      controller.reveal();
+      expect(controller.getState().context).toEqual(expected);
+      seen[current.card.template] = { front: current.front, back: current.back };
+      await controller.answer('easy'); // graduates it out of today's queue
+    }
+
+    expect(seen.forward).toEqual({ front: 'la casa', back: 'дом' });
+    expect(seen.reverse).toEqual({ front: 'дом', back: 'la casa' });
+  });
+
+  it('a failed save keeps the context on screen with the same revealed card', async () => {
+    const store = new ThrowingStore();
+    const engine = new LearningEngine(store, { now: () => T0 });
+    const controller = new ReviewFlowController(engine, new StudySession(engine, { now: () => T0 }));
+    await engine.addNote({ front: 'la casa', back: 'дом', memo: 'заметка' });
+
+    await controller.start();
+    controller.reveal();
+    store.armed = true;
+    await controller.answer('good');
+
+    const state = controller.getState();
+    expect(state.status).toBe('active');
+    expect(state.error).not.toBeNull();
+    expect(state.context).toEqual({ example: null, memo: 'заметка' });
+  });
+
+  it('the next card starts hidden again: context is reset when moving on', async () => {
+    const { engine, controller } = setup();
+    await engine.addNote({ front: 'a', back: '1', example: 'ejemplo a' });
+    await engine.addNote({ front: 'b', back: '2', memo: 'заметка b' });
+
+    await controller.start();
+    controller.reveal();
+    expect(controller.getState().context).not.toBeNull();
+    await controller.answer('easy');
+
+    const state = controller.getState();
+    expect(state.status).toBe('active');
+    expect(state.revealed).toBe(false);
+    expect(state.context).toBeNull();
+  });
+
+  it('long multi-line text does not disturb the session: full text kept, answer recorded, session finishes', async () => {
+    const { store, engine, controller } = setup();
+    const longExample = Array.from({ length: 200 }, (_, i) => `Frase número ${i} con una palabra larguísima-sin-espacios`).join('\n');
+    const longMemo = 'я'.repeat(5000);
+    const { cards } = await engine.addNote({ front: 'la casa', back: 'дом', example: longExample, memo: longMemo });
+
+    await controller.start();
+    controller.reveal();
+    expect(controller.getState().context).toEqual({ example: longExample, memo: longMemo });
+    await controller.answer('easy');
+
+    expect(controller.getState().status).toBe('finished');
+    expect(controller.getState().summary).toEqual({ reviewed: 1, newReviewed: 1 });
+    expect(await store.listReviews(cards[0]!.id)).toHaveLength(1);
+  });
+
+  it('showing the context changes nothing in scheduling, the Review Log or the card', async () => {
+    const { store, engine, controller } = setup();
+    const { cards } = await engine.addNote({ front: 'la casa', back: 'дом', example: 'ejemplo', memo: 'заметка' });
+    const cardId = cards[0]!.id;
+
+    await controller.start();
+    const cardBefore = structuredClone(await store.getCard(cardId));
+    const previewBefore = await engine.previewIntervals(cardId);
+    controller.reveal();
+    expect(controller.getState().context).not.toBeNull();
+
+    expect(await store.getCard(cardId)).toEqual(cardBefore);
+    expect(await store.listReviews(cardId)).toEqual([]);
+    expect(await engine.previewIntervals(cardId)).toEqual(previewBefore);
+    expect(controller.getState().preview).toEqual(previewBefore);
+  });
+
+  it('a card with context is scheduled exactly like the same card without it', async () => {
+    const plain = setup();
+    const rich = setup();
+    await plain.engine.addNote({ front: 'la casa', back: 'дом' });
+    await rich.engine.addNote({ front: 'la casa', back: 'дом', example: 'ejemplo', memo: 'заметка' });
+
+    for (const { controller } of [plain, rich]) {
+      await controller.start();
+      controller.reveal();
+      await controller.answer('good');
+    }
+
+    const strip = ({ id: _id, ...rest }: Review) => rest;
+    const [plainCard] = await plain.store.listCards();
+    const [richCard] = await rich.store.listCards();
+    expect(richCard).toEqual(plainCard); // same ids from the seeded generator, same due/scheduling
+    expect((await rich.store.listReviews(richCard!.id)).map(strip)).toEqual(
+      (await plain.store.listReviews(plainCard!.id)).map(strip)
+    );
+  });
+});
+
+describe('ReviewFlowController — edited context survives a reload (TASK_024)', () => {
+  afterEach(() => {
+    const fresh = new IDBFactory();
+    globalThis.indexedDB = fresh;
+    Dexie.dependencies.indexedDB = fresh;
+  });
+
+  it('an example/memo edited in "Карточки" shows at the next review, also after a reload', async () => {
+    const engine1 = new LearningEngine(new DexieStore());
+    const { note, cards } = await engine1.addNote({ front: 'la casa', back: 'дом', example: 'viejo ejemplo' });
+    const cardBefore = await engine1.getCard(cards[0]!.id);
+
+    // Same path the card editor uses: content-only write, scheduling untouched.
+    await engine1.updateNoteContent(note.id, {
+      front: 'la casa',
+      back: 'дом',
+      example: 'Vivo en una casa grande.\nEs mi casa.',
+      memo: 'Новая заметка',
+    });
+
+    const controller1 = new ReviewFlowController(engine1, new StudySession(engine1));
+    await controller1.start();
+    controller1.reveal();
+    expect(controller1.getState().context).toEqual({ example: 'Vivo en una casa grande.\nEs mi casa.', memo: 'Новая заметка' });
+
+    // Reload: fresh adapter + engine + session + controller over the same IndexedDB.
+    const engine2 = new LearningEngine(new DexieStore());
+    const controller2 = new ReviewFlowController(engine2, new StudySession(engine2));
+    await controller2.start();
+    expect(controller2.getState().context).toBeNull();
+    controller2.reveal();
+    expect(controller2.getState().context).toEqual({ example: 'Vivo en una casa grande.\nEs mi casa.', memo: 'Новая заметка' });
+    expect(await engine2.getCard(cards[0]!.id)).toEqual(cardBefore);
   });
 });
