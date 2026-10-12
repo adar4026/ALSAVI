@@ -328,6 +328,76 @@ describe('difficult words', () => {
   });
 });
 
+describe('learned words, all-time answers, due now (TASK_031)', () => {
+  it('a card is learned in state "review"; a word only when all its cards are', () => {
+    const notes = [
+      note('n1', 'uno'), // forward review → learned
+      note('n2', 'dos'), // forward review + reverse new → not yet
+      note('n3', 'tres'), // forgotten: relearning → not learned
+      note('n4', 'cuatro'), // forward + reverse review, one of them due → learned
+      note('n5', 'cinco'), // new
+    ];
+    const cards = [
+      card('a', 'n1', 'review', { due: NOW + DAY }),
+      card('b', 'n2', 'review', { due: NOW + DAY }),
+      card('c', 'n2', 'new'),
+      card('d', 'n3', 'relearning', { lapses: 1 }),
+      card('e', 'n4', 'review', { due: NOW - DAY }),
+      card('f', 'n4', 'review', { due: NOW + DAY }),
+      card('g', 'n5', 'learning'),
+    ];
+    const s = stats({ notes, cards });
+    expect(s.notes).toEqual({ active: 5, learned: 2 });
+    // Cards in "review" are exactly the learned cards: 4 of 7.
+    expect(s.cards.dueReview + s.cards.waiting).toBe(4);
+  });
+
+  it('archived words are neither active nor learned', () => {
+    const notes = [note('n1', 'uno', { archivedAt: daysAgo(1) }), note('n2', 'dos')];
+    const cards = [card('a', 'n1', 'review'), card('b', 'n2', 'review')];
+    expect(stats({ notes, cards }).notes).toEqual({ active: 1, learned: 1 });
+  });
+
+  it('a note without cards is never learned', () => {
+    expect(stats({ notes: [note('n1', 'uno')], cards: [] }).notes).toEqual({ active: 1, learned: 0 });
+  });
+
+  it('counts every answer of the log, archived history included', () => {
+    const notes = [note('n1', 'uno', { archivedAt: daysAgo(0) }), note('n2', 'dos')];
+    const cards = [card('a', 'n1', 'review'), card('b', 'n2', 'review')];
+    const reviews = [
+      review('again', daysAgo(40), 'a'),
+      review('hard', daysAgo(3), 'a'),
+      review('good', daysAgo(1), 'b'),
+      review('easy', daysAgo(0), 'b'),
+      review('again', daysAgo(0), 'b'),
+    ];
+    expect(stats({ notes, cards, reviews }).answers).toEqual({ total: 5, successful: 3 });
+  });
+
+  it('splits answered cards into due now and later; new cards stay apart', () => {
+    const notes = [note('n1', 'uno'), note('n2', 'dos'), note('n3', 'tres', { archivedAt: daysAgo(1) })];
+    const cards = [
+      card('a', 'n1', 'new', { due: NOW - DAY }), // new: never "due", even with an old due
+      card('b', 'n1', 'review', { due: NOW }), // due exactly now
+      card('c', 'n2', 'review', { due: NOW + 1 }),
+      card('d', 'n2', 'learning', { due: NOW - 60_000 }), // the next step has come
+      card('e', 'n2', 'relearning', { due: NOW + 60_000 }),
+      card('f', 'n3', 'review', { due: NOW - DAY }), // archived
+    ];
+    const s = stats({ notes, cards });
+    expect(s.due).toEqual({ now: 2, later: 2 });
+    expect(s.due.now + s.due.later + s.cards.new).toBe(s.cards.active);
+  });
+
+  it('an empty collection: zeros, no NaN', () => {
+    const s = stats({});
+    expect(s.answers).toEqual({ total: 0, successful: 0 });
+    expect(s.notes).toEqual({ active: 0, learned: 0 });
+    expect(s.due).toEqual({ now: 0, later: 0 });
+  });
+});
+
 describe('LearningEngine.getLearningStats', () => {
   function makeEngine(clock: { t: number }) {
     let id = 0;
@@ -382,6 +452,25 @@ describe('LearningEngine.getLearningStats', () => {
     expect(basic.reviewsToday).toBe(learning.today.reviews);
     expect(basic.streakDays).toBe(learning.streak.current);
     expect(basic.streakDays).toBe(1); // yesterday's day still counts until today is over
+  });
+
+  it('all-time accuracy agrees with getStats(); a graduated word counts as learned', async () => {
+    const clock = { t: daysAgo(3, 9) };
+    const { engine } = makeEngine(clock);
+    const hola = await engine.addNote({ front: 'hola', back: 'привет' });
+    const adios = await engine.addNote({ front: 'adiós', back: 'пока', directions: ['forward', 'reverse'] });
+    await engine.review(hola.cards[0]!.id, 'easy'); // new → review
+    await engine.review(adios.cards[0]!.id, 'easy'); // its reverse card is still new
+    clock.t = daysAgo(0, 10);
+    await engine.review(hola.cards[0]!.id, 'good'); // stays in review
+    await engine.review(adios.cards[0]!.id, 'again'); // forgotten → relearning
+
+    const [learning, basic] = await Promise.all([engine.getLearningStats(), engine.getStats()]);
+    expect(learning.answers).toEqual({ total: 4, successful: 3 });
+    expect(basic.accuracy).toBe(learning.answers.successful / learning.answers.total);
+    expect((await engine.getCard(hola.cards[0]!.id))!.state).toBe('review');
+    expect(learning.notes).toEqual({ active: 2, learned: 1 }); // "hola" only
+    expect(learning.due).toEqual({ now: 0, later: 2 }); // both answered cards wait; the reverse is new
   });
 
   it('an empty collection gives an empty, finite result', async () => {

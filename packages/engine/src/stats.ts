@@ -24,6 +24,18 @@ import type { Card, Note, NoteId, Rating, Review } from './types.js';
  *  - **difficult word** — an active note whose cards have `scheduling.lapses
  *    > 0` (times a learned card was forgotten), ranked by total lapses. The
  *    same signal the "Трудные" card-list filter uses; no new metric.
+ *  - **learned card** (TASK_031) — FSRS state `review`: the card has passed
+ *    its learning steps and is now on long intervals. A forgotten card goes to
+ *    `relearning` and stops being learned until it graduates again. This is
+ *    the scheduler's own state, not a separate threshold.
+ *  - **learned word** (TASK_031) — an active note ALL of whose cards are
+ *    learned (with a reverse card: both directions). Conservative on purpose:
+ *    a word half-known in one direction is not counted.
+ *  - **due now** (TASK_031) — an active card already answered at least once
+ *    (`state !== 'new'`) whose due time has come (`due <= now`): learned cards
+ *    due for review and learning cards whose next step has come. New cards
+ *    are counted apart (`cards.new`) — they are introduced under the daily
+ *    limit, not "due". The rest are scheduled for later (`due.later`).
  */
 
 /** Maps an instant (epoch ms) to the start of its calendar day (epoch ms). */
@@ -107,6 +119,32 @@ export interface LearningStats {
     /** All active notes with at least one lapse. */
     total: number;
   };
+  /**
+   * Every answer in the Review Log (archived notes' history included, like
+   * the other log-based numbers). Accuracy = `successful / total`, left to
+   * the caller so an empty log never produces a division by zero here.
+   */
+  answers: {
+    total: number;
+    /** `hard` + `good` + `easy`. */
+    successful: number;
+  };
+  /** Active (non-archived) notes — "words". */
+  notes: {
+    active: number;
+    /** Active notes all of whose cards are in `review` — see "learned word". */
+    learned: number;
+  };
+  /**
+   * Active cards already answered at least once, by due time:
+   * `due.now + due.later + cards.new === cards.active`.
+   */
+  due: {
+    /** `state !== 'new' && due <= now` — see "due now". */
+    now: number;
+    /** `state !== 'new' && due > now`. */
+    later: number;
+  };
 }
 
 export interface StatsInput {
@@ -136,6 +174,7 @@ export function computeLearningStats(
 
   const todays = reviews.filter((r) => startOfDay(r.reviewedAt) === today);
   const successful = todays.filter((r) => isSuccessfulRating(r.rating)).length;
+  const successfulAllTime = reviews.filter((r) => isSuccessfulRating(r.rating)).length;
 
   const reviewsPerDay = new Map<number, number>();
   for (const r of reviews) {
@@ -155,6 +194,9 @@ export function computeLearningStats(
     },
     cards: countCards(activeCards, cards.length - activeCards.length, now),
     difficult: difficultWords(activeCards, notes),
+    answers: { total: reviews.length, successful: successfulAllTime },
+    notes: countNotes(activeCards, notes, archivedNoteIds),
+    due: countDue(activeCards, now),
   };
 }
 
@@ -227,6 +269,33 @@ function countCards(active: readonly Card[], archived: number, now: number): Lea
     else counts.waiting += 1;
   }
   return counts;
+}
+
+function countNotes(
+  activeCards: readonly Card[],
+  notes: readonly Note[],
+  archivedNoteIds: ReadonlySet<NoteId>
+): LearningStats['notes'] {
+  // A note is learned while none of its cards is outside `review`.
+  const notLearned = new Set<NoteId>();
+  const withCards = new Set<NoteId>();
+  for (const card of activeCards) {
+    withCards.add(card.noteId);
+    if (card.state !== 'review') notLearned.add(card.noteId);
+  }
+  const active = notes.filter((n) => !archivedNoteIds.has(n.id));
+  const learned = active.filter((n) => withCards.has(n.id) && !notLearned.has(n.id)).length;
+  return { active: active.length, learned };
+}
+
+function countDue(activeCards: readonly Card[], now: number): LearningStats['due'] {
+  const due = { now: 0, later: 0 };
+  for (const card of activeCards) {
+    if (card.state === 'new') continue;
+    if (card.due <= now) due.now += 1;
+    else due.later += 1;
+  }
+  return due;
 }
 
 function difficultWords(activeCards: readonly Card[], notes: readonly Note[]): LearningStats['difficult'] {

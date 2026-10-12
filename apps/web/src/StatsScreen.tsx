@@ -1,33 +1,47 @@
 import type { LearningEngine, LearningStats } from '@alsavi/engine';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { MonthChart, WeekChart } from './ActivityCharts';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityChart } from './ActivityCharts';
+import { WORD_FORMS } from './home-view';
+import { Icon } from './Icon';
 import {
-  activitySummary,
+  ACTIVITY_PERIODS,
+  activityDigest,
+  activityFor,
   countLabel,
-  DAY_FORMS,
   dayLong,
+  DAY_FORMS,
+  formatDecimal,
+  isStatsEmpty,
   pluralRu,
-  streakStatus,
-  successPercent,
+  progressHeadline,
+  progressSegments,
+  statsKpis,
   TIME_FORMS,
+  type ActivityPeriod,
 } from './stats-view';
 
 interface Props {
   engine: LearningEngine;
-  /** Go to the home screen ("Главная"). */
+  /** Go to the home screen ("Главная") to study. */
   onStudy: () => void;
+  /** Open "Карточки" with the form focused. */
+  onAddWord: () => void;
   /** Open "Карточки" with the existing "Трудные" filter. */
   onShowDifficult: () => void;
 }
 
+/** Difficult words previewed on the card; the full list is in "Карточки". */
+const DIFFICULT_PREVIEW = 3;
+
 /**
- * "Статистика" (TASK_026): today's answers, streaks, activity over 7 and 30
- * days, cards by state and the most-forgotten words. A read-only view of
- * `engine.getLearningStats()` — every number and definition lives in the
- * Engine (`packages/engine/src/stats.ts`); this component only lays them out.
- * Re-read each time the tab is opened.
+ * "Статистика" (TASK_026, redesigned in TASK_031): four headline numbers,
+ * activity over 7/30 days, cards by stage and difficult words. A read-only
+ * view of one `engine.getLearningStats()` call — every number and definition
+ * lives in the Engine (`packages/engine/src/stats.ts`); `stats-view.ts` only
+ * words and rounds them. Read once per visit of the section; the period
+ * toggle switches between two windows already computed, without a new query.
  */
-export function StatsScreen({ engine, onStudy, onShowDifficult }: Props) {
+export function StatsScreen({ engine, onStudy, onAddWord, onShowDifficult }: Props) {
   const [stats, setStats] = useState<LearningStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,105 +68,221 @@ export function StatsScreen({ engine, onStudy, onShowDifficult }: Props) {
       </div>
     );
   }
-  if (!stats) return <div className="card-panel" />;
+  if (!stats) return <div className="stats-screen stats-loading" aria-busy="true" />;
 
-  const { today, streak, activity, cards, difficult } = stats;
-  const percent = successPercent(today);
+  const empty = isStatsEmpty(stats);
 
   return (
     <div className="stats-screen">
-      <Section id="stats-today" title="Сегодня">
-        {today.reviews === 0 ? (
-          <div className="stats-empty">
-            <p className="empty-state">Сегодня ещё не было повторений.</p>
-            <button type="button" className="btn-secondary" onClick={onStudy}>
-              Перейти к обучению
-            </button>
+      <div className="screen-head">
+        <h1 className="screen-title">Статистика</h1>
+        <p className="screen-lead">Ваш прогресс по настоящей истории ответов.</p>
+      </div>
+
+      <KpiGrid stats={stats} />
+
+      {empty ? (
+        <section className="home-card stats-empty-card" aria-labelledby="stats-empty-title">
+          <h2 id="stats-empty-title" className="home-card-title">
+            Пока нет статистики
+          </h2>
+          <p className="home-card-text">Добавьте первые слова и начните обучение, чтобы увидеть свой прогресс.</p>
+          <button type="button" className="btn-primary btn-cta" onClick={onAddWord}>
+            <Icon name="plus" />
+            Добавить слово
+          </button>
+        </section>
+      ) : (
+        <div className="stats-layout">
+          <ActivityCard activity={stats.activity} onStudy={onStudy} />
+          <div className="stats-side">
+            <ProgressCard cards={stats.cards} />
+            <DifficultCard difficult={stats.difficult} onShowDifficult={onShowDifficult} />
           </div>
-        ) : (
-          <>
-            <dl className="stat-grid stat-grid-3">
-              <Stat label="Всего ответов" value={today.reviews} />
-              <Stat label="Успешно" value={today.successful} />
-              <Stat label="Не помню" value={today.again} />
-            </dl>
-            <p className="hint">
-              {percent !== null && <>Успешных ответов — {percent}%. </>}
-              Успешный ответ — «Трудно», «Хорошо» или «Легко».
-            </p>
-          </>
-        )}
-      </Section>
+        </div>
+      )}
+    </div>
+  );
+}
 
-      <Section id="stats-streak" title="Серия">
-        <dl className="stat-grid stat-grid-2">
-          <Stat label="Текущая серия" value={streak.current} unit={pluralRu(streak.current, DAY_FORMS)} />
-          <Stat label="Самая длинная" value={streak.longest} unit={pluralRu(streak.longest, DAY_FORMS)} />
-        </dl>
-        <p className="hint">{streakStatus(streak)}</p>
-        <p className="hint">
-          Серия — календарные дни подряд, в каждый из которых оценена хотя бы одна карточка. Просто открыть
-          приложение недостаточно.
-        </p>
-      </Section>
+function KpiGrid({ stats }: { stats: LearningStats }) {
+  return (
+    <section aria-labelledby="kpi-title">
+      <h2 id="kpi-title" className="sr-only">
+        Главное
+      </h2>
+      <dl className="kpi-grid">
+        {statsKpis(stats).map((kpi) => (
+          <div key={kpi.id} className={`kpi kpi-${kpi.id}`}>
+            <dt className="kpi-label">{kpi.label}</dt>
+            <dd className="kpi-value">
+              {kpi.value}
+              {kpi.unit && <span className="kpi-unit"> {kpi.unit}</span>}
+            </dd>
+            <dd className="kpi-detail">{kpi.detail}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
 
-      <Section id="stats-activity" title="Активность">
-        <h3 className="stats-subtitle">Последние 7 дней</h3>
-        <WeekChart window={activity.last7} />
-        <p className="hint">{activitySummary(activity.last7)}</p>
+function ActivityCard({ activity, onStudy }: { activity: LearningStats['activity']; onStudy: () => void }) {
+  const [period, setPeriod] = useState<ActivityPeriod>(7);
+  const window = activityFor(activity, period);
+  const digest = activityDigest(window);
 
-        <h3 className="stats-subtitle">Последние 30 дней</h3>
-        <MonthChart window={activity.last30} />
-        <p className="hint">{activitySummary(activity.last30)}</p>
-        <details className="stats-details">
-          <summary>По дням за 30 дней</summary>
-          <table className="stats-table">
-            <thead>
-              <tr>
-                <th scope="col">День</th>
-                <th scope="col">Повторений</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...activity.last30.days].reverse().map((d) => (
-                <tr key={d.dayStart}>
-                  <td>{dayLong(d.dayStart)}</td>
-                  <td>{d.reviews}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </details>
-      </Section>
+  return (
+    <section className="home-card stats-card activity-card" aria-labelledby="activity-title">
+      <div className="stats-card-head">
+        <h2 id="activity-title" className="home-section-title">
+          Активность
+        </h2>
+        <fieldset className="period-toggle">
+          <legend className="sr-only">Период</legend>
+          {ACTIVITY_PERIODS.map((p) => (
+            <label key={p} className="period-option">
+              <input
+                type="radio"
+                name="activity-period"
+                value={p}
+                checked={period === p}
+                onChange={() => setPeriod(p)}
+              />
+              {countLabel(p, DAY_FORMS)}
+            </label>
+          ))}
+        </fieldset>
+      </div>
 
-      <Section id="stats-cards" title="Карточки">
-        {cards.active === 0 ? (
-          <p className="empty-state">В активной коллекции пока нет карточек.</p>
-        ) : (
-          <dl className="stat-grid">
-            <Stat label="Всего активных" value={cards.active} wide />
-            <Stat label="Новые" value={cards.new} />
-            <Stat label="Изучаются" value={cards.learning} />
-            <Stat label="Готовы к повторению" value={cards.dueReview} />
-            <Stat label="Ждут своего срока" value={cards.waiting} />
+      {digest.total === 0 ? (
+        <div className="activity-empty">
+          <p className="empty-state">
+            За последние {countLabel(digest.days, DAY_FORMS)} ответов не было.
+          </p>
+          <button type="button" className="btn-secondary" onClick={onStudy}>
+            Перейти к обучению
+          </button>
+        </div>
+      ) : (
+        <>
+          <ActivityChart window={window} />
+          <dl className="digest">
+            <div className="digest-item">
+              <dt>Ответов</dt>
+              <dd>{digest.total}</dd>
+            </div>
+            <div className="digest-item">
+              <dt>Дней с занятиями</dt>
+              <dd>
+                {digest.activeDays}
+                <span className="digest-of"> из {digest.days}</span>
+              </dd>
+            </div>
+            <div className="digest-item">
+              <dt>В среднем за день занятий</dt>
+              <dd>{digest.perActiveDay === null ? '—' : formatDecimal(digest.perActiveDay)}</dd>
+            </div>
           </dl>
-        )}
-        <p className="hint">
-          «Готовы к повторению» — выученные карточки, у которых подошёл срок; новые и изучаемые считаются
-          отдельно. Прямая и обратная карточки одного слова — это две карточки.
-        </p>
-        <p className="hint">
-          Архивные карточки не входят ни в эти числа, ни в трудные слова
-          {cards.archived > 0 ? ` (в архиве: ${cards.archived})` : ''}.
-        </p>
-      </Section>
+          <details className="stats-details">
+            <summary>По дням</summary>
+            <table className="stats-table">
+              <thead>
+                <tr>
+                  <th scope="col">День</th>
+                  <th scope="col">Ответов</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...window.days].reverse().map((d) => (
+                  <tr key={d.dayStart}>
+                    <td>{dayLong(d.dayStart)}</td>
+                    <td>{d.reviews}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+        </>
+      )}
+    </section>
+  );
+}
 
-      <Section id="stats-difficult" title="Трудные слова">
-        {difficult.total === 0 ? (
-          <p className="empty-state">Трудных слов нет: ни одну выученную карточку вы пока не забыли.</p>
-        ) : (
+function ProgressCard({ cards }: { cards: LearningStats['cards'] }) {
+  const segments = progressSegments(cards);
+
+  return (
+    <section className="home-card stats-card progress-card" aria-labelledby="progress-title">
+      <h2 id="progress-title" className="home-section-title">
+        Прогресс изучения
+      </h2>
+      {cards.active === 0 ? (
+        <p className="empty-state">В активной коллекции нет карточек.</p>
+      ) : (
+        <>
+          <p className="progress-headline">{progressHeadline(cards)}</p>
+          <div className="stage-bar" aria-hidden="true">
+            {segments.map(
+              (s) =>
+                s.count > 0 && (
+                  <span
+                    key={s.key}
+                    className={`stage-fill stage-${s.key}`}
+                    style={{ flexGrow: s.count }}
+                  />
+                )
+            )}
+          </div>
+          <ul className="stage-list">
+            {segments.map((s) => (
+              <li key={s.key} className="stage-row">
+                <span className={`stage-dot stage-${s.key}`} aria-hidden="true" />
+                <span className="stage-name">
+                  <span className="stage-label">{s.label}</span>
+                  <span className="stage-hint">{s.hint}</span>
+                </span>
+                <span className="stage-count">
+                  {s.count}
+                  <span className="stage-percent"> · {s.percent}%</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p className="hint">
+        Прямая и обратная карточки одного слова считаются отдельно. Архивные не учитываются
+        {cards.archived > 0 ? ` (в архиве: ${cards.archived})` : ''}.
+      </p>
+    </section>
+  );
+}
+
+function DifficultCard({
+  difficult,
+  onShowDifficult,
+}: {
+  difficult: LearningStats['difficult'];
+  onShowDifficult: () => void;
+}) {
+  return (
+    <section className="home-card stats-card difficult-card" aria-labelledby="difficult-title">
+      <div className="stats-card-head">
+        <h2 id="difficult-title" className="home-section-title">
+          Трудные слова
+        </h2>
+        <span className={difficult.total > 0 ? 'count-badge is-alert' : 'count-badge'}>{difficult.total}</span>
+      </div>
+      {difficult.total === 0 ? (
+        <p className="hint">Трудных слов нет: ни одно изученное слово вы пока не забыли.</p>
+      ) : (
+        <>
+          <p className="hint">
+            Эти слова требуют больше повторений: после изучения вы хотя бы раз ответили на них «Не помню».
+          </p>
           <ol className="difficult-list">
-            {difficult.words.map((w) => (
+            {difficult.words.slice(0, DIFFICULT_PREVIEW).map((w) => (
               <li key={w.noteId} className="difficult-item">
                 <span className="difficult-word">
                   <span className="front" lang="es">
@@ -164,40 +294,17 @@ export function StatsScreen({ engine, onStudy, onShowDifficult }: Props) {
               </li>
             ))}
           </ol>
-        )}
-        <p className="hint">
-          Слово попадает сюда, если выученную карточку вы хотя бы раз забыли — ответили «Не помню» на
-          повторении. Архивные слова не показываются.
-        </p>
-        {difficult.total > 0 && (
-          <button type="button" className="btn-secondary stats-link" onClick={onShowDifficult}>
-            Все трудные в «Карточках» ({difficult.total})
+          <button
+            type="button"
+            className="btn-secondary stats-link"
+            onClick={onShowDifficult}
+            aria-label={`Посмотреть трудные слова: ${difficult.total} ${pluralRu(difficult.total, WORD_FORMS)}`}
+          >
+            Посмотреть слова
+            <Icon name="arrow-right" size={18} />
           </button>
-        )}
-      </Section>
-    </div>
-  );
-}
-
-function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
-  return (
-    <section className="panel stats-section" aria-labelledby={id}>
-      <h2 id={id} className="panel-title">
-        {title}
-      </h2>
-      {children}
+        </>
+      )}
     </section>
-  );
-}
-
-function Stat({ label, value, unit, wide }: { label: string; value: number; unit?: string; wide?: boolean }) {
-  return (
-    <div className={wide ? 'stat stat-wide' : 'stat'}>
-      <dt className="stat-label">{label}</dt>
-      <dd className="stat-value">
-        {value}
-        {unit && <span className="stat-unit"> {unit}</span>}
-      </dd>
-    </div>
   );
 }

@@ -243,6 +243,7 @@ export function App() {
         <StatsScreen
           engine={engine}
           onStudy={() => navigate('home')}
+          onAddWord={() => openCards('all', 'add')}
           onShowDifficult={() => openCards('difficult')}
         />
       ) : view === 'profile' ? (

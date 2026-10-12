@@ -335,7 +335,8 @@ export class LearningEngine {
   /**
    * Learning statistics for the "Статистика" screen (TASK_026): today's
    * answers, current/longest streak, review activity over the last 7 and 30
-   * days, active cards by state, and the most-forgotten words. Read-only — a
+   * days, active cards by state, the most-forgotten words, and (TASK_031)
+   * all-time answers, learned words and cards due now. Read-only — a
    * pure derivation from cards, notes and the Review Log (`computeLearningStats`,
    * where every definition is documented); nothing is written or cached.
    */

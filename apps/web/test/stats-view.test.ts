@@ -8,8 +8,6 @@ import {
   dayLong,
   pluralRu,
   REVIEW_FORMS,
-  streakStatus,
-  successPercent,
   weekdayShort,
 } from '../src/stats-view';
 
@@ -49,26 +47,6 @@ describe('pluralRu / countLabel', () => {
     expect(countLabel(1, REVIEW_FORMS)).toBe('1 повторение');
     expect(countLabel(3, REVIEW_FORMS)).toBe('3 повторения');
     expect(countLabel(0, REVIEW_FORMS)).toBe('0 повторений');
-  });
-});
-
-describe('successPercent', () => {
-  it('is null without answers — never NaN', () => {
-    expect(successPercent({ reviews: 0, successful: 0, again: 0 })).toBeNull();
-  });
-
-  it('rounds the share of hard/good/easy answers', () => {
-    expect(successPercent({ reviews: 3, successful: 2, again: 1 })).toBe(67);
-    expect(successPercent({ reviews: 4, successful: 4, again: 0 })).toBe(100);
-    expect(successPercent({ reviews: 2, successful: 0, again: 2 })).toBe(0);
-  });
-});
-
-describe('streakStatus', () => {
-  it('distinguishes counted today, alive since yesterday, and no streak', () => {
-    expect(streakStatus({ current: 3, longest: 5, reviewedToday: true })).toBe('Сегодня уже засчитан.');
-    expect(streakStatus({ current: 3, longest: 5, reviewedToday: false })).toMatch(/до полуночи/);
-    expect(streakStatus({ current: 0, longest: 5, reviewedToday: false })).toMatch(/серии нет/);
   });
 });
 

@@ -39,6 +39,10 @@
   --success-soft: #f0fdf4;
   --success-border: #bbf7d0;
   --streak: #ea580c;
+  /* Card stages on "Статистика" (TASK_031): new → learning → learned. */
+  --stage-new: #d6d4e6;
+  --stage-learning: #b4abfa;
+  --stage-learned: #6d5df6;
   --shadow-card: 0 1px 2px rgba(22, 21, 31, 0.04), 0 8px 24px rgba(30, 41, 80, 0.06);
   --nav-h: 64px;
   --nav-bg: rgba(255, 255, 255, 0.78);
@@ -75,6 +79,9 @@
   --success-soft: rgba(74, 222, 128, 0.12);
   --success-border: rgba(74, 222, 128, 0.3);
   --streak: #fb923c;
+  --stage-new: #3b4050;
+  --stage-learning: #5e52c4;
+  --stage-learned: #9d90fa;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 26px rgba(0, 0, 0, 0.28);
   --nav-bg: rgba(26, 29, 37, 0.8);
 }
@@ -106,6 +113,9 @@
     --success-soft: rgba(74, 222, 128, 0.12);
     --success-border: rgba(74, 222, 128, 0.3);
     --streak: #fb923c;
+    --stage-new: #3b4050;
+    --stage-learning: #5e52c4;
+    --stage-learned: #9d90fa;
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 26px rgba(0, 0, 0, 0.28);
     --nav-bg: rgba(26, 29, 37, 0.8);
   }
@@ -861,101 +871,9 @@ body {
   gap: 16px;
 }
 
-.stats-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-}
-
-.stats-section .panel-title {
-  margin: 0;
-}
-
-.stats-section .hint {
-  margin: 0;
-  line-height: 1.45;
-}
-
-.stats-section .empty-state {
-  margin: 0;
-}
-
-.stats-empty {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-}
-
-.stats-empty .btn-secondary,
-.stats-link {
-  min-height: 44px;
-}
-
 .stats-link {
   align-self: flex-start;
-}
-
-.stats-subtitle {
-  margin: 4px 0 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
-  margin: 0;
-}
-
-.stat-grid-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.stat-grid-3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-/* A headline total above its breakdown (e.g. all active cards). */
-.stat-wide {
-  grid-column: 1 / -1;
-}
-
-/* Label in the markup comes first (dt → dd); the number is shown on top. */
-.stat {
-  display: flex;
-  flex-direction: column-reverse;
-  justify-content: flex-end;
-  gap: 2px;
-  padding: 12px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  min-width: 0;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: var(--text-muted);
-  line-height: 1.3;
-  overflow-wrap: break-word;
-}
-
-.stat-value {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.2;
-}
-
-.stat-unit {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-muted);
+  min-height: 44px;
 }
 
 /* Bars: a light track with the filled part at the bottom. A day without
@@ -1024,29 +942,6 @@ body {
 .week-day.is-today .week-label {
   color: var(--accent-text);
   font-weight: 700;
-}
-
-.month-chart {
-  display: grid;
-  grid-template-columns: repeat(30, minmax(0, 1fr));
-  gap: 2px;
-  height: 56px;
-}
-
-.month-chart .bar-track {
-  border-radius: 2px;
-}
-
-.month-chart .bar {
-  border-radius: 2px 2px 0 0;
-}
-
-.month-axis {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--text-muted);
 }
 
 .stats-details summary {
@@ -1138,18 +1033,6 @@ body {
 }
 
 @media (max-width: 380px) {
-  .stat {
-    padding: 10px 8px;
-  }
-
-  .stat-label {
-    font-size: 11px;
-  }
-
-  .stat-value {
-    font-size: 20px;
-  }
-
   .week-chart {
     gap: 4px;
   }
@@ -1638,17 +1521,25 @@ body {
   }
 }
 
-/* Computer: a wider frame; the home screen becomes two columns — today on
-   the left, quick actions and the week on the right. Other screens keep
-   their comfortable reading width. */
+/* Computer: a wider frame (TASK_031: 1160px, was 1000px). The home and
+   statistics screens use it in two columns; every other screen is centred
+   in it at a comfortable reading width — the study session and messages at
+   640px, "Карточки" and "Профиль" at 720px (TASK_030 left them at 640px
+   against the left edge). */
 @media (min-width: 900px) {
   .app {
-    max-width: 1000px;
+    max-width: 1160px;
     padding-top: 32px;
   }
 
-  .app > :not(.app-header, .main-nav, .home-grid) {
+  .app > :not(.app-header, .main-nav, .home-grid, .stats-screen) {
     max-width: 640px;
+    margin-inline: auto;
+  }
+
+  .app > .cards-screen,
+  .app > .profile-screen {
+    max-width: 720px;
   }
 
   .home-grid {
@@ -1766,18 +1657,21 @@ body {
   gap: 16px;
 }
 
-.profile-head {
+.profile-head,
+.screen-head {
   padding: 4px 2px 0;
 }
 
-.profile-title {
+.profile-title,
+.screen-title {
   margin: 0;
   font-size: 28px;
   font-weight: 800;
   line-height: 1.2;
 }
 
-.profile-lead {
+.profile-lead,
+.screen-lead {
   margin: 2px 0 0;
   color: var(--text-muted);
   font-size: 14px;
@@ -1877,7 +1771,7 @@ body {
   .main-nav {
     position: static;
     width: fit-content;
-    margin-bottom: 24px;
+    margin: 0 auto 24px;
     transform: none;
     border-radius: 16px;
     box-shadow: var(--shadow-card);
@@ -1919,5 +1813,471 @@ body {
     left: 50%;
     margin: 0;
     transform: translateX(-50%);
+  }
+}
+
+/* --- TASK_031: "Статистика" — headline numbers, activity, stages ---------- */
+
+.stats-screen {
+  animation: rise 0.25s var(--ease) both;
+}
+
+.stats-loading {
+  min-height: 320px;
+}
+
+/* Four headline numbers: 2 × 2 on a phone, one row on a computer. */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+/* The first number — words learned — is the one accent tile. */
+.kpi-learned {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+
+.kpi-learned .kpi-value {
+  color: var(--accent-text);
+}
+
+.kpi-label {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-muted);
+}
+
+.kpi-value {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.kpi-unit {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+
+.kpi-detail {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.stats-layout,
+.stats-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.stats-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.stats-card .home-section-title {
+  margin: 0;
+  font-size: 17px;
+}
+
+.stats-card .hint {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.stats-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.stats-empty-card .btn-cta {
+  width: auto;
+}
+
+/* 7 / 30 days: a two-option segmented control on native radio buttons. */
+.period-toggle {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  padding: 3px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.period-option {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.period-option input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.period-option:has(input:checked) {
+  background: var(--surface-raised);
+  color: var(--accent-text);
+  box-shadow: var(--shadow-card);
+}
+
+.period-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Activity chart. Both periods take the same height, so switching between
+   them does not move the rest of the page. */
+.activity-bars {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity-chart:not(.is-detailed) .activity-bars {
+  gap: 3px;
+}
+
+.activity-day {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+  text-align: center;
+}
+
+.activity-day .bar-track {
+  height: 132px;
+  background: transparent;
+  border-radius: 6px 6px 0 0;
+}
+
+.activity-chart:not(.is-detailed) .bar-track {
+  /* 132px + the count and weekday rows of the 7-day chart − the date axis. */
+  height: 154px;
+  border-radius: 3px 3px 0 0;
+}
+
+.activity-day .bar {
+  opacity: 0.5;
+  border-radius: 6px 6px 0 0;
+}
+
+.activity-chart:not(.is-detailed) .bar {
+  border-radius: 3px 3px 0 0;
+}
+
+.activity-day.is-today .bar {
+  opacity: 1;
+}
+
+.activity-count {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.activity-label {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+
+.activity-day.is-today .activity-count {
+  color: var(--text);
+}
+
+.activity-day.is-today .activity-label {
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
+.activity-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+
+.activity-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.activity-empty .empty-state {
+  margin: 0;
+}
+
+.activity-empty .btn-secondary {
+  min-height: 44px;
+}
+
+/* Three numbers under the chart; the number is shown above its label. */
+.digest {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.digest-item {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.digest-item dt {
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.digest-item dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.digest-of {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Stages: one stacked bar + a legend with real counts. */
+.progress-headline {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.stage-bar {
+  display: flex;
+  gap: 3px;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+/* flex-grow is the card count; a tiny share stays visible. */
+.stage-fill {
+  flex-basis: 0;
+  min-width: 6px;
+}
+
+.stage-new {
+  background: var(--stage-new);
+}
+
+.stage-learning {
+  background: var(--stage-learning);
+}
+
+.stage-learned {
+  background: var(--stage-learned);
+}
+
+.stage-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.stage-row:last-child {
+  border-bottom: none;
+}
+
+.stage-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.stage-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stage-label {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.stage-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.stage-count {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stage-percent {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Difficult words */
+.count-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.count-badge.is-alert {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.difficult-card .stats-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 380px) {
+  .kpi-grid {
+    gap: 8px;
+  }
+
+  .kpi {
+    padding: 12px;
+  }
+
+  .kpi-value {
+    font-size: 24px;
+  }
+
+  .kpi-unit {
+    font-size: 13px;
+  }
+
+  .digest-item {
+    padding: 8px;
+  }
+
+  .digest-item dd {
+    font-size: 18px;
+  }
+
+  .period-option {
+    padding: 0 10px;
+  }
+}
+
+/* Computer: one row of numbers; activity on the left, stages and difficult
+   words on the right. */
+@media (min-width: 900px) {
+  .kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .kpi {
+    padding: 18px 20px;
+  }
+
+  .kpi-value {
+    font-size: 32px;
+  }
+
+  .stats-screen,
+  .stats-layout,
+  .stats-side {
+    gap: 20px;
+  }
+
+  .stats-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .screen-title {
+    font-size: 32px;
   }
 }
