@@ -1,15 +1,113 @@
+/* --- Design tokens (TASK_029) ---------------------------------------------
+   One palette for the whole app, in the visual language of the owner's Lex
+   apps (LexCar, Lex Финансы): cool neutral surfaces, rounded cards, violet
+   accent #6d5df6. Components use tokens only — no literal colours below.
+
+   Themes: `:root` is light. Dark applies with `data-theme="dark"` on <html>,
+   or with no attribute when the system is dark ("Как в системе", the
+   default). The dark block is therefore written twice — under the attribute
+   and under the media query — keep both copies identical. `src/theme.ts`
+   sets the attribute; `index.html` applies a stored choice before paint.
+
+   Contrast (WCAG AA): text and muted text on surface/bg ≥ 4.5:1; white on
+   --accent (buttons) 4.6:1; links/active text use --accent-text, which is
+   lighter in the dark theme. */
 :root {
-  --bg: #fafaf9;
+  color-scheme: light;
+  --bg: #f6f6fb;
   --surface: #ffffff;
-  --text: #1c1917;
-  --text-muted: #78716c;
-  --border: #e7e5e4;
-  --accent: #2563eb;
-  --accent-soft: #eff6ff;
+  --surface-2: #f1f0f8;
+  /* The selected segment of a segmented control, raised above --surface-2. */
+  --surface-raised: #ffffff;
+  --text: #16151f;
+  --text-muted: #67667a;
+  --border: #e5e4ef;
+  --accent: #6d5df6;
+  --accent-strong: #5a49e8;
+  --accent-text: #5847e0;
+  --accent-soft: rgba(109, 93, 246, 0.1);
+  --accent-border: rgba(109, 93, 246, 0.3);
+  --on-accent: #ffffff;
   --danger: #dc2626;
+  --danger-fill: #dc2626;
   --danger-soft: #fef2f2;
-  --radius: 12px;
+  --danger-border: #fecaca;
+  --warning-text: #b45309;
+  --warning-soft: #fffbeb;
+  --warning-border: #fde68a;
+  --success-text: #15803d;
+  --success-soft: #f0fdf4;
+  --success-border: #bbf7d0;
+  --streak: #ea580c;
+  --shadow-card: 0 1px 2px rgba(22, 21, 31, 0.04), 0 8px 24px rgba(30, 41, 80, 0.06);
+  --backdrop: rgba(15, 17, 21, 0.4);
+  --radius: 16px;
+  --radius-sm: 12px;
+  --radius-lg: 22px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --surface: #1a1d25;
+  --surface-2: #232834;
+  --surface-raised: #343a48;
+  --text: #ecebf3;
+  --text-muted: #a09fb2;
+  --border: #2c303c;
+  --accent: #6d5df6;
+  --accent-strong: #7f71f8;
+  --accent-text: #ab9ffb;
+  --accent-soft: rgba(139, 124, 248, 0.16);
+  --accent-border: rgba(139, 124, 248, 0.4);
+  --on-accent: #ffffff;
+  --danger: #f87171;
+  --danger-fill: #dc2626;
+  --danger-soft: rgba(248, 113, 113, 0.12);
+  --danger-border: rgba(248, 113, 113, 0.35);
+  --warning-text: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.12);
+  --warning-border: rgba(251, 191, 36, 0.32);
+  --success-text: #4ade80;
+  --success-soft: rgba(74, 222, 128, 0.12);
+  --success-border: rgba(74, 222, 128, 0.3);
+  --streak: #fb923c;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 26px rgba(0, 0, 0, 0.28);
+  --backdrop: rgba(0, 0, 0, 0.6);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #0f1115;
+    --surface: #1a1d25;
+    --surface-2: #232834;
+    --surface-raised: #343a48;
+    --text: #ecebf3;
+    --text-muted: #a09fb2;
+    --border: #2c303c;
+    --accent: #6d5df6;
+    --accent-strong: #7f71f8;
+    --accent-text: #ab9ffb;
+    --accent-soft: rgba(139, 124, 248, 0.16);
+    --accent-border: rgba(139, 124, 248, 0.4);
+    --on-accent: #ffffff;
+    --danger: #f87171;
+    --danger-fill: #dc2626;
+    --danger-soft: rgba(248, 113, 113, 0.12);
+    --danger-border: rgba(248, 113, 113, 0.35);
+    --warning-text: #fbbf24;
+    --warning-soft: rgba(251, 191, 36, 0.12);
+    --warning-border: rgba(251, 191, 36, 0.32);
+    --success-text: #4ade80;
+    --success-soft: rgba(74, 222, 128, 0.12);
+    --success-border: rgba(74, 222, 128, 0.3);
+    --streak: #fb923c;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 26px rgba(0, 0, 0, 0.28);
+    --backdrop: rgba(0, 0, 0, 0.6);
+  }
 }
 
 * {
@@ -26,41 +124,39 @@ body {
 .app {
   max-width: 640px;
   margin: 0 auto;
-  padding: 32px 20px 80px;
+  padding: calc(20px + env(safe-area-inset-top, 0px)) 20px 80px;
 }
 
-.topbar {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.logo {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
+/* Top-level sections as a segmented control under the header (until the
+   bottom navigation of the next stage). 44px touch targets. */
 .nav {
   display: flex;
   gap: 4px;
+  padding: 4px;
+  margin-bottom: 16px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
 }
 
 .nav button {
+  flex: 1;
+  min-height: 44px;
   border: none;
   background: transparent;
   color: var(--text-muted);
+  font: inherit;
   font-size: 14px;
-  padding: 6px 12px;
-  border-radius: 8px;
+  font-weight: 600;
+  padding: 6px 8px;
+  border-radius: 9px;
   cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .nav button.active {
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
+  background: var(--surface-raised);
+  color: var(--accent-text);
+  box-shadow: var(--shadow-card);
 }
 
 .statsbar {
@@ -69,7 +165,7 @@ body {
   gap: 4px 20px;
   color: var(--text-muted);
   font-size: 13px;
-  margin-bottom: 32px;
+  margin-bottom: 20px;
 }
 
 .statsbar span {
@@ -86,6 +182,7 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
   padding: 48px 32px;
   min-height: 260px;
   display: flex;
@@ -111,15 +208,15 @@ body {
 
 .state-badge.state-learning,
 .state-badge.state-relearning {
-  color: #b45309;
-  background: #fffbeb;
-  border-color: #fde68a;
+  color: var(--warning-text);
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
 }
 
 .state-badge.state-review {
-  color: #15803d;
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  color: var(--success-text);
+  background: var(--success-soft);
+  border-color: var(--success-border);
 }
 
 .card-front {
@@ -241,9 +338,9 @@ body {
 
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   padding: 12px 28px;
   font-size: 15px;
   font-weight: 600;
@@ -251,7 +348,7 @@ body {
 }
 
 .btn-primary:hover {
-  filter: brightness(1.05);
+  background: var(--accent-strong);
 }
 
 .empty-state {
@@ -296,8 +393,8 @@ body {
 }
 
 .btn-secondary:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--accent-text);
+  color: var(--accent-text);
 }
 
 .import-status {
@@ -322,53 +419,7 @@ body {
   border-color: transparent;
 }
 
-/* --- TASK_022: "Учиться сегодня" home screen + session progress --- */
-
-.home-panel {
-  gap: 20px;
-}
-
-.home-counts {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  width: 100%;
-}
-
-.home-count {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 16px 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-.home-count-value {
-  font-size: 28px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.home-count-label {
-  font-size: 12px;
-  color: var(--text-muted);
-  text-align: center;
-  line-height: 1.3;
-}
-
-.home-total {
-  color: var(--text-muted);
-  font-size: 14px;
-}
-
-.btn-start {
-  padding: 16px 40px;
-  font-size: 17px;
-  min-height: 52px;
-}
+/* --- TASK_022: session progress --- */
 
 .session-progress {
   display: flex;
@@ -398,8 +449,8 @@ body {
 .save-error {
   margin-top: 12px;
   padding: 10px 14px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
   color: var(--danger);
   border-radius: 10px;
   font-size: 13px;
@@ -431,10 +482,6 @@ body {
   .answer-buttons {
     grid-template-columns: repeat(2, 1fr);
   }
-
-  .home-count-value {
-    font-size: 22px;
-  }
 }
 
 /* --- TASK_023: "Карточки" — add/edit form, search, filters, list --- */
@@ -449,6 +496,7 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
   padding: 20px;
 }
 
@@ -541,12 +589,12 @@ body {
   min-height: 44px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--accent-text);
   cursor: pointer;
 }
 
 .btn-danger {
-  background: var(--danger);
+  background: var(--danger-fill);
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -607,11 +655,11 @@ body {
 .chip[aria-pressed='true'] {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .chip-add {
-  color: var(--accent);
+  color: var(--accent-text);
   background: var(--accent-soft);
   border-color: transparent;
 }
@@ -637,19 +685,19 @@ body {
 }
 
 .notice-warning {
-  background: #fffbeb;
-  border-color: #fde68a;
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
 }
 
 .notice-error {
   background: var(--danger-soft);
-  border-color: #fecaca;
+  border-color: var(--danger-border);
   color: var(--danger);
 }
 
 .notice-info {
   background: var(--accent-soft);
-  border-color: #bfdbfe;
+  border-color: var(--accent-border);
   margin-bottom: 12px;
 }
 
@@ -789,21 +837,21 @@ body {
 }
 
 .status-due {
-  color: var(--accent);
+  color: var(--accent-text);
   background: var(--accent-soft);
-  border-color: #bfdbfe;
+  border-color: var(--accent-border);
 }
 
 .status-learning {
-  color: #b45309;
-  background: #fffbeb;
-  border-color: #fde68a;
+  color: var(--warning-text);
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
 }
 
 .status-review {
-  color: #15803d;
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  color: var(--success-text);
+  background: var(--success-soft);
+  border-color: var(--success-border);
 }
 
 .row-meta {
@@ -815,7 +863,7 @@ body {
 }
 
 .tag {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .meta-note {
@@ -840,7 +888,7 @@ body {
   padding: 12px;
   border-radius: 10px;
   background: var(--danger-soft);
-  border: 1px solid #fecaca;
+  border: 1px solid var(--danger-border);
 }
 
 .confirm p {
@@ -865,17 +913,6 @@ body {
 }
 
 /* --- TASK_026: "Статистика" --- */
-
-/* Navigation got a third tab: keep it on one line next to the logo where it
-   fits, wrap under the logo on the narrowest phones; 44px touch targets. */
-.topbar {
-  flex-wrap: wrap;
-  gap: 4px 12px;
-}
-
-.nav button {
-  min-height: 44px;
-}
 
 #list-title:focus {
   outline: none;
@@ -1060,7 +1097,7 @@ body {
 }
 
 .week-day.is-today .week-label {
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 700;
 }
 
@@ -1093,7 +1130,7 @@ body {
   align-items: center;
   font-size: 14px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--accent-text);
   cursor: pointer;
 }
 
@@ -1190,5 +1227,582 @@ body {
 
   .week-chart {
     gap: 4px;
+  }
+}
+
+/* --- TASK_029: header, home screen, settings sheet ------------------------ */
+
+.icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #8b7cf8, var(--accent));
+  color: #fff;
+  font-weight: 800;
+  font-size: 19px;
+  box-shadow: 0 4px 12px rgba(109, 93, 246, 0.3);
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand-name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+}
+
+.brand-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.streak-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--streak);
+  font-weight: 700;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.streak-chip .icon {
+  fill: currentColor;
+  fill-opacity: 0.18;
+}
+
+/* Today is not counted yet: the same chip, quieter. */
+.streak-chip.is-pending {
+  color: var(--text-muted);
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.icon-button:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+}
+
+:is(.icon-button, .quick-action, .segmented-option input):focus-visible,
+.segmented-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Home */
+
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: rise 0.25s var(--ease) both;
+}
+
+.home-loading {
+  min-height: 320px;
+}
+
+.home-main,
+.home-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.home-hero {
+  padding: 4px 2px 0;
+}
+
+.home-greeting {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.home-lead {
+  margin: 4px 0 0;
+  font-size: 16px;
+  color: var(--text-muted);
+}
+
+.home-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 20px;
+  min-width: 0;
+}
+
+.home-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.home-card-head .btn-link {
+  padding: 0;
+}
+
+.home-card-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.home-card-text {
+  margin: 6px 0 18px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.home-section-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.home-card-head .home-section-title {
+  margin: 0;
+}
+
+.welcome-card {
+  text-align: left;
+}
+
+/* Today's goal: a soft violet card — the one accent block on the screen. */
+.goal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background:
+    radial-gradient(120% 90% at 100% 0%, var(--accent-soft), transparent 60%),
+    var(--surface);
+}
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.goal-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.goal-detail {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.goal-bar {
+  height: 10px;
+  margin: 10px 0 2px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.goal-bar-fill {
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8b7cf8, var(--accent));
+  transition: width 0.5s var(--ease);
+}
+
+.goal-done .goal-bar-fill {
+  background: var(--success-text);
+}
+
+.goal-note {
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+
+.goal-card > .btn-secondary {
+  align-self: flex-start;
+  min-height: 44px;
+  margin-top: 10px;
+}
+
+.queue-split {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.queue-count {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+.queue-count dt {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.queue-count dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  margin-top: 10px;
+  padding: 14px 24px;
+  border-radius: var(--radius);
+  font-size: 17px;
+  box-shadow: 0 8px 20px rgba(109, 93, 246, 0.28);
+  transition: background-color 0.15s, transform 0.15s var(--ease);
+}
+
+.btn-cta:active {
+  transform: scale(0.98);
+}
+
+.btn-cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 112px;
+  padding: 14px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  transition: border-color 0.15s, transform 0.15s var(--ease);
+}
+
+.quick-action:hover {
+  border-color: var(--accent-border);
+}
+
+.quick-action:active {
+  transform: scale(0.97);
+}
+
+.quick-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.quick-label {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.quick-detail {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.week-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.week-card .week-day .bar-track {
+  height: 56px;
+}
+
+.week-summary {
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* Settings sheet: a bottom sheet on phones, a centred card on wide screens. */
+.sheet {
+  width: min(440px, 100%);
+  max-width: 100%;
+  margin: auto auto 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-card);
+}
+
+.sheet::backdrop {
+  background: var(--backdrop);
+}
+
+.sheet[open] {
+  animation: sheet-in 0.25s var(--ease);
+}
+
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+.sheet-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.sheet-link {
+  min-height: 48px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.sheet .btn-primary {
+  min-height: 48px;
+}
+
+.segmented-field {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.field-legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.segmented-option {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: 4px 6px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+}
+
+.segmented-option input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.segmented-option:has(input:checked) {
+  background: var(--surface-raised);
+  color: var(--accent-text);
+  box-shadow: var(--shadow-card);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .home-greeting {
+    font-size: 24px;
+  }
+
+  .goal-title {
+    font-size: 20px;
+  }
+
+  .home-card {
+    padding: 16px;
+  }
+
+  .quick-grid {
+    gap: 8px;
+  }
+
+  .quick-action {
+    padding: 12px 10px;
+  }
+
+  /* The subtitle wraps instead of being cut off next to the streak chip. */
+  .brand-sub {
+    font-size: 12px;
+    white-space: normal;
+    line-height: 1.25;
+  }
+
+  .app-header {
+    gap: 8px;
+  }
+
+  .streak-chip {
+    padding: 0 10px 0 8px;
+  }
+}
+
+/* Computer: a wider frame; the home screen becomes two columns — today on
+   the left, quick actions and the week on the right. Other screens keep
+   their comfortable reading width. */
+@media (min-width: 900px) {
+  .app {
+    max-width: 1000px;
+    padding-top: 32px;
+  }
+
+  .nav {
+    max-width: 480px;
+  }
+
+  .app > :not(.app-header, .nav, .home-grid, .sheet) {
+    max-width: 640px;
+  }
+
+  .home-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+  }
+
+  .home-greeting {
+    font-size: 32px;
+  }
+
+  .sheet {
+    margin: auto;
+    border-radius: var(--radius-lg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

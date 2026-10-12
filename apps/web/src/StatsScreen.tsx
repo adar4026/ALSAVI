@@ -1,18 +1,15 @@
-import type { ActivityWindow, LearningEngine, LearningStats } from '@alsavi/engine';
+import type { LearningEngine, LearningStats } from '@alsavi/engine';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { MonthChart, WeekChart } from './ActivityCharts';
 import {
   activitySummary,
-  barPercent,
   countLabel,
   DAY_FORMS,
   dayLong,
-  dayShort,
   pluralRu,
-  REVIEW_FORMS,
   streakStatus,
   successPercent,
   TIME_FORMS,
-  weekdayShort,
 } from './stats-view';
 
 interface Props {
@@ -201,55 +198,6 @@ function Stat({ label, value, unit, wide }: { label: string; value: number; unit
         {value}
         {unit && <span className="stat-unit"> {unit}</span>}
       </dd>
-    </div>
-  );
-}
-
-/** Seven labelled bars; each day also carries a full-text label for screen readers. */
-function WeekChart({ window }: { window: ActivityWindow }) {
-  const lastIndex = window.days.length - 1;
-  return (
-    <ol className="week-chart" aria-label="Повторения по дням за последние 7 дней">
-      {window.days.map((d, i) => (
-        <li key={d.dayStart} className={i === lastIndex ? 'week-day is-today' : 'week-day'}>
-          <span className="sr-only">
-            {i === lastIndex ? 'Сегодня, ' : ''}
-            {dayLong(d.dayStart)}: {countLabel(d.reviews, REVIEW_FORMS)}
-          </span>
-          <span className="week-count" aria-hidden="true">
-            {d.reviews}
-          </span>
-          <span className="bar-track" aria-hidden="true">
-            <span className="bar" style={{ height: `${barPercent(d.reviews, window)}%` }} />
-          </span>
-          <span className="week-label" aria-hidden="true">
-            {weekdayShort(d.dayStart)}
-          </span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-/**
- * Thirty thin bars. Decorative for assistive tech — the summary sentence under
- * it and the "По дням" table carry the same data as text.
- */
-function MonthChart({ window }: { window: ActivityWindow }) {
-  const first = window.days[0];
-  return (
-    <div className="month-chart-wrap" aria-hidden="true">
-      <div className="month-chart">
-        {window.days.map((d) => (
-          <span key={d.dayStart} className="bar-track" title={`${dayShort(d.dayStart)}: ${d.reviews}`}>
-            <span className="bar" style={{ height: `${barPercent(d.reviews, window)}%` }} />
-          </span>
-        ))}
-      </div>
-      <div className="month-axis">
-        <span>{first ? dayShort(first.dayStart) : ''}</span>
-        <span>сегодня</span>
-      </div>
     </div>
   );
 }

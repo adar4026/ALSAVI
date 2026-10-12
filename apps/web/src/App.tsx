@@ -1,23 +1,46 @@
 import { assertValidNewCardsPerDay, LearningEngine, StudySession, type EngineStats } from '@alsavi/engine';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AppHeader } from './AppHeader';
 import type { StatusFilter } from './card-list';
 import { CardManager } from './CardManager';
 import { DexieStore } from './dexie-store';
-import { ReviewHome } from './ReviewHome';
+import { HomeScreen, type CardsIntent } from './HomeScreen';
 import { ReviewSession } from './ReviewSession';
+import { SettingsSheet } from './SettingsSheet';
 import { StatsScreen } from './StatsScreen';
+import { applyTheme, readThemePreference, writeThemePreference, type ThemePreference } from './theme';
 
 type View = 'review' | 'cards' | 'stats';
 
 const VIEWS: Array<[View, string]> = [
-  ['review', 'Повторение'],
+  ['review', 'Главная'],
   ['cards', 'Карточки'],
   ['stats', 'Статистика'],
 ];
 
 /**
- * Sub-state of the "Повторение" tab (TASK_022): the home/overview screen
- * ("Учиться сегодня") before the per-card flow, and the flow itself. Local
+ * How "Карточки" opens: list filter plus an optional focus target (TASK_029).
+ * `seq` changes on every navigation so `CardManager` re-mounts and applies
+ * them — even when the same entry is chosen twice in a row.
+ */
+interface CardsEntry {
+  status: StatusFilter;
+  focus?: 'add' | 'tools';
+  seq: number;
+}
+
+/** `localStorage` can throw on access (blocked site data) — treat as absent. */
+function safeLocalStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sub-state of the "Главная" tab (TASK_022, TASK_029): the home screen
+ * before the per-card flow, and the flow itself. Local
  * UI navigation only — `StudySession` itself stays the same long-lived
  * instance for the whole app (its own bury-state lifetime is unaffected by
  * switching between these two screens).
@@ -39,9 +62,14 @@ export function App() {
   const engine = useMemo(() => new LearningEngine(store), [store]);
   const session = useMemo(() => new StudySession(engine), [engine]);
   const [view, setView] = useState<View>('review');
-  // Filter the "Карточки" tab opens with: 'all' from the navigation, 'difficult'
-  // from the statistics screen's "Трудные слова" link (TASK_026).
-  const [cardsStatus, setCardsStatus] = useState<StatusFilter>('all');
+  // How the "Карточки" tab opens: 'all' from the navigation, 'difficult' from
+  // the statistics screen (TASK_026) and the home screen, the form or the
+  // tools from the home screen / settings (TASK_029).
+  const [cardsEntry, setCardsEntry] = useState<CardsEntry>({ status: 'all', seq: 0 });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Initial value: the same stored choice the inline script in index.html
+  // already applied before the first paint.
+  const [theme, setTheme] = useState<ThemePreference>(() => readThemePreference(safeLocalStorage()));
   const [reviewPhase, setReviewPhase] = useState<ReviewPhase>('home');
   const [stats, setStats] = useState<EngineStats | null>(null);
   // "К повторению" reflects the session queue (due + learn-ahead), so it stays
@@ -81,6 +109,29 @@ export function App() {
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  useEffect(() => {
+    applyTheme(document, theme);
+  }, [theme]);
+
+  const onThemeChange = useCallback((next: ThemePreference) => {
+    setTheme(next);
+    // A failed save still applies for this visit; it only won't survive a reload.
+    writeThemePreference(safeLocalStorage(), next);
+  }, []);
+
+  const openCards = useCallback((status: StatusFilter, focus?: CardsEntry['focus']) => {
+    setCardsEntry((prev) => ({ status, focus, seq: prev.seq + 1 }));
+    setView('cards');
+  }, []);
+
+  const onHomeOpenCards = useCallback(
+    (intent: CardsIntent) => {
+      if (intent === 'add') openCards('all', 'add');
+      else openCards(intent);
+    },
+    [openCards]
+  );
 
   const refreshStats = useCallback(async () => {
     const nextStats = await engine.getStats();
@@ -129,59 +180,70 @@ export function App() {
     [store, session, refreshStats]
   );
 
+  const inSession = view === 'review' && reviewPhase === 'session';
+  const onHome = view === 'review' && reviewPhase === 'home';
+
   return (
     <div className="app">
-      <div className="topbar">
-        <div className="logo">ALSAVI</div>
-        <nav className="nav">
-          {VIEWS.map(([value, label]) => (
-            <button
-              key={value}
-              className={view === value ? 'active' : ''}
-              aria-current={view === value ? 'page' : undefined}
-              onClick={() => {
-                setCardsStatus('all');
-                setView(value);
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
-      </div>
-      <div className="statsbar">
-        {stats && (
-          <>
-            <span>
-              К повторению: <strong>{dueCount ?? stats.dueNow}</strong>
-            </span>
-            <span>
-              Всего: <strong>{stats.totalCards}</strong>
-            </span>
-            <span>
-              Сегодня: <strong>{stats.reviewsToday}</strong>
-            </span>
-            {stats.accuracy !== null && (
+      <AppHeader
+        streakDays={stats ? stats.streakDays : null}
+        reviewedToday={(stats?.reviewsToday ?? 0) > 0}
+        // No settings mid-card: the session's number hotkeys must not meet an open dialog.
+        onOpenSettings={inSession ? undefined : () => setSettingsOpen(true)}
+      />
+      <nav className="nav" aria-label="Разделы">
+        {VIEWS.map(([value, label]) => (
+          <button
+            key={value}
+            className={view === value ? 'active' : ''}
+            aria-current={view === value ? 'page' : undefined}
+            onClick={() => {
+              if (value === 'cards') openCards('all');
+              else setView(value);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      {/* The home screen shows today's numbers itself; the bar stays on the
+          other screens until the next stage re-arranges navigation. */}
+      {!onHome && (
+        <div className="statsbar">
+          {stats && (
+            <>
               <span>
-                Точность: <strong>{Math.round(stats.accuracy * 100)}%</strong>
+                К повторению: <strong>{dueCount ?? stats.dueNow}</strong>
               </span>
-            )}
-            {stats.streakDays > 0 && (
               <span>
-                Серия: <strong>{stats.streakDays} дн</strong>
+                Всего: <strong>{stats.totalCards}</strong>
               </span>
-            )}
-          </>
-        )}
-      </div>
+              <span>
+                Сегодня: <strong>{stats.reviewsToday}</strong>
+              </span>
+              {stats.accuracy !== null && (
+                <span>
+                  Точность: <strong>{Math.round(stats.accuracy * 100)}%</strong>
+                </span>
+              )}
+              {stats.streakDays > 0 && (
+                <span>
+                  Серия: <strong>{stats.streakDays} дн</strong>
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      )}
       {view === 'review' ? (
         bootstrap === 'ready' ? (
           reviewPhase === 'home' ? (
-            <ReviewHome
+            <HomeScreen
+              engine={engine}
               session={session}
-              stats={stats}
               onStart={() => setReviewPhase('session')}
-              onAddCard={() => setView('cards')}
+              onOpenCards={onHomeOpenCards}
+              onOpenStats={() => setView('stats')}
             />
           ) : (
             <ReviewSession
@@ -208,15 +270,13 @@ export function App() {
         <StatsScreen
           engine={engine}
           onStudy={() => setView('review')}
-          onShowDifficult={() => {
-            setCardsStatus('difficult');
-            setView('cards');
-          }}
+          onShowDifficult={() => openCards('difficult')}
         />
       ) : (
         <CardManager
-          key={cardsStatus}
-          initialStatus={cardsStatus}
+          key={cardsEntry.seq}
+          initialStatus={cardsEntry.status}
+          initialFocus={cardsEntry.focus}
           engine={engine}
           store={store}
           onChanged={() => void refreshStats()}
@@ -226,6 +286,16 @@ export function App() {
           limitSaveError={limitSaveError}
         />
       )}
+      <SettingsSheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        theme={theme}
+        onThemeChange={onThemeChange}
+        onOpenTools={() => {
+          setSettingsOpen(false);
+          openCards('all', 'tools');
+        }}
+      />
     </div>
   );
 }

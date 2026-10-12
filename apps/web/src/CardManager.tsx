@@ -78,6 +78,12 @@ interface Props {
   limitSaveError: string | null;
   /** State filter to open the list with (e.g. 'difficult' from the statistics screen). */
   initialStatus?: StatusFilter;
+  /**
+   * Where to put the learner on open (TASK_029): 'add' — the new-card form
+   * ("Добавить слово" on the home screen), 'tools' — the import / backup /
+   * limit block, expanded (from the settings sheet).
+   */
+  initialFocus?: 'add' | 'tools';
 }
 
 /** `null` -> empty (unlimited); a number -> its decimal string. */
@@ -103,6 +109,7 @@ export function CardManager({
   limitSaving,
   limitSaveError,
   initialStatus = 'all',
+  initialFocus,
 }: Props) {
   // A render snapshot of `engine.listCardViews()`, re-read after every write —
   // the Engine stays the only source of truth (no parallel copy is edited).
@@ -121,6 +128,7 @@ export function CardManager({
   const backupInput = useRef<HTMLInputElement>(null);
   const frontInput = useRef<HTMLInputElement>(null);
   const undoButton = useRef<HTMLButtonElement>(null);
+  const tools = useRef<HTMLDetailsElement>(null);
 
   const createForm = useMemo(() => new NoteFormController(engine, { kind: 'create' }), [engine]);
   const archive = useMemo(() => new ArchiveFlow(engine), [engine]);
@@ -206,6 +214,18 @@ export function CardManager({
     frontInput.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     frontInput.current?.focus();
   }
+
+  // Mount-only: the parent re-mounts this screen (new `key`) for each entry.
+  useEffect(() => {
+    if (initialFocus === 'add') {
+      focusFirstCardField();
+    } else if (initialFocus === 'tools' && tools.current) {
+      tools.current.open = true;
+      tools.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      tools.current.querySelector('summary')?.focus({ preventScroll: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function confirmArchive() {
     if (!(await archive.confirm())) return;
@@ -297,7 +317,7 @@ export function CardManager({
         />
       </section>
 
-      <details className="tools">
+      <details className="tools" ref={tools}>
         <summary>Импорт, резервная копия и лимит новых карточек</summary>
         <div className="import-row">
           <input
