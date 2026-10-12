@@ -2,6 +2,7 @@ import type { CardState, LearningEngine, Rating, StudySession } from '@alsavi/en
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { formatInterval } from './format';
 import { ReviewFlowController } from './review-flow';
+import { handleReviewKeydown } from './review-hotkeys';
 
 const RATING_LABELS: Record<Rating, string> = {
   again: 'Не помню',
@@ -53,38 +54,19 @@ export function ReviewSession({ engine, session, onReviewed, onExit }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.progress.done]);
 
-  // Keyboard shortcuts: Space/Enter show the answer, or grade "Хорошо" once
-  // revealed; 1..4 grade the revealed card explicitly. Ignored while typing
-  // in a field (none on this screen, but consistent with the rest of the
-  // app), while saving, or before a card has loaded.
+  // Keyboard shortcuts — the screen's one keydown handler (TASK_022). Space/
+  // Enter show the answer, or grade "Хорошо" once revealed; 1..4 grade the
+  // revealed card explicitly. Which key does what, and when the browser's own
+  // handling wins instead (focused button, form field, held key), lives in
+  // `review-hotkeys.ts` (TASK_025). It reads the controller's current state at
+  // the moment of the key press, so the listener is bound once per controller.
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (state.status !== 'active' || e.metaKey || e.ctrlKey || e.altKey) return;
-      const el = e.target as HTMLElement | null;
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
-        return;
-      }
-      if (!state.revealed) {
-        if (e.code === 'Space' || e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault();
-          controller.reveal();
-        }
-        return;
-      }
-      if (e.code === 'Space' || e.key === ' ' || e.key === 'Enter') {
-        e.preventDefault();
-        void controller.answer('good');
-        return;
-      }
-      const idx = ['1', '2', '3', '4'].indexOf(e.key);
-      if (idx !== -1) {
-        e.preventDefault();
-        void controller.answer(RATINGS[idx]!);
-      }
-    }
+    const onKey = (e: KeyboardEvent) => {
+      handleReviewKeydown(e, controller);
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [state.status, state.revealed, controller]);
+  }, [controller]);
 
   if (state.status === 'loading') return <div className="card-panel" />;
 
