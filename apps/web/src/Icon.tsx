@@ -16,7 +16,8 @@ export type IconName =
   | 'chevron-right'
   | 'home'
   | 'chart'
-  | 'user';
+  | 'user'
+  | 'play';
 
 const PATHS: Record<IconName, ReactElement> = {
   flame: (
@@ -48,6 +49,7 @@ const PATHS: Record<IconName, ReactElement> = {
   'chevron-right': <path d="M9.5 6l6 6-6 6" />,
   home: <path d="M4 10.5 12 4l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5H15v-6H9v6H5.5A1.5 1.5 0 0 1 4 19v-8.5Z" />,
   chart: <path d="M5 20V11M12 20V4.5M19 20v-6.5M3.5 20.5h17" />,
+  play: <path d="M8 5.5v13l10.5-6.5L8 5.5Z" />,
   user: (
     <>
       <circle cx="12" cy="8.5" r="4" />

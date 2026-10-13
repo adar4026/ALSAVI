@@ -2281,3 +2281,132 @@ body {
     font-size: 32px;
   }
 }
+
+/* --- TASK_032: difficult-words practice ------------------------------------ */
+
+/* Start button under the "Трудные" filter of "Карточки". */
+.practice-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.practice-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+}
+
+.practice-start .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.practice-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.practice-cta .hint {
+  margin: 0;
+}
+
+/* The practice screen reuses the session layout (card-panel, answer-bar). */
+.practice-eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.state-badge.practice-badge {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+}
+
+.answer-buttons.practice-buttons {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* No interval line under the label, as on the session's buttons — centre it. */
+.practice-buttons button {
+  justify-content: center;
+}
+
+.practice-buttons .grade-forgot {
+  color: var(--danger);
+}
+
+.practice-buttons .grade-hard {
+  color: var(--warning-text);
+}
+
+.practice-buttons .grade-good {
+  color: var(--success-text);
+}
+
+.practice-digest dt {
+  overflow-wrap: normal;
+  hyphens: auto;
+}
+
+.practice-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.practice-summary .hint,
+.practice-message .empty-state {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.practice-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.practice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.practice-summary .practice-actions {
+  justify-content: flex-start;
+}
+
+.practice-actions button {
+  min-height: 48px;
+}
+
+@media (max-width: 380px) {
+  .practice-actions,
+  .practice-actions button,
+  .practice-start {
+    width: 100%;
+  }
+
+  .practice-start {
+    justify-content: center;
+  }
+}

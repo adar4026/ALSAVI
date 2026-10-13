@@ -20,8 +20,12 @@ import {
   type StatusFilter,
 } from './card-list';
 import { formatInterval } from './format';
+import { CARD_FORMS } from './home-view';
+import { Icon } from './Icon';
 import { draftFromNote, NoteFormController } from './note-form';
 import { NoteForm } from './NoteForm';
+import { difficultPracticeCards } from './practice-flow';
+import { countLabel } from './stats-view';
 
 const STATUS_FILTERS: Array<[StatusFilter, string]> = [
   ['all', 'Все'],
@@ -52,6 +56,8 @@ interface Props {
    * screen, TASK_029).
    */
   initialFocus?: 'add';
+  /** Start the difficult-words practice (TASK_032). */
+  onPractice?: () => void;
 }
 
 export function CardManager({
@@ -59,6 +65,7 @@ export function CardManager({
   onChanged,
   initialStatus = 'all',
   initialFocus,
+  onPractice,
 }: Props) {
   // A render snapshot of `engine.listCardViews()`, re-read after every write —
   // the Engine stays the only source of truth (no parallel copy is edited).
@@ -116,6 +123,8 @@ export function CardManager({
     return scoped;
   }, [entries, showingArchive, filter.tags]);
   const visible = useMemo(() => filterEntries(entries, filter, loadedAt), [entries, filter, loadedAt]);
+  // Cards the practice would show — the same selection it loads itself.
+  const practiceCount = useMemo(() => difficultPracticeCards(views).length, [views]);
   const filtersActive = filter.query.trim() !== '' || filter.tags.length > 0 || filter.status !== 'all';
 
   // Bring a card opened from elsewhere (e.g. the duplicate warning) into view.
@@ -221,6 +230,21 @@ export function CardManager({
             </div>
             {filter.status === 'difficult' && (
               <div className="hint">Карточки, которые вы хотя бы раз забыли после того, как уже выучили.</div>
+            )}
+            {filter.status === 'difficult' && onPractice && practiceCount > 0 && (
+              <div className="practice-cta">
+                <button
+                  type="button"
+                  className="btn-primary practice-start"
+                  onClick={onPractice}
+                  aria-label={`Повторить трудные слова: ${countLabel(practiceCount, CARD_FORMS)}`}
+                >
+                  <Icon name="play" />
+                  Повторить трудные слова
+                  <span className="practice-count">{practiceCount}</span>
+                </button>
+                <span className="hint">Отдельная тренировка: расписание повторений не меняется.</span>
+              </div>
             )}
             {filterTags.length > 0 && (
               <div className="chip-row" role="group" aria-label="Фильтр по тегам">

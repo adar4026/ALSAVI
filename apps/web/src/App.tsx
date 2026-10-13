@@ -7,6 +7,8 @@ import { DexieStore } from './dexie-store';
 import { HomeScreen, type CardsIntent } from './HomeScreen';
 import { MainNav } from './MainNav';
 import { urlForView, viewFromHash, type View } from './nav';
+import { loadDifficultPractice } from './practice-flow';
+import { PracticeSession } from './PracticeSession';
 import { ProfileScreen } from './ProfileScreen';
 import { ReviewSession } from './ReviewSession';
 import { StatsScreen } from './StatsScreen';
@@ -66,6 +68,9 @@ export function App() {
   // already applied before the first paint.
   const [theme, setTheme] = useState<ThemePreference>(() => readThemePreference(safeLocalStorage()));
   const [reviewPhase, setReviewPhase] = useState<ReviewPhase>('home');
+  // Difficult-words practice (TASK_032): a focus mode over any section, like
+  // the study session. Not in the address — its state lives in memory only.
+  const [practicing, setPracticing] = useState(false);
   // For the header's streak only; every screen reads its own numbers.
   const [stats, setStats] = useState<EngineStats | null>(null);
   const [newCardsPerDay, setNewCardsPerDayState] = useState<number | null>(null);
@@ -114,7 +119,10 @@ export function App() {
 
   // Back/Forward and hand-edited addresses switch the section too.
   useEffect(() => {
-    const sync = () => setView(viewFromHash(window.location.hash));
+    const sync = () => {
+      setPracticing(false);
+      setView(viewFromHash(window.location.hash));
+    };
     window.addEventListener('popstate', sync);
     window.addEventListener('hashchange', sync);
     return () => {
@@ -126,6 +134,7 @@ export function App() {
   const navigate = useCallback((next: View) => {
     const url = urlForView(next, window.location);
     if (url !== null) window.history.pushState(null, '', url);
+    setPracticing(false);
     setView(next);
     window.scrollTo(0, 0);
   }, []);
@@ -154,6 +163,14 @@ export function App() {
     },
     [openCards]
   );
+
+  // The practice's only data access: a read of the card views (see practice-flow.ts).
+  const loadPracticeCards = useCallback(() => loadDifficultPractice(engine), [engine]);
+
+  const startPractice = useCallback(() => {
+    setPracticing(true);
+    window.scrollTo(0, 0);
+  }, []);
 
   const refreshStats = useCallback(async () => {
     setStats(await engine.getStats());
@@ -198,7 +215,7 @@ export function App() {
 
   // A study session is a focus mode: no navigation and no settings button —
   // the session's number hotkeys stay its own; "Завершить" leads back.
-  const inSession = view === 'home' && reviewPhase === 'session';
+  const inSession = practicing || (view === 'home' && reviewPhase === 'session');
 
   return (
     <div className={inSession ? 'app in-session' : 'app'}>
@@ -208,7 +225,9 @@ export function App() {
         onOpenSettings={inSession ? undefined : () => navigate('profile')}
       />
       {!inSession && <MainNav view={view} onNavigate={onNavigate} />}
-      {view === 'home' ? (
+      {practicing ? (
+        <PracticeSession loadCards={loadPracticeCards} onExit={() => openCards('difficult')} />
+      ) : view === 'home' ? (
         bootstrap === 'ready' ? (
           reviewPhase === 'home' ? (
             <HomeScreen
@@ -266,6 +285,7 @@ export function App() {
           initialFocus={cardsEntry.focus}
           engine={engine}
           onChanged={() => void refreshStats()}
+          onPractice={startPractice}
         />
       )}
     </div>
