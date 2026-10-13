@@ -2410,3 +2410,64 @@ body {
     justify-content: center;
   }
 }
+
+/* --- TASK_033: phone polish — navigation overlap, keyboard, tap targets ---- */
+
+/* The floating navigation bar covers the bottom of the viewport on phones.
+   Scroll padding makes focus and scrollIntoView stop above it, so an inline
+   confirmation (e.g. "Убрать в архив?") or a focused field never ends up
+   hidden under the bar. Above 900px the navigation is in the header. */
+html {
+  scroll-padding-bottom: calc(var(--nav-h) + 24px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 900px) {
+  html {
+    scroll-padding-bottom: 24px;
+  }
+}
+
+/* While typing on a touch screen the on-screen keyboard takes the bottom of
+   the screen: the floating bar would cover the field being edited or the
+   save button (iOS keeps fixed elements in the layout viewport). Hide it
+   until the field loses focus. Phones only — on a computer the navigation
+   sits in the header and stays. */
+@media (max-width: 899px) and (pointer: coarse) {
+  .app:has(input:not([type='checkbox'], [type='radio'], [type='file']):focus, textarea:focus, select:focus)
+    .main-nav {
+    display: none;
+  }
+}
+
+/* Primary and secondary buttons: at least 44px tall to tap comfortably. */
+.btn-primary,
+.btn-secondary {
+  min-height: 44px;
+}
+
+/* Touch screens: filter and tag chips get a full 44px tap height, and the
+   keyboard hints ("Пробел", "1 · 2 · 3 · 4") are hidden — there is no
+   keyboard to press them on. */
+@media (pointer: coarse) {
+  .chip {
+    min-height: 44px;
+  }
+}
+
+/* A touch tablet in the computer layout (navigation tabs in the header). */
+@media (min-width: 900px) and (pointer: coarse) {
+  .main-nav-item {
+    min-height: 44px;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .hotkey-hint {
+    display: none;
+  }
+}
+
+/* "Доступна новая версия" — shown after the service worker installed an update. */
+.update-banner {
+  margin-bottom: 16px;
+}

@@ -202,3 +202,45 @@ async function replay(
   }
   return card;
 }
+
+describe('unsaved changes (TASK_033)', () => {
+  it('create: typed text counts until it is added; tags kept for the next word do not', async () => {
+    const { engine } = memoryEngine();
+    const form = new NoteFormController(engine, { kind: 'create' });
+    expect(form.hasUnsavedChanges()).toBe(false);
+    form.update({ alsoReverse: true });
+    expect(form.hasUnsavedChanges()).toBe(false);
+    form.update({ front: '  ' });
+    expect(form.hasUnsavedChanges()).toBe(false);
+    form.update({ front: 'la prueba', back: 'проба', tags: 'быт' });
+    expect(form.hasUnsavedChanges()).toBe(true);
+    expect(await form.submit()).toBe('saved');
+    expect(form.getState().draft.tags).toBe('быт');
+    expect(form.hasUnsavedChanges()).toBe(false);
+  });
+
+  it('create: a failed save keeps the text — and it still counts as unsaved', async () => {
+    const { engine } = memoryEngine();
+    vi.spyOn(engine, 'addNote').mockRejectedValueOnce(new Error('QuotaExceededError'));
+    const form = new NoteFormController(engine, { kind: 'create' });
+    form.update({ front: 'la prueba', back: 'проба' });
+    expect(await form.submit()).toBe('error');
+    expect(form.hasUnsavedChanges()).toBe(true);
+  });
+
+  it('edit: only a real change of the note counts, and saving clears it', async () => {
+    const { engine } = memoryEngine();
+    const { note } = await engine.addNote({ front: 'el libro', back: 'книга', tags: ['быт'] });
+    const form = new NoteFormController(engine, { kind: 'edit', noteId: note.id }, draftFromNote(note));
+    expect(form.hasUnsavedChanges()).toBe(false);
+    form.update({ back: 'книга ' });
+    expect(form.hasUnsavedChanges()).toBe(false);
+    form.update({ memo: 'на столе' });
+    expect(form.hasUnsavedChanges()).toBe(true);
+    form.update({ memo: '' });
+    expect(form.hasUnsavedChanges()).toBe(false);
+    form.update({ back: 'книжка' });
+    expect(await form.submit()).toBe('saved');
+    expect(form.hasUnsavedChanges()).toBe(false);
+  });
+});

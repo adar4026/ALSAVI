@@ -1,15 +1,18 @@
 import { assertValidNewCardsPerDay, LearningEngine, StudySession, type EngineStats } from '@alsavi/engine';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { AppHeader } from './AppHeader';
+import { localDayStart, shouldStartNewSession, UNSAVED_EDIT_CONFIRM } from './app-lifecycle';
 import type { StatusFilter } from './card-list';
 import { CardManager } from './CardManager';
 import { DexieStore } from './dexie-store';
 import { HomeScreen, type CardsIntent } from './HomeScreen';
 import { MainNav } from './MainNav';
-import { urlForView, viewFromHash, type View } from './nav';
+import { hashForView, urlForView, viewFromHash, type View } from './nav';
+import { NoteFormController } from './note-form';
 import { loadDifficultPractice } from './practice-flow';
 import { PracticeSession } from './PracticeSession';
 import { ProfileScreen } from './ProfileScreen';
+import { appUpdate } from './registerSW';
 import { ReviewSession } from './ReviewSession';
 import { StatsScreen } from './StatsScreen';
 import { applyTheme, readThemePreference, writeThemePreference, type ThemePreference } from './theme';
@@ -56,10 +59,23 @@ export function App() {
   // Keep the store reference: backup/restore operates at the storage layer.
   const store = useMemo(() => new DexieStore(), []);
   const engine = useMemo(() => new LearningEngine(store), [store]);
-  const session = useMemo(() => new StudySession(engine), [engine]);
+  // The local day the current study session belongs to (TASK_033). An app
+  // left open overnight starts a fresh `StudySession` on its first return on
+  // a new day (see `shouldStartNewSession`); everything else — the queue, the
+  // daily limit's usage — is derived from the Review Log and needs no reset.
+  // A new session re-runs `loadSettings` below, so the stored daily limit is
+  // applied to it before the home screen reads the queue.
+  const [sessionDay, setSessionDay] = useState(() => localDayStart(Date.now()));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const session = useMemo(() => new StudySession(engine), [engine, sessionDay]);
+  // The new-card form outlives "Карточки" (TASK_033): a word typed but not
+  // yet added is still there after a visit to another section.
+  const createForm = useMemo(() => new NoteFormController(engine, { kind: 'create' }), [engine]);
   // The section comes from the address (TASK_030): `#/stats` opens
   // "Статистика", no hash — the home screen.
   const [view, setView] = useState<View>(() => viewFromHash(window.location.hash));
+  // The section on screen, readable synchronously by the navigation guards below.
+  const viewRef = useRef(view);
   // How "Карточки" opens: 'all' from the navigation, 'difficult' from the
   // statistics and home screens (TASK_026), the form from "Добавить слово"
   // (TASK_029).
@@ -68,6 +84,20 @@ export function App() {
   // already applied before the first paint.
   const [theme, setTheme] = useState<ThemePreference>(() => readThemePreference(safeLocalStorage()));
   const [reviewPhase, setReviewPhase] = useState<ReviewPhase>('home');
+  const reviewPhaseRef = useRef(reviewPhase);
+  useEffect(() => {
+    reviewPhaseRef.current = reviewPhase;
+  }, [reviewPhase]);
+  // Bumped each time the app returns to the foreground (TASK_033): screens
+  // that show "today" re-read their numbers.
+  const [resumeTick, setResumeTick] = useState(0);
+  const updateReady = useSyncExternalStore(appUpdate.subscribe, appUpdate.isReady);
+  // Set by "Карточки" while it is on screen: does an open card editor hold
+  // unsaved changes? (TASK_033)
+  const unsavedEdit = useRef<(() => boolean) | null>(null);
+  const registerUnsavedCheck = useCallback((check: (() => boolean) | null) => {
+    unsavedEdit.current = check;
+  }, []);
   // Difficult-words practice (TASK_032): a focus mode over any section, like
   // the study session. Not in the address — its state lives in memory only.
   const [practicing, setPracticing] = useState(false);
@@ -83,6 +113,9 @@ export function App() {
   // 'loading': a failed load must never be silently treated as unlimited,
   // and must never leave the app loading forever with no way out.
   const [bootstrap, setBootstrap] = useState<BootstrapState>('loading');
+  // The session the loaded limit was applied to (TASK_033): when a new day
+  // brings a new `StudySession`, it is not ready until its own load finishes.
+  const [settingsAppliedTo, setSettingsAppliedTo] = useState<StudySession | null>(null);
   // Runtime limit-change state (separate from `bootstrap`): a failed *save*
   // of an already-loaded setting is a local, retryable error — it must not
   // be confused with the app-wide bootstrap error above.
@@ -96,6 +129,7 @@ export function App() {
       .then((value) => {
         session.setNewCardsPerDay(value);
         setNewCardsPerDayState(value);
+        setSettingsAppliedTo(session);
         setBootstrap('ready');
       })
       .catch(() => {
@@ -117,11 +151,28 @@ export function App() {
     writeThemePreference(safeLocalStorage(), next);
   }, []);
 
+  /**
+   * Leaving "Карточки" (or re-opening it) would discard an open editor's
+   * unsaved changes: ask first (TASK_033). `true` = go ahead.
+   */
+  const confirmLeaveCards = useCallback((): boolean => {
+    if (viewRef.current !== 'cards' || !unsavedEdit.current?.()) return true;
+    return window.confirm(UNSAVED_EDIT_CONFIRM);
+  }, []);
+
   // Back/Forward and hand-edited addresses switch the section too.
   useEffect(() => {
     const sync = () => {
+      const next = viewFromHash(window.location.hash);
+      if (next !== viewRef.current && !confirmLeaveCards()) {
+        // Stay: the browser already changed the address — put it back.
+        const { pathname, search } = window.location;
+        window.history.pushState(null, '', `${pathname}${search}${hashForView(viewRef.current)}`);
+        return;
+      }
       setPracticing(false);
-      setView(viewFromHash(window.location.hash));
+      viewRef.current = next;
+      setView(next);
     };
     window.addEventListener('popstate', sync);
     window.addEventListener('hashchange', sync);
@@ -129,22 +180,32 @@ export function App() {
       window.removeEventListener('popstate', sync);
       window.removeEventListener('hashchange', sync);
     };
-  }, []);
+  }, [confirmLeaveCards]);
 
-  const navigate = useCallback((next: View) => {
+  const go = useCallback((next: View) => {
     const url = urlForView(next, window.location);
     if (url !== null) window.history.pushState(null, '', url);
     setPracticing(false);
+    viewRef.current = next;
     setView(next);
     window.scrollTo(0, 0);
   }, []);
 
+  const navigate = useCallback(
+    (next: View) => {
+      if (confirmLeaveCards()) go(next);
+    },
+    [confirmLeaveCards, go]
+  );
+
   const openCards = useCallback(
     (status: StatusFilter, focus?: CardsEntry['focus']) => {
+      // Re-mounts "Карточки" (new `seq`), so an open editor would be lost too.
+      if (!confirmLeaveCards()) return;
       setCardsEntry((prev) => ({ status, focus, seq: prev.seq + 1 }));
-      navigate('cards');
+      go('cards');
     },
-    [navigate]
+    [confirmLeaveCards, go]
   );
 
   const onNavigate = useCallback(
@@ -168,9 +229,10 @@ export function App() {
   const loadPracticeCards = useCallback(() => loadDifficultPractice(engine), [engine]);
 
   const startPractice = useCallback(() => {
+    if (!confirmLeaveCards()) return;
     setPracticing(true);
     window.scrollTo(0, 0);
-  }, []);
+  }, [confirmLeaveCards]);
 
   const refreshStats = useCallback(async () => {
     setStats(await engine.getStats());
@@ -179,6 +241,50 @@ export function App() {
   useEffect(() => {
     void refreshStats();
   }, [refreshStats]);
+
+  // Back in the foreground (TASK_033): an installed app is resumed, not
+  // reloaded — refresh "today" and, on a new day, start a new study session.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      setResumeTick((tick) => tick + 1);
+      void refreshStats();
+      const now = Date.now();
+      setSessionDay((day) =>
+        shouldStartNewSession(day, now, reviewPhaseRef.current === 'session') ? localDayStart(now) : day
+      );
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [refreshStats]);
+
+  const exitReview = useCallback(() => {
+    setReviewPhase('home');
+    const now = Date.now();
+    setSessionDay((day) => (shouldStartNewSession(day, now, false) ? localDayStart(now) : day));
+  }, []);
+
+  // Typed text that a reload or closing the tab would lose (TASK_033).
+  const hasUnsavedWork = useCallback(
+    () => createForm.hasUnsavedChanges() || Boolean(unsavedEdit.current?.()),
+    [createForm]
+  );
+  const reloading = useRef(false);
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (reloading.current || !hasUnsavedWork()) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [hasUnsavedWork]);
+
+  const applyUpdate = useCallback(() => {
+    if (hasUnsavedWork() && !window.confirm('Введённый текст карточки не сохранён и пропадёт. Обновить сейчас?')) return;
+    reloading.current = true;
+    window.location.reload();
+  }, [hasUnsavedWork]);
 
   const onLimitChange = useCallback(
     (value: number | null) => {
@@ -215,6 +321,7 @@ export function App() {
 
   // A study session is a focus mode: no navigation and no settings button —
   // the session's number hotkeys stay its own; "Завершить" leads back.
+  const settingsReady = bootstrap === 'ready' && settingsAppliedTo === session;
   const inSession = practicing || (view === 'home' && reviewPhase === 'session');
 
   return (
@@ -225,10 +332,18 @@ export function App() {
         onOpenSettings={inSession ? undefined : () => navigate('profile')}
       />
       {!inSession && <MainNav view={view} onNavigate={onNavigate} />}
+      {updateReady && !inSession && (
+        <div className="notice notice-info update-banner" role="status">
+          <span>Доступна новая версия ALSAVI.</span>
+          <button type="button" className="btn-secondary" onClick={applyUpdate}>
+            Обновить
+          </button>
+        </div>
+      )}
       {practicing ? (
         <PracticeSession loadCards={loadPracticeCards} onExit={() => openCards('difficult')} />
       ) : view === 'home' ? (
-        bootstrap === 'ready' ? (
+        settingsReady ? (
           reviewPhase === 'home' ? (
             <HomeScreen
               engine={engine}
@@ -236,13 +351,14 @@ export function App() {
               onStart={() => setReviewPhase('session')}
               onOpenCards={onHomeOpenCards}
               onOpenStats={() => navigate('stats')}
+              refreshKey={resumeTick}
             />
           ) : (
             <ReviewSession
               engine={engine}
               session={session}
               onReviewed={() => void refreshStats()}
-              onExit={() => setReviewPhase('home')}
+              onExit={exitReview}
             />
           )
         ) : bootstrap === 'error' ? (
@@ -264,6 +380,7 @@ export function App() {
           onStudy={() => navigate('home')}
           onAddWord={() => openCards('all', 'add')}
           onShowDifficult={() => openCards('difficult')}
+          refreshKey={resumeTick}
         />
       ) : view === 'profile' ? (
         <ProfileScreen
@@ -271,7 +388,7 @@ export function App() {
           store={store}
           onChanged={() => void refreshStats()}
           newCardsPerDay={newCardsPerDay}
-          limitReady={bootstrap === 'ready'}
+          limitReady={settingsReady}
           onLimitChange={onLimitChange}
           limitSaving={limitSaving}
           limitSaveError={limitSaveError}
@@ -286,6 +403,8 @@ export function App() {
           engine={engine}
           onChanged={() => void refreshStats()}
           onPractice={startPractice}
+          createForm={createForm}
+          registerUnsavedCheck={registerUnsavedCheck}
         />
       )}
     </div>

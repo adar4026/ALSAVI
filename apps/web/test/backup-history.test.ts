@@ -68,6 +68,30 @@ describe('backup notices — shown only when there is history of deleted cards',
     expect(text).toMatch(/Продолжить\?$/);
   });
 
+  it('restore confirmation names what is on the device now (TASK_033)', () => {
+    const text = restoreConfirmText(meta(), { notes: 4, cards: 5, reviews: 6 });
+    expect(text).toContain('Сейчас на устройстве: 4 заметок, 5 карточек, 6 повторений — они будут удалены.');
+    expect(text).toContain('сначала сохраните «Экспорт»');
+    expect(text).not.toContain('меньше ответов');
+    expect(text).toMatch(/Продолжить\?$/);
+  });
+
+  it('restore confirmation warns when the copy has fewer answers than the device (TASK_033)', () => {
+    const text = restoreConfirmText(meta(), { notes: 2, cards: 3, reviews: 40 });
+    expect(text).toContain('В копии меньше ответов, чем сейчас на устройстве');
+    // History of deleted cards counts as answers of the copy.
+    const withHistory = restoreConfirmText(meta({ retired: { cards: 1, reviews: 33, legacy: false } }), {
+      notes: 2,
+      cards: 3,
+      reviews: 40,
+    });
+    expect(withHistory).not.toContain('меньше ответов');
+  });
+
+  it('restore confirmation on an empty device says nothing about current data (TASK_033)', () => {
+    expect(restoreConfirmText(meta(), { notes: 0, cards: 0, reviews: 0 })).toBe(restoreConfirmText(meta()));
+  });
+
   it('after restore: note only when history was restored', () => {
     expect(restoredStatus(meta())).toBe('Восстановлено: 2 заметок, 3 карточек, 7 повторений.');
     expect(restoredStatus(meta({ retired: { cards: 1, reviews: 3, legacy: true } }))).toBe(

@@ -28,9 +28,12 @@ export function NoteForm({ controller, tagSuggestions, onSaved, onCancel, onOpen
   const [showMore, setShowMore] = useState(() => Boolean(draft.example || draft.memo));
 
   // After a successful save: report it, and in create mode put the cursor
-  // back into the word field for the next word.
+  // back into the word field for the next word. Starts at the controller's
+  // current `lastSaved`: the create form's controller outlives this view
+  // (TASK_033, it keeps a draft across sections), and a save from an earlier
+  // visit must not be reported again on return.
   const lastSaved = state.lastSaved;
-  const reported = useRef<Note | null>(null);
+  const reported = useRef<Note | null>(lastSaved);
   useEffect(() => {
     if (!lastSaved || reported.current === lastSaved) return;
     reported.current = lastSaved;

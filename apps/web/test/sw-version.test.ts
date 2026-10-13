@@ -132,7 +132,8 @@ describe('public/sw.js source invariants', () => {
   });
 
   it('precaches the navigation document and the full manifest atomically on install', () => {
-    expect(source).toContain("cache.addAll(['./', ...PRECACHE_MANIFEST])");
+    expect(source).toContain("const shell = ['./', ...PRECACHE_MANIFEST];");
+    expect(source).toContain('cache.addAll(shell.map(');
   });
 
   it('uses scope-relative (not origin-root) URLs for the navigation-document cache key', () => {

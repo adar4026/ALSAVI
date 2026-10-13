@@ -24,6 +24,12 @@ interface Props {
   onStart: () => void;
   onOpenCards: (intent: CardsIntent) => void;
   onOpenStats: () => void;
+  /**
+   * Changes when the app returns to the foreground (TASK_033). An installed
+   * iPhone app is resumed, not reloaded: without a re-read, yesterday's
+   * "На сегодня всё" would greet the learner in the morning.
+   */
+  refreshKey?: number;
 }
 
 interface HomeData {
@@ -41,7 +47,7 @@ interface HomeData {
  * `engine.getLearningStats()`. Re-read on every mount, i.e. also on return
  * from a session.
  */
-export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats }: Props) {
+export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats, refreshKey = 0 }: Props) {
   const [data, setData] = useState<HomeData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,7 +63,7 @@ export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats 
 
   useEffect(() => {
     void reload();
-  }, [reload]);
+  }, [reload, refreshKey]);
 
   if (error) {
     return (

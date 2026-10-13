@@ -28,6 +28,8 @@ interface Props {
   onAddWord: () => void;
   /** Open "Карточки" with the existing "Трудные" filter. */
   onShowDifficult: () => void;
+  /** Changes when the app returns to the foreground (TASK_033): re-read, the day may have changed. */
+  refreshKey?: number;
 }
 
 /** Difficult words previewed on the card; the full list is in "Карточки". */
@@ -41,7 +43,7 @@ const DIFFICULT_PREVIEW = 3;
  * words and rounds them. Read once per visit of the section; the period
  * toggle switches between two windows already computed, without a new query.
  */
-export function StatsScreen({ engine, onStudy, onAddWord, onShowDifficult }: Props) {
+export function StatsScreen({ engine, onStudy, onAddWord, onShowDifficult, refreshKey = 0 }: Props) {
   const [stats, setStats] = useState<LearningStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +58,7 @@ export function StatsScreen({ engine, onStudy, onAddWord, onShowDifficult }: Pro
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   if (error) {
     return (

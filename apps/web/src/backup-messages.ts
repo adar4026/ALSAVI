@@ -19,13 +19,38 @@ export function exportedStatus(retired: RetiredHistory | undefined): string {
   );
 }
 
-/** Text of the restore confirmation (window.confirm). */
-export function restoreConfirmText(meta: RestoreMeta): string {
+/** What is on the device right now — counted just before a restore (TASK_033). */
+export interface CurrentCollection {
+  notes: number;
+  cards: number;
+  reviews: number;
+}
+
+/**
+ * Text of the restore confirmation (window.confirm). With `current`, it also
+ * says what will be replaced and warns when the copy has fewer answers than
+ * the device — the usual sign of restoring an older file by mistake.
+ */
+export function restoreConfirmText(meta: RestoreMeta, current?: CurrentCollection): string {
   const base =
     `Восстановление заменит ВСЕ текущие данные на копию от ` +
     `${new Date(meta.exportedAt).toLocaleString()} ` +
     `(${meta.notes} заметок, ${meta.cards} карточек, ${meta.reviews} повторений).`;
-  return `${base}${retiredConfirmNote(meta)}\n\nЭто действие необратимо. Продолжить?`;
+  return `${base}${retiredConfirmNote(meta)}${currentConfirmNote(meta, current)}\n\nЭто действие необратимо. Продолжить?`;
+}
+
+function currentConfirmNote(meta: RestoreMeta, current: CurrentCollection | undefined): string {
+  if (!current || current.notes + current.cards + current.reviews === 0) return '';
+  const restoredReviews = meta.reviews + (meta.retired?.reviews ?? 0);
+  const older =
+    current.reviews > restoredReviews
+      ? `\n\nВ копии меньше ответов, чем сейчас на устройстве: прогресс, сделанный после неё, будет потерян.`
+      : '';
+  return (
+    `\n\nСейчас на устройстве: ${current.notes} заметок, ${current.cards} карточек, ` +
+    `${current.reviews} повторений — они будут удалены.${older} ` +
+    `Если не уверены, нажмите «Отмена» и сначала сохраните «Экспорт».`
+  );
 }
 
 function retiredConfirmNote({ retired }: RestoreMeta): string {

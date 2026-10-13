@@ -105,7 +105,17 @@ export function PracticeSession({ loadCards, onExit }: Props) {
         )}
         <p className="hint">Тренировка не меняет расписание повторений и не попадает в статистику.</p>
         <div className="practice-actions">
-          <button type="button" className="btn-primary" onClick={() => void controller.start()} autoFocus>
+          {s.struggled > 0 && (
+            <button type="button" className="btn-primary" onClick={() => void controller.retryStruggled()} autoFocus>
+              Повторить слова с ошибками
+            </button>
+          )}
+          <button
+            type="button"
+            className={s.struggled > 0 ? 'btn-secondary' : 'btn-primary'}
+            onClick={() => void controller.start()}
+            autoFocus={s.struggled === 0}
+          >
             Повторить ещё раз
           </button>
           <button type="button" className="btn-secondary" onClick={onExit}>

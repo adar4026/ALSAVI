@@ -7,6 +7,7 @@ import {
   useState,
   useSyncExternalStore,
   type KeyboardEvent,
+  type RefObject,
 } from 'react';
 import { ArchiveFlow, type ArchiveTarget } from './archive-flow';
 import {
@@ -58,6 +59,16 @@ interface Props {
   initialFocus?: 'add';
   /** Start the difficult-words practice (TASK_032). */
   onPractice?: () => void;
+  /**
+   * The new-card form's controller, owned by `App` (TASK_033): a word typed
+   * but not yet added survives switching to another section and back.
+   */
+  createForm: NoteFormController;
+  /**
+   * Lets `App` ask, before leaving this screen, whether an open card editor
+   * holds unsaved changes (TASK_033). Called with `null` on unmount.
+   */
+  registerUnsavedCheck?: (check: (() => boolean) | null) => void;
 }
 
 export function CardManager({
@@ -66,6 +77,8 @@ export function CardManager({
   initialStatus = 'all',
   initialFocus,
   onPractice,
+  createForm,
+  registerUnsavedCheck,
 }: Props) {
   // A render snapshot of `engine.listCardViews()`, re-read after every write —
   // the Engine stays the only source of truth (no parallel copy is edited).
@@ -80,7 +93,13 @@ export function CardManager({
   const frontInput = useRef<HTMLInputElement>(null);
   const undoButton = useRef<HTMLButtonElement>(null);
 
-  const createForm = useMemo(() => new NoteFormController(engine, { kind: 'create' }), [engine]);
+  // The open inline editor's controller (at most one), for the unsaved-changes check.
+  const editor = useRef<NoteFormController | null>(null);
+  useEffect(() => {
+    if (!registerUnsavedCheck) return;
+    registerUnsavedCheck(() => editor.current?.hasUnsavedChanges() ?? false);
+    return () => registerUnsavedCheck(null);
+  }, [registerUnsavedCheck]);
   const archive = useMemo(() => new ArchiveFlow(engine), [engine]);
   const archiveState = useSyncExternalStore(archive.subscribe, archive.getState);
 
@@ -348,6 +367,7 @@ export function CardManager({
                 <NoteEditor
                   engine={engine}
                   entry={entry}
+                  controllerRef={editor}
                   tagSuggestions={tagSuggestions}
                   onDone={(saved) => {
                     setEditingId(null);
@@ -465,11 +485,14 @@ export function CardManager({
 function NoteEditor({
   engine,
   entry,
+  controllerRef,
   tagSuggestions,
   onDone,
 }: {
   engine: LearningEngine;
   entry: NoteEntry;
+  /** Points at this editor's controller while it is open. */
+  controllerRef: RefObject<NoteFormController | null>;
   tagSuggestions: readonly string[];
   onDone: (saved: boolean) => void;
 }) {
@@ -478,6 +501,12 @@ function NoteEditor({
   const [controller] = useState(
     () => new NoteFormController(engine, { kind: 'edit', noteId: entry.note.id }, draftFromNote(entry.note))
   );
+  useEffect(() => {
+    controllerRef.current = controller;
+    return () => {
+      if (controllerRef.current === controller) controllerRef.current = null;
+    };
+  }, [controller, controllerRef]);
   return (
     <NoteForm
       controller={controller}

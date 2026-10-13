@@ -37,6 +37,16 @@ export function draftFromNote(note: Note): NoteDraft {
 
 export type NoteFormMode = { kind: 'create' } | { kind: 'edit'; noteId: string };
 
+const TEXT_FIELDS = ['front', 'back', 'example', 'memo', 'tags'] as const;
+
+/**
+ * Whether `draft` holds typed text that `baseline` does not (TASK_033) —
+ * surrounding spaces ignored, the reverse toggle is a setting, not text.
+ */
+export function hasUnsavedText(draft: NoteDraft, baseline: NoteDraft): boolean {
+  return TEXT_FIELDS.some((field) => draft[field].trim() !== baseline[field].trim());
+}
+
 export interface NoteFormState {
   draft: NoteDraft;
   /** 'duplicate' = waiting for the user to choose after a duplicate warning. */
@@ -54,6 +64,8 @@ export type SubmitOutcome = 'saved' | 'invalid' | 'duplicate' | 'error' | 'busy'
 export class NoteFormController {
   private state: NoteFormState;
   private readonly listeners = new Set<() => void>();
+  /** The draft as last opened or saved — what "unsaved" is measured against. */
+  private baseline: NoteDraft;
 
   constructor(
     private readonly engine: LearningEngine,
@@ -61,6 +73,16 @@ export class NoteFormController {
     initial: NoteDraft = EMPTY_DRAFT
   ) {
     this.state = { draft: initial, status: 'editing', fieldErrors: {}, error: null, duplicate: null, lastSaved: null };
+    this.baseline = initial;
+  }
+
+  /**
+   * Text typed since the form was opened or last saved (TASK_033): leaving
+   * the screen now would lose it. Tags kept after a save for the next word
+   * do not count — they are part of the baseline.
+   */
+  hasUnsavedChanges(): boolean {
+    return hasUnsavedText(this.state.draft, this.baseline);
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -159,6 +181,7 @@ export class NoteFormController {
       this.mode.kind === 'create'
         ? { ...EMPTY_DRAFT, tags: (saved.tags ?? []).join(', '), alsoReverse: draft.alsoReverse }
         : draftFromNote(saved);
+    this.baseline = nextDraft;
     this.setState({ status: 'editing', draft: nextDraft, lastSaved: saved });
     return 'saved';
   }

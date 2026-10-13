@@ -364,3 +364,81 @@ describe('keyboard', () => {
     expect(c.getState().summary).toMatchObject({ forgot: 1 });
   });
 });
+
+describe('«Повторить слова с ошибками» (TASK_033)', () => {
+  /** Grades the round by front word; any word not listed gets «Помню». */
+  async function gradeRound(controller: PracticeController, grades: Record<string, 'good' | 'hard' | 'forgot'>) {
+    while (controller.getState().status === 'active') {
+      const front = controller.getState().current!.front;
+      controller.reveal();
+      controller.grade(grades[front] ?? 'good');
+    }
+  }
+
+  it('a new round of only the cards graded «Не помню» or «С трудом», reshuffled', async () => {
+    const { engine } = await collection();
+    const controller = new PracticeController(() => loadDifficultPractice(engine));
+    await controller.start();
+    await gradeRound(controller, { 'el gato': 'forgot', дом: 'hard' });
+    expect(controller.getState().summary!.struggled).toBe(2);
+
+    await controller.retryStruggled();
+    const fronts: string[] = [];
+    while (controller.getState().status === 'active') {
+      fronts.push(controller.getState().current!.front);
+      controller.reveal();
+      controller.grade('good');
+    }
+    expect(fronts.sort()).toEqual(['el gato', 'дом']);
+    expect(controller.getState().summary).toMatchObject({ practised: 2, good: 2, struggled: 0 });
+  });
+
+  it('writes nothing and changes no schedule, queue, limit or statistic', async () => {
+    const { engine, store, writes } = await collection();
+    const session = new StudySession(engine, { newCardsPerDay: 1 });
+    const before = await snapshot(engine, store, session);
+    const controller = new PracticeController(() => loadDifficultPractice(engine));
+    await controller.start();
+    await gradeRound(controller, { 'el gato': 'forgot', 'el agua': 'hard' });
+    await controller.retryStruggled();
+    await gradeRound(controller, { 'el gato': 'forgot' });
+    await controller.retryStruggled();
+    await gradeRound(controller, {});
+    expect(writes).toEqual([]);
+    expect(await snapshot(engine, store, session)).toEqual(before);
+  });
+
+  it('a word archived since the round drops out of the retry', async () => {
+    const { engine } = await collection();
+    const controller = new PracticeController(() => loadDifficultPractice(engine));
+    await controller.start();
+    await gradeRound(controller, { 'el gato': 'forgot', 'el agua': 'forgot' });
+    const agua = (await engine.listCardViews()).find((v) => v.front === 'el agua')!;
+    await engine.archiveNote(agua.note.id);
+    await controller.retryStruggled();
+    expect(controller.getState().progress.total).toBe(1);
+    expect(controller.getState().current!.front).toBe('el gato');
+  });
+
+  it('works after an early finish too; without errors, or before a round ends, it does nothing', async () => {
+    const { engine } = await collection();
+    const controller = new PracticeController(() => loadDifficultPractice(engine));
+    await controller.start();
+    await controller.retryStruggled(); // mid-round: ignored
+    expect(controller.getState()).toMatchObject({ status: 'active', progress: { done: 0, total: 4 } });
+
+    const first = controller.getState().current!;
+    controller.reveal();
+    controller.grade('hard');
+    controller.finish();
+    await controller.retryStruggled();
+    expect(controller.getState()).toMatchObject({ status: 'active', progress: { done: 0, total: 1 } });
+    expect(controller.getState().current!.card.id).toBe(first.card.id);
+
+    controller.reveal();
+    controller.grade('good');
+    expect(controller.getState().summary!.struggled).toBe(0);
+    await controller.retryStruggled(); // no errors: stays on the summary
+    expect(controller.getState().status).toBe('finished');
+  });
+});

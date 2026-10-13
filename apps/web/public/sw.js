@@ -51,10 +51,18 @@ self.addEventListener('install', (event) => {
   // called only after the app shell is cached, so a half-populated cache is
   // never activated. If any precache asset fails, addAll rejects install and
   // the old worker stays in control.
+  //
+  // `cache: 'reload'` (TASK_033): fetch straight from the network, bypassing
+  // the browser's HTTP cache. GitHub Pages serves index.html with a 10-minute
+  // max-age, so within minutes of a deploy a plain request could precache the
+  // PREVIOUS index.html next to the NEW bundles — and once activate prunes the
+  // old cache, an offline start would load an index pointing at bundles that
+  // are no longer cached: a blank screen.
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE_VERSION);
-      await cache.addAll(['./', ...PRECACHE_MANIFEST]);
+      const shell = ['./', ...PRECACHE_MANIFEST];
+      await cache.addAll(shell.map((url) => new Request(url, { cache: 'reload' })));
       await self.skipWaiting();
     })()
   );

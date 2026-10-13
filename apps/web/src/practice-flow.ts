@@ -142,7 +142,24 @@ export class PracticeController {
    * (Re)start: reloads the difficult cards — a word archived or no longer
    * difficult since the last round drops out — and shuffles them anew.
    */
-  async start(): Promise<void> {
+  start(): Promise<void> {
+    return this.begin((cards) => cards);
+  }
+
+  /**
+   * «Повторить слова с ошибками» (TASK_033): a new round of only the cards
+   * graded «Не помню» or «С трудом» in the round just finished. The cards are
+   * re-read like in `start()` (one archived meanwhile drops out) and shuffled.
+   * Still nothing is saved. No-op unless a finished round had such cards.
+   */
+  retryStruggled(): Promise<void> {
+    const summary = this.state.status === 'finished' ? this.state.summary : null;
+    if (!summary || summary.struggled === 0) return Promise.resolve();
+    const ids = new Set(summary.struggledCards.map((v) => v.card.id));
+    return this.begin((cards) => cards.filter((v) => ids.has(v.card.id)));
+  }
+
+  private async begin(select: (cards: CardView[]) => CardView[]): Promise<void> {
     const myGeneration = ++this.generation;
     this.queue = [];
     this.results = [];
@@ -157,7 +174,7 @@ export class PracticeController {
       return;
     }
     if (myGeneration !== this.generation) return;
-    this.queue = shuffle(cards, this.random);
+    this.queue = shuffle(select(cards), this.random);
     this.showNext();
   }
 

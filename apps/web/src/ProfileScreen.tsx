@@ -131,12 +131,15 @@ export function ProfileScreen({
     e.target.value = '';
     if (!file) return;
     setBackupStatus(null);
-    const text = await file.text();
     try {
+      const text = await file.text();
+      // What the restore would replace — named in the confirmation (TASK_033).
+      const [notes, cards, reviews] = await Promise.all([store.listNotes(), store.listCards(), store.listReviews()]);
+      const current = { notes: notes.length, cards: cards.length, reviews: reviews.length };
       // restoreBackup owns validate → confirm → replace; this callback is
       // only the UI's confirmation policy (window.confirm), given the parsed
       // metadata — no parsing/replace logic lives here.
-      const outcome = await restoreBackup(store, text, (meta) => window.confirm(restoreConfirmText(meta)));
+      const outcome = await restoreBackup(store, text, (meta) => window.confirm(restoreConfirmText(meta, current)));
       switch (outcome.status) {
         case 'rejected':
           setBackupStatus(`Файл отклонён: ${outcome.error} Текущие данные не изменены.`);
