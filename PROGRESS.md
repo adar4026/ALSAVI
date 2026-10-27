@@ -23,7 +23,14 @@ precache). Иконки выводятся из него скриптом `apps/
 `npm run build` (`tsc --noEmit` + vite) чист; `git diff --check` чист.
 `vite preview` (`/ALSAVI/`): HTML, манифест, 5 иконок и `sw.js` — 200 с
 верным content-type, файлы побайтно совпадают с `public/`. Отдельный коммит
-только с логотипом; в production не публиковалось.
+только с логотипом.
+
+**Production (2026-10-27).** `fe5947b` → `main` → Actions ✅ (build с
+`npm test` + deploy, run 40563012277). Pages отдаёт: 5 иконок побайтно как в
+коммите, `<link rel="icon">` в HTML, `sw.js` с `alsavi-shell-fe5947b73530`
+и `icon-32.png` в precache; `sw.js` совпадает с исходником, кроме штампов, —
+обработчики `push`/`notificationclick` не менялись. Worker `alsavi-push` не
+деплоился и не затрагивался.
 
 ## 2026-10-27 — TASK_034: напоминания о повторении (Web Push)
 
