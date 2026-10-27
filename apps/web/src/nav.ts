@@ -50,3 +50,22 @@ export function urlForView(view: View, current: { pathname: string; search: stri
   if (viewFromHash(current.hash) === view && current.hash === hash) return null;
   return `${current.pathname}${current.search}${hash}`;
 }
+
+/**
+ * `#/review` — the study session, opened from a review-reminder
+ * notification (TASK_034). Not a section: the app shows the home section,
+ * starts the session once the daily limit is applied, and drops the hash,
+ * so Back and a later reload behave like any other visit to "Главная".
+ */
+export const REVIEW_HASH = '#/review';
+
+export function isReviewLink(hash: string): boolean {
+  return hash.replace(/^#\/?/, '').replace(/\/+$/, '').toLowerCase() === 'review';
+}
+
+/** Message the service worker posts to an open window when a reminder is tapped. */
+export const OPEN_REVIEW_MESSAGE = 'alsavi:open-review';
+
+export function isOpenReviewMessage(data: unknown): boolean {
+  return typeof data === 'object' && data !== null && (data as { type?: unknown }).type === OPEN_REVIEW_MESSAGE;
+}

@@ -3,6 +3,9 @@ import { backupFilename, createBackup, restoreBackup } from '@alsavi/backup';
 import { useEffect, useId, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { exportedStatus, restoreConfirmText, restoredStatus } from './backup-messages';
 import { importApkgFile, type ImportReport } from './importApkg';
+import type { Platform } from './reminder-browser';
+import type { ReminderClient } from './reminder-client';
+import { RemindersSection } from './RemindersSection';
 import { THEME_OPTIONS, type ThemePreference } from './theme';
 
 const SKIP_LABELS: Record<string, string> = {
@@ -58,11 +61,17 @@ interface Props {
   limitSaveError: string | null;
   theme: ThemePreference;
   onThemeChange: (theme: ThemePreference) => void;
+  /** Review reminders (TASK_034). */
+  reminders: ReminderClient;
+  platform: Platform;
+  /** Bumped when the app returns to the foreground. */
+  refreshKey: number;
 }
 
 /**
  * "Профиль" (TASK_030): the learner's settings and data in one place — the
- * daily new-card limit, the theme, Anki import and backup/restore. There are
+ * daily new-card limit, review reminders (TASK_034), the theme, Anki import
+ * and backup/restore. There are
  * no accounts: everything lives on this device. The import/backup/limit code
  * and texts moved here unchanged from the "Карточки" tools block (TASK_023);
  * the limit's validation and persistence stay in `App` (TASK_020).
@@ -78,6 +87,9 @@ export function ProfileScreen({
   limitSaveError,
   theme,
   onThemeChange,
+  reminders,
+  platform,
+  refreshKey,
 }: Props) {
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
@@ -194,6 +206,8 @@ export function ProfileScreen({
           </p>
         )}
       </ProfileSection>
+
+      <RemindersSection client={reminders} platform={platform} refreshKey={refreshKey} />
 
       <ProfileSection id="profile-look" title="Оформление">
         <fieldset className="segmented-field">

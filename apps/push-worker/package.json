@@ -1,0 +1,25 @@
+{
+  "name": "@alsavi/push-worker",
+  "private": true,
+  "version": "0.1.0",
+  "description": "ALSAVI review reminders — Cloudflare Worker (API + D1 + Cron) delivering Web Push to the PWA on GitHub Pages.",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "vapid": "node scripts/gen-vapid.mjs",
+    "dev": "wrangler dev --test-scheduled",
+    "db:migrate:local": "wrangler d1 migrations apply alsavi-reminders --local",
+    "db:migrate:remote": "wrangler d1 migrations apply alsavi-reminders --remote",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@alsavi/reminders": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0",
+    "wrangler": "^4.147.0"
+  }
+}

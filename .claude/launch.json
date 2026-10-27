@@ -4,14 +4,33 @@
     {
       "name": "alsavi-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5173
     },
     {
       "name": "alsavi-web-preview",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "preview", "-w", "@alsavi/web"],
+      "runtimeArgs": [
+        "run",
+        "preview",
+        "-w",
+        "@alsavi/web"
+      ],
       "port": 4173
+    },
+    {
+      "name": "alsavi-push-worker",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "@alsavi/push-worker"
+      ],
+      "port": 8787
     }
   ]
 }

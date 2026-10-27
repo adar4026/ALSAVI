@@ -1,0 +1,41 @@
+/* ALSAVI review reminders — Cloudflare Worker (API) + D1 + Cron.
+   No secrets here: VAPID_PRIVATE_KEY and VAPID_SUBJECT are set with
+   `wrangler secret put` (production) or .dev.vars (local, gitignored).
+   The PWA stays on GitHub Pages; this Worker serves only /api/*. */
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "alsavi-push",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  /* Version preview URLs would run against the same production D1 */
+  "preview_urls": false,
+
+  /* D1: reminder infrastructure only (devices, push_subscriptions, deliveries).
+     Created 2026-10-27 (region WEUR), not shared with LexLife. */
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "alsavi-reminders",
+      "database_id": "c9568c84-9be9-4804-85b3-6c29146cbbd9",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  /* One cron for all reminders, once a minute */
+  "triggers": { "crons": ["* * * * *"] },
+
+  /* Device registration: 20 per minute per IP */
+  "ratelimits": [
+    { "name": "RATE_LIMITER", "namespace_id": "4027", "simple": { "limit": 20, "period": 60 } }
+  ],
+
+  "vars": {
+    /* Public half of the production VAPID pair (filled in when the pair is made) */
+    "VAPID_PUBLIC_KEY": "BCYMuibP7ddBjhYFRQCGmLO_zCKsIzyotUpRNTMM-TZmi0n8WnRlJ5c4Ly8mZl6HfybfZWTRh7vJnTRKS-jjjOc",
+    /* The PWA's origins: production (GitHub Pages) and local dev/preview */
+    "ALLOWED_ORIGINS": "https://adar4026.github.io,http://localhost:5173,http://localhost:4173,https://localhost:5173,https://localhost:4173"
+  },
+
+  "observability": { "enabled": true }
+}

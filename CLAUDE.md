@@ -14,6 +14,8 @@
 
 - `packages/engine` — @alsavi/engine, чистый TS, зависимость только ts-fsrs. Тесты: vitest.
 - `apps/web` — @alsavi/web, Vite + React 19, Dexie (IndexedDB) адаптер `DexieStore`, UI на русском.
+- `packages/reminders` — @alsavi/reminders, чистый: снимок сроков FSRS для push-напоминаний, пояса/DST, тексты.
+- `apps/push-worker` — @alsavi/push-worker, Cloudflare Worker (API + D1 + Cron, Web Push) для напоминаний; деплой вручную, см. `docs/REMINDERS.md`. Данных обучения на сервере нет.
 
 ## Команды
 

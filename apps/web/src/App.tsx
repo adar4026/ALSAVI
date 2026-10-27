@@ -7,12 +7,15 @@ import { CardManager } from './CardManager';
 import { DexieStore } from './dexie-store';
 import { HomeScreen, type CardsIntent } from './HomeScreen';
 import { MainNav } from './MainNav';
-import { hashForView, urlForView, viewFromHash, type View } from './nav';
+import { hashForView, isOpenReviewMessage, isReviewLink, urlForView, viewFromHash, type View } from './nav';
 import { NoteFormController } from './note-form';
 import { loadDifficultPractice } from './practice-flow';
 import { PracticeSession } from './PracticeSession';
 import { ProfileScreen } from './ProfileScreen';
 import { appUpdate } from './registerSW';
+import { browserKeyValue, browserPushPort, detectPlatform, deviceTimeZone, PUSH_API_BASE } from './reminder-browser';
+import { createReminderClient } from './reminder-client';
+import { snapshotFromEngine } from './reminder-snapshot';
 import { ReviewSession } from './ReviewSession';
 import { StatsScreen } from './StatsScreen';
 import { applyTheme, readThemePreference, writeThemePreference, type ThemePreference } from './theme';
@@ -71,6 +74,25 @@ export function App() {
   // The new-card form outlives "Карточки" (TASK_033): a word typed but not
   // yet added is still there after a visit to another section.
   const createForm = useMemo(() => new NoteFormController(engine, { kind: 'create' }), [engine]);
+  // Review reminders (TASK_034): settings + push subscription on this device;
+  // the push server gets the FSRS due-date snapshot read through the Engine.
+  const reminders = useMemo(
+    () =>
+      createReminderClient({
+        kv: browserKeyValue(),
+        fetchImpl: (input, init) => window.fetch(input, init),
+        apiBase: PUSH_API_BASE,
+        push: browserPushPort(),
+        getSnapshot: () => snapshotFromEngine(engine, store, Date.now(), deviceTimeZone()),
+        timeZone: deviceTimeZone,
+      }),
+    [engine, store]
+  );
+  const platform = useMemo(() => detectPlatform(), []);
+  // A tap on a reminder asks for the study session (`#/review` on a cold
+  // start, a service-worker message in an open window); it starts once the
+  // daily limit has been applied to the session.
+  const [reviewRequested, setReviewRequested] = useState(() => isReviewLink(window.location.hash));
   // The section comes from the address (TASK_030): `#/stats` opens
   // "Статистика", no hash — the home screen.
   const [view, setView] = useState<View>(() => viewFromHash(window.location.hash));
@@ -163,6 +185,12 @@ export function App() {
   // Back/Forward and hand-edited addresses switch the section too.
   useEffect(() => {
     const sync = () => {
+      if (isReviewLink(window.location.hash)) {
+        const { pathname, search } = window.location;
+        window.history.replaceState(null, '', `${pathname}${search}${hashForView(viewRef.current)}`);
+        openReviewRef.current();
+        return;
+      }
       const next = viewFromHash(window.location.hash);
       if (next !== viewRef.current && !confirmLeaveCards()) {
         // Stay: the browser already changed the address — put it back.
@@ -190,6 +218,40 @@ export function App() {
     setView(next);
     window.scrollTo(0, 0);
   }, []);
+
+  /** Open the study session (from a reminder): the home section, then the session. */
+  const openReview = useCallback(() => {
+    if (viewRef.current !== 'home' && !confirmLeaveCards()) return;
+    go('home');
+    setReviewRequested(true);
+  }, [confirmLeaveCards, go]);
+  const openReviewRef = useRef(openReview);
+  useEffect(() => {
+    openReviewRef.current = openReview;
+  }, [openReview]);
+
+  // `#/review` at start: drop the hash (Back / reload are a plain home visit).
+  useEffect(() => {
+    if (!isReviewLink(window.location.hash)) return;
+    const { pathname, search } = window.location;
+    window.history.replaceState(null, '', `${pathname}${search}`);
+  }, []);
+
+  // A reminder tapped while the app is open: the service worker focuses this
+  // window and posts a message — no reload, no second window.
+  useEffect(() => {
+    const container = 'serviceWorker' in navigator ? navigator.serviceWorker : null;
+    if (!container) return;
+    const onMessage = (e: MessageEvent) => {
+      if (isOpenReviewMessage(e.data)) openReviewRef.current();
+    };
+    container.addEventListener('message', onMessage);
+    return () => container.removeEventListener('message', onMessage);
+  }, []);
+
+  useEffect(() => {
+    void reminders.repair();
+  }, [reminders]);
 
   const navigate = useCallback(
     (next: View) => {
@@ -236,7 +298,11 @@ export function App() {
 
   const refreshStats = useCallback(async () => {
     setStats(await engine.getStats());
-  }, [engine]);
+    // Everything that can move a due date (an answer, an edit, an import, a
+    // restore, the daily limit, a new day) ends up here: keep the push
+    // server's copy of the schedule current. Debounced; a no-op when unchanged.
+    reminders.requestSync();
+  }, [engine, reminders]);
 
   useEffect(() => {
     void refreshStats();
@@ -246,7 +312,11 @@ export function App() {
   // reloaded — refresh "today" and, on a new day, start a new study session.
   useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible') {
+        // Leaving the app (usually right after studying): send the schedule now.
+        reminders.flush();
+        return;
+      }
       setResumeTick((tick) => tick + 1);
       void refreshStats();
       const now = Date.now();
@@ -256,7 +326,7 @@ export function App() {
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [refreshStats]);
+  }, [refreshStats, reminders]);
 
   const exitReview = useCallback(() => {
     setReviewPhase('home');
@@ -323,6 +393,12 @@ export function App() {
   // the session's number hotkeys stay its own; "Завершить" leads back.
   const settingsReady = bootstrap === 'ready' && settingsAppliedTo === session;
   const inSession = practicing || (view === 'home' && reviewPhase === 'session');
+
+  useEffect(() => {
+    if (!reviewRequested || !settingsReady || view !== 'home' || practicing) return;
+    setReviewRequested(false);
+    setReviewPhase('session');
+  }, [reviewRequested, settingsReady, view, practicing]);
 
   return (
     <div className={inSession ? 'app in-session' : 'app'}>
@@ -394,6 +470,9 @@ export function App() {
           limitSaveError={limitSaveError}
           theme={theme}
           onThemeChange={onThemeChange}
+          reminders={reminders}
+          platform={platform}
+          refreshKey={resumeTick}
         />
       ) : (
         <CardManager

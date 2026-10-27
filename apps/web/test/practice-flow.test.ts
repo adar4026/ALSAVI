@@ -151,9 +151,11 @@ describe('independence from FSRS and the main queue', () => {
 
   it('the main session afterwards gets exactly the cards and intervals it would have without practice', async () => {
     const run = async (withPractice: boolean) => {
-      const { engine } = await collection();
+      const { engine, clock } = await collection();
       if (withPractice) await practiseAll(new PracticeController(() => loadDifficultPractice(engine)));
-      const session = new StudySession(engine);
+      // The session must share the engine's clock: on the real clock (weeks
+      // after T0) every answered card would be due again at once — an endless loop.
+      const session = new StudySession(engine, { now: () => clock.t });
       const shown: Array<[string, number]> = [];
       for (let card = await session.nextCard(); card; card = await session.nextCard()) {
         const result = await session.answer(card.id, 'good');
