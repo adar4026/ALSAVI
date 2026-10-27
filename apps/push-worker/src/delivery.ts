@@ -9,6 +9,7 @@
 
 import { REVIEW_TAG, REVIEW_URL, reminderText, type ReminderKind } from '@alsavi/reminders';
 import type { D1Database, Env } from './d1.js';
+import { log } from './log.js';
 import { sendWebPush, type PushOutcome, type Vapid } from './webpush.js';
 
 export class ConfigError extends Error {
@@ -45,7 +46,16 @@ export function reviewPayload(kind: ReminderKind, count: number): ReviewPayload 
   return { v: 1, kind, ...reminderText(kind, count), url: REVIEW_URL, tag: REVIEW_TAG, count };
 }
 
-export type DeliveryOutcome = { kind: PushOutcome | 'no_subscription'; status: number };
+/**
+ * Web Push `Topic` shared by all review reminders: an undelivered older one is
+ * replaced, not stacked. Apple refuses short readable topics such as
+ * 'alsavi-review' (400 BadWebPushTopic, seen in production 2026-10-27); this is
+ * the LexLife-proven form — base64url of the first 24 bytes of
+ * SHA-256('alsavi-review'), exactly 32 characters.
+ */
+export const REVIEW_TOPIC = 'p0qVtlGQLnzQYnTNVNrNzC7agQ5EUT4A';
+
+export type DeliveryOutcome = { kind: PushOutcome | 'no_subscription'; status: number; reason?: string };
 
 export async function pushToDevice(
   env: Env,
@@ -57,8 +67,11 @@ export async function pushToDevice(
   const db = env.DB;
   const sub = await subscriptionOf(db, deviceId);
   if (!sub) return { kind: 'no_subscription', status: 0 };
-  // One topic for all review reminders: an undelivered older one is replaced, not stacked.
-  const r = await sendWebPush(sub, payload, vapid, { ttl, topic: 'alsavi-review', fetchImpl, nowMs: now });
+  const r = await sendWebPush(sub, payload, vapid, { ttl, topic: REVIEW_TOPIC, fetchImpl, nowMs: now });
+  if (r.kind !== 'ok') {
+    const host = new URL(sub.endpoint).hostname;
+    log('push_refused', { device: deviceId, kind: payload.kind, outcome: r.kind, status: r.status, reason: r.reason, host });
+  }
   if (r.kind === 'ok') {
     await db
       .prepare('UPDATE push_subscriptions SET last_success_at = ?, failure_count = 0, updated_at = ? WHERE id = ?')

@@ -1,8 +1,10 @@
 import { buildSnapshot, type ReminderSettings, type ReviewSnapshot } from '@alsavi/reminders';
+import { createHash } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleApi } from '../src/api.js';
 import { runCron } from '../src/cron.js';
 import type { Env } from '../src/d1.js';
+import { REVIEW_TOPIC } from '../src/delivery.js';
 import { createPushServer, decrypt, makeEnv, makeUserAgent, verifyVapid, type TestD1, type UserAgent } from './helpers.js';
 import type { Bytes } from '../src/webpush.js';
 
@@ -337,6 +339,37 @@ describe('delivery failures', () => {
     const push = createPushServer(() => 403);
     await runCron(env, NINE, { fetchImpl: push.fetchImpl });
     expect(env.DB.q('SELECT failure_count FROM push_subscriptions')).toEqual([{ failure_count: 1 }]);
+  });
+
+  it('logs the push service’s reason for a refusal — without the endpoint', async () => {
+    const dev = await setupDevice(env, T0);
+    await dev.sync(ON, snapshotAt(T0, [T0 - HOUR]), T0);
+    const fetchImpl = (async () => new Response('{"reason":"BadJwtToken"}', { status: 403 })) as typeof fetch;
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await runCron(env, NINE, { fetchImpl });
+      const lines = spy.mock.calls.map((c) => String(c[0]));
+      const refused = lines.map((l) => JSON.parse(l)).find((e) => e.evt === 'push_refused');
+      expect(refused).toMatchObject({ outcome: 'error', status: 403, reason: 'BadJwtToken', host: 'web.push.apple.com' });
+      expect(lines.join('\n')).not.toContain(ENDPOINT);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('sends a Topic Apple accepts: SHA-256-derived, 32 base64url characters', async () => {
+    const expected = createHash('sha256').update('alsavi-review').digest().subarray(0, 24).toString('base64url');
+    expect(REVIEW_TOPIC).toBe(expected);
+    const dev = await setupDevice(env, T0);
+    await dev.sync(ON, snapshotAt(T0, [T0 - HOUR]), T0);
+    const topics: (string | null)[] = [];
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      topics.push(new Headers(init.headers).get('Topic'));
+      return new Response(null, { status: 201 });
+    }) as unknown as typeof fetch;
+    await runCron(env, NINE, { fetchImpl });
+    expect(topics).toEqual([expected]);
+    expect(expected).toMatch(/^[A-Za-z0-9_-]{32}$/);
   });
 
   it('a temporary failure is retried with backoff and delivered once', async () => {

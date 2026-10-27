@@ -170,7 +170,7 @@ export async function sendWebPush(
   payload: unknown,
   vapid: Vapid,
   { ttl, topic, urgency = 'high', fetchImpl = fetch, nowMs }: SendOptions
-): Promise<{ kind: PushOutcome; status: number }> {
+): Promise<{ kind: PushOutcome; status: number; reason?: string }> {
   const body = await encryptPayload(JSON.stringify(payload), sub.p256dh, sub.auth);
   const headers: Record<string, string> = {
     'Content-Encoding': 'aes128gcm',
@@ -188,15 +188,45 @@ export async function sendWebPush(
     return { kind: 'retry', status: 0 };
   }
   const status = res.status;
-  try {
-    await res.body?.cancel();
-  } catch {
-    /* the response body is not needed */
+  if (status >= 200 && status < 300) {
+    try {
+      await res.body?.cancel();
+    } catch {
+      /* the response body is not needed */
+    }
+    return { kind: 'ok', status };
   }
-  if (status >= 200 && status < 300) return { kind: 'ok', status };
-  if (status === 404 || status === 410) return { kind: 'gone', status };
-  if (status === 429 || status >= 500) return { kind: 'retry', status };
-  return { kind: 'error', status };
+  const reason = await failureReason(res);
+  if (status === 404 || status === 410) return { kind: 'gone', status, reason };
+  if (status === 429 || status >= 500) return { kind: 'retry', status, reason };
+  return { kind: 'error', status, reason };
+}
+
+/**
+ * The push service's short reason for a refusal (Apple: {"reason":"BadJwtToken"},
+ * FCM/Mozilla: a plain-text or JSON message). Reduced to a safe token for the
+ * log: never the endpoint, never more than 64 characters.
+ */
+async function failureReason(res: Response): Promise<string | undefined> {
+  let text: string;
+  try {
+    text = (await res.text()).slice(0, 2048);
+  } catch {
+    return undefined;
+  }
+  let reason: unknown = text;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === 'object') {
+      const p = parsed as Record<string, unknown>;
+      reason = p.reason ?? (p.error as Record<string, unknown> | undefined)?.status ?? p.message ?? p.error;
+    }
+  } catch {
+    /* plain text */
+  }
+  if (typeof reason !== 'string') return undefined;
+  const safe = reason.replace(/https?:\/\/\S+/g, '').replace(/[^A-Za-z0-9 _.:-]/g, '').trim().slice(0, 64);
+  return safe || undefined;
 }
 
 /** A VAPID key pair (scripts/gen-vapid.mjs, tests). */
