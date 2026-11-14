@@ -28,7 +28,7 @@ import { snapshotFromEngine } from './reminder-snapshot';
 import { ReviewSession } from './ReviewSession';
 import { StatsScreen } from './StatsScreen';
 import { StreakChip } from './StreakChip';
-import { Banner, Button, toasts, ToastHost } from './ui';
+import { Banner, Button, EmptyState, Skeleton, toasts, ToastHost } from './ui';
 import { applyTheme, readThemePreference, writeThemePreference, type ThemePreference } from './theme';
 
 /**
@@ -373,6 +373,13 @@ export function App() {
     setSessionDay((day) => (shouldStartNewSession(day, now, false) ? localDayStart(now) : day));
   }, []);
 
+  // "Тренировка трудных" on the session's end screen (TASK_038): close the
+  // finished session first, so "Главная" shows the day, not the end screen.
+  const practiceAfterSession = useCallback(() => {
+    exitReview();
+    startPractice();
+  }, [exitReview, startPractice]);
+
   // Typed text that a reload or closing the tab would lose (TASK_033).
   const hasUnsavedWork = useCallback(
     () => createForm.hasUnsavedChanges() || Boolean(unsavedEdit.current?.()),
@@ -487,18 +494,19 @@ export function App() {
               session={session}
               onReviewed={() => void refreshStats()}
               onExit={exitReview}
+              onPractice={practiceAfterSession}
             />
           )
         ) : bootstrap === 'error' ? (
-          <div className="card-panel">
-            <div className="empty-state">Не удалось загрузить настройки обучения.</div>
-            <Button onClick={loadSettings}>Повторить</Button>
-          </div>
+          <EmptyState
+            icon="info"
+            title="Не удалось загрузить настройки обучения"
+            action={<Button onClick={loadSettings}>Повторить</Button>}
+          />
         ) : (
-          // Same neutral placeholder ReviewSession itself shows while loading —
-          // no new visual design, just withheld until the daily-limit policy
-          // is confirmed applied to `session`.
-          <div className="card-panel" />
+          // Withheld until the daily-limit policy is confirmed applied to
+          // `session`; the placeholder has the home screen's shape.
+          <Skeleton variant="home" />
         )
       ) : view === 'stats' ? (
         <StatsScreen

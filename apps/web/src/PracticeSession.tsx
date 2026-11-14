@@ -5,9 +5,12 @@ import {
   PRACTICE_GRADE_LABELS,
   PRACTICE_GRADES,
   PracticeController,
+  type PracticeGrade,
 } from './practice-flow';
+import { GRADE_KEYS_HINT, sessionCounter, wordSize } from './session-view';
+import { SessionSummary } from './SessionSummary';
 import { countLabel, TIME_FORMS } from './stats-view';
-import { Button, ProgressBar } from './ui';
+import { ActionDock, Badge, Button, RatingBar, SessionHeader, Skeleton, Stat, StatGroup, Surface } from './ui';
 
 interface Props {
   /** Loads the cards to practise (`loadDifficultPractice`) — the screen's only data access. */
@@ -16,11 +19,21 @@ interface Props {
   onExit: () => void;
 }
 
+const PRACTICE_TONES: Record<PracticeGrade, 'danger' | 'warning' | 'success'> = {
+  forgot: 'danger',
+  hard: 'warning',
+  good: 'success',
+};
+
+/** Always on screen: the practice never touches the schedule (TASK_032). */
+const PRACTICE_LABEL = 'Тренировка · расписание не меняется';
+
 /**
- * Difficult-words practice (TASK_032): the study-session layout (card → «Показать
- * ответ» → answer, example and memo → grade), without intervals and without
- * saving anything. A focus mode like the session: `App` hides the navigation.
- * All logic lives in `PracticeController` (`practice-flow.ts`).
+ * Difficult-words practice (TASK_032, on the study-session template since
+ * TASK_038): the same header, word, answer and dock, the same three grades —
+ * without intervals and without saving anything. A focus mode like the
+ * session: `App` hides the navigation. All logic lives in
+ * `PracticeController` (`practice-flow.ts`), which is unchanged.
  */
 export function PracticeSession({ loadCards, onExit }: Props) {
   const controller = useMemo(() => new PracticeController(loadCards), [loadCards]);
@@ -38,49 +51,72 @@ export function PracticeSession({ loadCards, onExit }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [controller]);
 
-  if (state.status === 'loading') return <div className="card-panel" aria-busy="true" />;
+  if (state.status === 'loading') return <Skeleton variant="session" />;
 
   if (state.status === 'error' || state.status === 'empty') {
+    const error = state.status === 'error';
     return (
-      <div className="card-panel practice-message">
-        <p className="empty-state">
-          {state.status === 'error' ? state.error : 'Трудных слов нет: повторять в тренировке пока нечего.'}
-        </p>
-        <div className="practice-actions">
-          {state.status === 'error' && <Button onClick={() => void controller.start()}>Повторить попытку</Button>}
-          <Button variant="secondary" onClick={onExit}>
-            К трудным словам
-          </Button>
-        </div>
-      </div>
+      <SessionSummary
+        icon={error ? 'info' : 'check'}
+        quiet
+        overline="Тренировка трудных слов"
+        title={error ? 'Не удалось начать тренировку' : 'Трудных слов нет'}
+        text={error ? state.error : 'Повторять в тренировке пока нечего.'}
+        actions={
+          <>
+            {error && (
+              <Button size="lg" block onClick={() => void controller.start()}>
+                Повторить попытку
+              </Button>
+            )}
+            <Button variant={error ? 'secondary' : 'primary'} size="lg" block onClick={onExit}>
+              К трудным словам
+            </Button>
+          </>
+        }
+      />
     );
   }
 
   if (state.status === 'finished') {
     const s = state.summary!;
     return (
-      <section className="home-card practice-summary" aria-labelledby="practice-done-title">
-        <span className="eyebrow">Тренировка трудных слов</span>
-        <h2 id="practice-done-title" className="home-card-title">
-          Тренировка завершена
-        </h2>
-        <dl className="digest practice-digest">
-          <div className="digest-item">
-            <dt>Повторено</dt>
-            <dd>{s.practised}</dd>
-          </div>
-          <div className="digest-item">
-            <dt>Помню</dt>
-            <dd>{s.good}</dd>
-          </div>
-          <div className="digest-item">
-            <dt>Затруднения</dt>
-            <dd>{s.struggled}</dd>
-          </div>
-        </dl>
-        {s.struggled > 0 && (
+      <SessionSummary
+        icon="target"
+        overline="Тренировка трудных слов"
+        title="Тренировка завершена"
+        stats={
+          <StatGroup columns={3} className="session-summary-stats">
+            <Stat label="Повторено" value={s.practised} />
+            <Stat label="Помню" value={s.good} />
+            <Stat label="С ошибкой" value={s.struggled} />
+          </StatGroup>
+        }
+        actions={
           <>
-            <p className="hint">
+            {s.struggled > 0 && (
+              <Button size="lg" block onClick={() => void controller.retryStruggled()} autoFocus>
+                Повторить слова с ошибками
+              </Button>
+            )}
+            <Button
+              variant={s.struggled > 0 ? 'secondary' : 'primary'}
+              size="lg"
+              block
+              onClick={() => void controller.start()}
+              autoFocus={s.struggled === 0}
+            >
+              Повторить ещё раз
+            </Button>
+            <Button variant="tertiary" className="session-summary-link" onClick={onExit}>
+              К трудным словам
+            </Button>
+          </>
+        }
+      >
+        {s.struggled > 0 && (
+          <div className="session-summary-block">
+            <p className="session-summary-note">
               «Не помню» — {s.forgot}, «С трудом» — {s.hard}. Эти слова стоит повторить ещё раз:
             </p>
             <ul className="difficult-list">
@@ -93,103 +129,80 @@ export function PracticeSession({ loadCards, onExit }: Props) {
                 </li>
               ))}
             </ul>
-          </>
+          </div>
         )}
         {state.progress.done < state.progress.total && (
-          <p className="hint">
+          <p className="session-summary-note">
             Завершено досрочно: пройдено {state.progress.done} из {state.progress.total}.
           </p>
         )}
-        <p className="hint">Тренировка не меняет расписание повторений и не попадает в статистику.</p>
-        <div className="practice-actions">
-          {s.struggled > 0 && (
-            <Button onClick={() => void controller.retryStruggled()} autoFocus>
-              Повторить слова с ошибками
-            </Button>
-          )}
-          <Button
-            variant={s.struggled > 0 ? 'secondary' : 'primary'}
-            onClick={() => void controller.start()}
-            autoFocus={s.struggled === 0}
-          >
-            Повторить ещё раз
-          </Button>
-          <Button variant="secondary" onClick={onExit}>
-            К трудным словам
-          </Button>
-        </div>
-      </section>
+        <p className="session-summary-note">Тренировка не меняет расписание повторений и не попадает в статистику.</p>
+      </SessionSummary>
     );
   }
 
   // 'active' — a card is on screen.
   const current = state.current!;
   const { done, total } = state.progress;
+  const isForward = current.card.template === 'forward';
+  const reveal = () => controller.reveal();
   const exit = () => {
-    // With at least one grade, "Завершить" shows the summary first; otherwise leave.
+    // With at least one grade, "✕" shows the summary first; otherwise leave.
     if (!controller.finish()) onExit();
   };
+  const options = PRACTICE_GRADES.map((g) => ({ value: g, label: PRACTICE_GRADE_LABELS[g], tone: PRACTICE_TONES[g] }));
 
   return (
-    <div className="practice">
-      <p className="practice-eyebrow">Тренировка · без влияния на расписание</p>
-      <div className="session-progress">
-        <span>
-          {done + 1} из {total}
-        </span>
-        <ProgressBar className="session-progress-bar" size="sm" value={done} max={total} aria-label="Пройдено карточек" />
-        <Button variant="tertiary" className="session-exit" onClick={exit}>
-          Завершить
-        </Button>
-      </div>
-      <div className="card-panel">
-        <span className="state-badge practice-badge">
-          забыто {countLabel(current.card.scheduling.lapses, TIME_FORMS)}
-        </span>
-        <div className="card-front">{current.front}</div>
-        {state.revealed ? (
-          <>
-            <div className="card-back">{current.back}</div>
-            {(state.context?.example || state.context?.memo) && (
-              <div className="answer-details">
-                {state.context?.example && (
-                  <section className="answer-context" aria-labelledby="practice-example-label">
-                    <h3 id="practice-example-label" className="answer-context-label">
-                      Пример
-                    </h3>
-                    <p className="answer-context-text answer-example">{state.context.example}</p>
-                  </section>
-                )}
-                {state.context?.memo && (
-                  <section className="answer-context" aria-labelledby="practice-memo-label">
-                    <h3 id="practice-memo-label" className="answer-context-label">
-                      Моя заметка
-                    </h3>
-                    <p className="answer-context-text">{state.context.memo}</p>
-                  </section>
-                )}
-              </div>
+    <div className="session">
+      <SessionHeader
+        onClose={exit}
+        closeLabel="Завершить тренировку"
+        done={done}
+        total={total}
+        counter={sessionCounter(done, total)}
+        label={PRACTICE_LABEL}
+      />
+      <div className="session-card ui-action-dock-space" key={current.card.id}>
+        <div className="session-word-zone" onClick={state.revealed ? undefined : reveal}>
+          <Badge tone="danger">забыто {countLabel(current.card.scheduling.lapses, TIME_FORMS)}</Badge>
+          <p className={`session-word session-word--${wordSize(current.front)}`} lang={isForward ? 'es' : undefined}>
+            {current.front}
+          </p>
+        </div>
+        {state.revealed && (
+          <div className="session-answer">
+            <p className="session-translation" lang={isForward ? undefined : 'es'}>
+              {current.back}
+            </p>
+            {state.context?.example && (
+              <Surface variant="inset">
+                <h2 className="session-context-label">Пример</h2>
+                <p className="session-context-text" lang="es">
+                  {state.context.example}
+                </p>
+              </Surface>
             )}
-          </>
-        ) : (
-          <>
-            <Button onClick={() => controller.reveal()}>Показать ответ</Button>
-            <span className="hotkey-hint">Пробел</span>
-          </>
+            {state.context?.memo && (
+              <Surface variant="inset">
+                <h2 className="session-context-label">Моя заметка</h2>
+                <p className="session-context-text">{state.context.memo}</p>
+              </Surface>
+            )}
+          </div>
         )}
       </div>
-      {state.revealed && (
-        <div className="answer-bar">
-          <div className="answer-buttons practice-buttons">
-            {PRACTICE_GRADES.map((g) => (
-              <button key={g} type="button" className={`practice-grade grade-${g}`} onClick={() => controller.grade(g)}>
-                {PRACTICE_GRADE_LABELS[g]}
-              </button>
-            ))}
-          </div>
-          <div className="hotkey-hint">1 · 2 · 3</div>
-        </div>
-      )}
+      <ActionDock>
+        {state.revealed ? (
+          <RatingBar options={options} onRate={(g) => controller.grade(g)} />
+        ) : (
+          <Button size="lg" block className="session-reveal" onClick={reveal}>
+            Показать ответ
+          </Button>
+        )}
+        <p className="session-keys" aria-hidden="true">
+          {state.revealed ? GRADE_KEYS_HINT : 'Пробел'}
+        </p>
+      </ActionDock>
     </div>
   );
 }

@@ -16,3 +16,4 @@
 | [ADR-003](ADR-003-studysession-separation.md) | StudySession separation from LearningEngine | Accepted |
 | [ADR-004](ADR-004-retrieval-responsibility.md) | Retrieval Responsibility | Accepted |
 | [ADR-005](ADR-005-application-services-layer.md) | Application Services Layer | Proposed |
+| [ADR-006](ADR-006-three-rating-buttons.md) | Three rating buttons in the review interface | Accepted |

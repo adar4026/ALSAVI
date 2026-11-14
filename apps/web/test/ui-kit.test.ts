@@ -114,6 +114,20 @@ describe('no duplicate primitives', () => {
     'profile-head',
     'profile-title',
     'profile-lead',
+    // TASK_038: the session and the practice use SessionHeader, RatingBar, ActionDock.
+    'card-panel',
+    'state-badge',
+    'card-front',
+    'card-back',
+    'answer-bar',
+    'answer-buttons',
+    'answer-details',
+    'hotkey-hint',
+    'session-progress',
+    'session-exit',
+    'practice-grade',
+    'practice-buttons',
+    'practice-summary',
   ];
   const sources = readdirSync(resolve(webRoot, 'src'))
     .filter((f) => f.endsWith('.tsx'))

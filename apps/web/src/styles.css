@@ -321,165 +321,6 @@ body {
   padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
 }
 
-.card-panel {
-  position: relative;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--elev-2);
-  padding: var(--space-12) var(--space-8);
-  min-height: 260px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: var(--space-6);
-}
-
-.state-badge {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  font-size: var(--type-caption-size);
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: var(--radius-pill);
-  color: var(--text-secondary);
-  background: var(--bg);
-  border: 1px solid var(--border);
-}
-
-.state-badge.state-learning,
-.state-badge.state-relearning {
-  color: var(--warning-text);
-  background: var(--warning-soft);
-  border-color: var(--warning-border);
-}
-
-.state-badge.state-review {
-  color: var(--success-text);
-  background: var(--success-soft);
-  border-color: var(--success-border);
-}
-
-.card-front {
-  font-size: var(--type-word-l-size);
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.card-back {
-  font-size: var(--type-title-2-size);
-  color: var(--text-secondary);
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--border);
-  width: 100%;
-  line-height: 1.3;
-}
-
-.card-front,
-.card-back {
-  overflow-wrap: anywhere;
-}
-
-/* TASK_024: the note's example and personal memo under the revealed answer —
-   readable but secondary to the answer itself. User text is rendered as text
-   (React escapes it); pre-wrap keeps the user's line breaks, and long words
-   wrap instead of widening the page. */
-.answer-details {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 14px var(--space-4);
-  background: var(--bg);
-  border-radius: 10px;
-  text-align: left;
-}
-
-.answer-context {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.answer-context-label {
-  margin: 0;
-  font-size: var(--type-caption-size);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-
-.answer-context-text {
-  margin: 0;
-  font-size: 16px;
-  line-height: 1.5;
-  color: var(--text);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.answer-example {
-  font-style: italic;
-}
-
-/* Rating buttons stay reachable however long the card is: the bar sticks to
-   the bottom of the viewport (above the iPhone home indicator) while the
-   page scrolls under it. With short content it sits in its normal place. The
-   fade lets text scrolling under it disappear instead of being cut off. */
-.answer-bar {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  padding: var(--space-4) 0 calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(to bottom, transparent, var(--bg) 16px);
-}
-
-.answer-buttons {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-2);
-}
-
-.answer-buttons button {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px var(--space-2);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  align-items: center;
-  transition: border-color 0.1s;
-}
-
-.answer-buttons button:hover {
-  border-color: var(--accent);
-}
-
-.answer-buttons .interval {
-  font-size: var(--type-caption-size);
-  font-weight: 400;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-
-.hotkey-hint {
-  margin-top: var(--space-2);
-  text-align: center;
-  font-size: var(--type-caption-size);
-  color: var(--text-secondary);
-  letter-spacing: 0.12em;
-  font-variant-numeric: tabular-nums;
-}
-
 .empty-state {
   color: var(--text-secondary);
   font-size: var(--type-callout-size);
@@ -532,31 +373,199 @@ body {
   border-color: transparent;
 }
 
-/* --- TASK_022: session progress --- */
+/* --- TASK_038: study session and practice ---------------------------------
+   Focus mode: header (ui SessionHeader), the word in the upper part, the
+   answer unfolding under it, the actions in the ActionDock at the bottom. */
 
-.session-progress {
+.session-card {
   display: flex;
+  flex-direction: column;
+  animation: session-card-in var(--dur-2) var(--ease) both;
+}
+
+/* The word sits in the middle of the upper part and does not move when the
+   answer opens below it. A tap here also reveals the answer. */
+.session-word-zone {
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: var(--space-3);
-  margin-bottom: var(--space-3);
-  font-size: var(--type-footnote-size);
+  min-height: max(180px, 36vh);
+  min-height: max(180px, 36dvh);
+  padding: var(--space-4) var(--space-2);
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.session-word {
+  margin: 0;
+  color: var(--word);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.session-word--xl {
+  font: var(--type-word-xl);
+  letter-spacing: var(--type-word-xl-tracking);
+}
+
+.session-word--l {
+  font: var(--type-word-l);
+}
+
+.session-word--m {
+  font: var(--type-word-m);
+}
+
+.session-word--s {
+  font: var(--type-word-s);
+}
+
+.session-answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--separator);
+  animation: ui-rise var(--dur-2) var(--ease) both;
+}
+
+.session-translation {
+  margin: 0 0 var(--space-1);
+  font-size: var(--type-title-2-size);
+  line-height: var(--type-title-2-line);
+  font-weight: 500;
   color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
+  text-align: center;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
-.session-progress-bar {
-  flex: 1;
+.session-context-label {
+  margin: 0;
+  font: var(--type-overline);
+  letter-spacing: var(--type-overline-tracking);
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
-.session-error {
+.session-context-text {
+  margin: var(--space-1) 0 0;
+  font: var(--type-callout);
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.session-context-text[lang='es'] {
+  font-style: italic;
+}
+
+/* Same height as the grades, so the dock does not jump when the answer opens
+   (two classes: wins over `.ui-button--lg`, which loads later). */
+.ui-button.session-reveal {
+  min-height: var(--rating-h);
+}
+
+.session-keys {
+  margin: 0;
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .session-keys {
+    display: none;
+  }
+}
+
+@keyframes session-card-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--space-3));
+  }
+}
+
+/* End screens (SessionSummary). */
+.session-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--space-10) 0 var(--space-6);
+  text-align: center;
+  animation: rise 0.25s var(--ease) both;
+}
+
+.session-summary-mark {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--brand-gradient);
+  color: var(--on-accent);
+}
+
+.session-summary-mark.is-quiet {
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+.session-summary-overline {
+  margin: 0;
+  font: var(--type-overline);
+  letter-spacing: var(--type-overline-tracking);
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.session-summary-title {
+  margin: 0;
+  font: var(--type-title-1);
+  letter-spacing: var(--type-title-1-tracking);
+}
+
+.session-summary-text {
+  max-width: 34ch;
+  margin: 0;
+  font: var(--type-callout);
+  color: var(--text-secondary);
+}
+
+.session-summary-stats {
+  width: 100%;
+  margin-top: var(--space-4);
+  text-align: left;
+}
+
+.session-summary-block {
+  width: 100%;
   margin-top: var(--space-3);
+  text-align: left;
 }
 
-/* Larger, easier-to-tap rating buttons; grid degrades to 2 columns on very
-   narrow phones (checked at 320/375/390/430px) instead of squeezing four
-   cramped columns. */
-.answer-buttons button {
-  min-height: 56px;
+.session-summary-note {
+  margin: 0;
+  font: var(--type-footnote);
+  color: var(--text-secondary);
+}
+
+.session-summary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-6);
+}
+
+.session-summary-link {
+  align-self: center;
 }
 
 @media (max-width: 380px) {
@@ -564,19 +573,6 @@ body {
   .app {
     padding-left: var(--space-3);
     padding-right: var(--space-3);
-  }
-
-  .card-panel {
-    padding: var(--space-8) var(--space-4);
-    min-height: 220px;
-  }
-
-  .card-front {
-    font-size: var(--type-word-m-size);
-  }
-
-  .answer-buttons {
-    grid-template-columns: repeat(2, 1fr);
   }
 }
 
@@ -671,7 +667,7 @@ body {
   align-items: center;
 }
 
-:is(.chip, .answer-buttons button):focus-visible {
+.chip:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -1566,18 +1562,6 @@ body {
   }
 }
 
-/* Session exit, at the end of the progress row. */
-.session-exit {
-  min-height: var(--tap-min);
-  padding: 0 var(--space-1);
-  align-self: center;
-}
-
-.session-exit:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 /* Profile */
 
 .profile-screen {
@@ -2223,86 +2207,7 @@ body {
   margin: 0;
 }
 
-/* The practice screen reuses the session layout (card-panel, answer-bar). */
-.practice-eyebrow {
-  margin: 0 0 var(--space-2);
-  font-size: var(--type-caption-size);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--accent-text);
-}
-
-.state-badge.practice-badge {
-  color: var(--danger-text);
-  background: var(--danger-soft);
-  border-color: var(--danger-border);
-}
-
-.answer-buttons.practice-buttons {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-/* No interval line under the label, as on the session's buttons — centre it. */
-.practice-buttons button {
-  justify-content: center;
-}
-
-.practice-buttons .grade-forgot {
-  color: var(--danger-text);
-}
-
-.practice-buttons .grade-hard {
-  color: var(--warning-text);
-}
-
-.practice-buttons .grade-good {
-  color: var(--success-text);
-}
-
-.practice-digest dt {
-  overflow-wrap: normal;
-  hyphens: auto;
-}
-
-.practice-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.practice-summary .hint,
-.practice-message .empty-state {
-  margin: 0;
-  line-height: 1.45;
-}
-
-.practice-message {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  text-align: center;
-}
-
-.practice-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-2);
-}
-
-.practice-summary .practice-actions {
-  justify-content: flex-start;
-}
-
-.practice-actions button {
-  min-height: 48px;
-}
-
 @media (max-width: 380px) {
-  .practice-actions,
-  .practice-actions button,
   .practice-start {
     width: 100%;
   }
@@ -2350,12 +2255,6 @@ html {
 @media (min-width: 900px) and (pointer: coarse) {
   .main-nav-item {
     min-height: var(--tap-min);
-  }
-}
-
-@media (hover: none) and (pointer: coarse) {
-  .hotkey-hint {
-    display: none;
   }
 }
 

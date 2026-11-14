@@ -13,8 +13,10 @@ import {
   ListRow,
   ProgressBar,
   ProgressRing,
+  RatingBar,
   SearchField,
   SegmentedControl,
+  SessionHeader,
   Sheet,
   SheetController,
   Skeleton,
@@ -159,6 +161,12 @@ export function Showcase() {
           <Stat label="Серия" value={7} unit="дней" detail="рекорд 9" />
           <Stat label="В очереди" value={12} detail="на сегодня" />
         </StatGroup>
+      </Section>
+
+      <Section title="SessionHeader · RatingBar (TASK_038)">
+        <SessionHeader onClose={() => {}} closeLabel="Завершить повторение" done={3} total={12} counter="4 / 12" />
+        <SessionHeader onClose={() => {}} closeLabel="Завершить тренировку" done={1} total={7} counter="2 / 7" label="Тренировка · расписание не меняется" />
+        <RatingDemo />
       </Section>
 
       <Section title="Banner · Toast">
@@ -385,3 +393,28 @@ function Overlays() {
   );
 }
 
+function RatingDemo() {
+  const [pressed, setPressed] = useState<'again' | 'hard' | 'good' | null>(null);
+  return (
+    <>
+      <RatingBar
+        options={[
+          { value: 'again', label: 'Не помню', tone: 'danger', detail: '10 мин' },
+          { value: 'hard', label: 'С трудом', tone: 'warning', detail: '1 дн' },
+          { value: 'good', label: 'Помню', tone: 'success', detail: '3 дн' },
+        ]}
+        pressed={pressed}
+        onRate={setPressed}
+      />
+      <RatingBar
+        options={[
+          { value: 'again', label: 'Не помню', tone: 'danger' },
+          { value: 'hard', label: 'С трудом', tone: 'warning' },
+          { value: 'good', label: 'Помню', tone: 'success' },
+        ]}
+        disabled
+        onRate={() => {}}
+      />
+    </>
+  );
+}

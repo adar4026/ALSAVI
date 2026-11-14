@@ -1,5 +1,6 @@
 import type { Rating } from '@alsavi/engine';
 import type { ReviewFlowController, ReviewFlowState } from './review-flow';
+import { SESSION_GRADES } from './session-view';
 
 /**
  * Keyboard shortcuts of the study session screen (TASK_022), extracted in
@@ -8,8 +9,11 @@ import type { ReviewFlowController, ReviewFlowState } from './review-flow';
  * listener.
  */
 
-/** 1..4 → «Не помню / Трудно / Хорошо / Легко». */
-export const HOTKEY_RATINGS: readonly Rating[] = ['again', 'hard', 'good', 'easy'];
+/**
+ * 1..3 → «Не помню / С трудом / Помню» (ADR-006: three grades; `easy` is not
+ * offered, so key 4 does nothing). Same list as the buttons.
+ */
+export const HOTKEY_RATINGS: readonly Rating[] = SESSION_GRADES;
 
 /** The parts of a `KeyboardEvent` the handler reads — a real event satisfies it; tests pass a plain object. */
 export interface HotkeyEvent {
@@ -64,7 +68,7 @@ export function reviewHotkeyAction(
     return state.revealed ? { type: 'rate', rating: 'good' } : { type: 'reveal' };
   }
   if (!state.revealed) return null;
-  const idx = ['1', '2', '3', '4'].indexOf(e.key);
+  const idx = HOTKEY_RATINGS.findIndex((_, i) => e.key === String(i + 1));
   return idx === -1 ? null : { type: 'rate', rating: HOTKEY_RATINGS[idx]! };
 }
 

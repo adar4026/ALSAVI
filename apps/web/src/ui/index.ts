@@ -7,6 +7,7 @@
  * rules first, components after.
  */
 
+export { ActionDock } from './ActionDock';
 export { Badge, type BadgeTone } from './Badge';
 export { Banner, type BannerTone } from './Banner';
 export { Button, type ButtonSize, type ButtonVariant } from './Button';
@@ -21,7 +22,9 @@ export { SheetController, type CloseReason, type SheetPhase } from './sheet-stat
 export { Stat, StatGroup } from './Stat';
 export { EmptyState, Skeleton, type SkeletonVariant } from './States';
 export { Stepper } from './Stepper';
+export { RatingBar, type RatingOption } from './RatingBar';
 export { ScreenHeader } from './ScreenHeader';
+export { SessionHeader } from './SessionHeader';
 export { Surface } from './Surface';
 export { Switch } from './Switch';
 export { SearchField, TextArea, TextField } from './TextField';

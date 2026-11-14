@@ -15,7 +15,8 @@ import { handleReviewKeydown, reviewHotkeyAction, type HotkeyEvent } from '../sr
  */
 
 const T0 = new Date('2026-10-12T10:00:00Z').getTime();
-const RATINGS: Rating[] = ['again', 'hard', 'good', 'easy'];
+/** The grades the interface offers (ADR-006). */
+const RATINGS: Rating[] = ['again', 'hard', 'good'];
 
 interface FakeElement {
   tagName: string;
@@ -135,10 +136,10 @@ describe('review hotkeys — Enter/Space on a focused rating button (TASK_025)',
     const cardId = controller.getState().current!.card.id;
     controller.reveal();
 
-    const { prevented } = await press(controller, '4', ratingButton(controller, 'hard'));
+    const { prevented } = await press(controller, '1', ratingButton(controller, 'hard'));
 
     expect(prevented).toBe(true);
-    expect(await allReviews()).toEqual([`${cardId}:easy`]);
+    expect(await allReviews()).toEqual([`${cardId}:again`]);
   });
 });
 
@@ -166,6 +167,16 @@ describe('review hotkeys — global shortcuts with no control focused (unchanged
       expect(await allReviews()).toEqual([`${cardId}:${rating}`]);
     }
   );
+
+  it('key 4 does nothing — «Легко» is not offered (ADR-006)', async () => {
+    const { controller, allReviews } = await setup();
+    controller.reveal();
+    for (const key of ['4', '5', '0']) {
+      expect((await press(controller, key)).prevented).toBe(false);
+    }
+    expect(controller.getState().revealed).toBe(true);
+    expect(await allReviews()).toEqual([]);
+  });
 
   it('digits do nothing before the answer is revealed', async () => {
     const { controller, allReviews } = await setup();
@@ -262,7 +273,7 @@ describe('review hotkeys — one key press, at most one review (TASK_025)', () =
   it('a full session by keyboard on focused buttons records exactly one review per press', async () => {
     const { controller, allReviews } = await setup(4);
     const expected: string[] = [];
-    for (const rating of ['hard', 'again', 'easy', 'good'] as const) {
+    for (const rating of ['hard', 'again', 'good', 'good'] as const) {
       const cardId = controller.getState().current!.card.id;
       await press(controller, ' '); // reveal from the page
       await press(controller, 'Enter', ratingButton(controller, rating));

@@ -18,6 +18,19 @@ install test on device, use `npm run build && npm run preview`.
 
 ---
 
+## Study session keys
+
+With a keyboard (a computer or an iPad with a keyboard):
+
+- **Space / Enter** — show the answer; once it is shown, grade «Помню».
+- **1 / 2 / 3** — «Не помню» / «С трудом» / «Помню» (ADR-006: three grades,
+  there is no «Легко»; key 4 does nothing).
+- A focused button keeps its own Enter/Space (TASK_025). The difficult-words
+  practice uses the same keys and records nothing.
+
+On touch screens the key hints are hidden; a tap on the word also shows the
+answer.
+
 ## Installing on a real iPhone (PWA)
 
 Goal: open the app in Safari on the iPhone over **local HTTPS**, then
