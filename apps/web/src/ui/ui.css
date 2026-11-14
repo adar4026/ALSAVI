@@ -220,6 +220,75 @@
   font: var(--type-headline);
 }
 
+/* Screen header (TASK_037) ------------------------------------------------- */
+.ui-screen-header {
+  padding: var(--space-1) 2px 0;
+}
+
+.ui-screen-header-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.ui-screen-header-title {
+  margin: 0;
+  font: var(--type-title-1);
+  letter-spacing: var(--type-title-1-tracking);
+}
+
+.ui-screen-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-2);
+}
+
+.ui-screen-header-subtitle {
+  margin: 2px 0 0;
+  font: var(--type-footnote);
+  color: var(--text-secondary);
+}
+
+/* Phones: the title again, small, once the large one has scrolled away. */
+.ui-screen-header-compact {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--tap-min) + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) var(--space-12) 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--separator);
+  background: var(--nav-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+  font: var(--type-headline);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+  transition:
+    opacity var(--dur-2) var(--ease),
+    transform var(--dur-2) var(--ease);
+}
+
+.ui-screen-header-compact.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (min-width: 900px) {
+  .ui-screen-header-compact {
+    display: none;
+  }
+}
+
 /* Tile --------------------------------------------------------------------- */
 .ui-tile {
   display: flex;

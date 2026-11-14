@@ -118,6 +118,8 @@
   --rating-h: 64px;
   --row-h: 64px;
   --nav-h: 64px;
+  /* Side navigation column on a computer (≥ 900 px, TASK_037). */
+  --sidebar-w: 240px;
   --icon: 24px;
 
   /* Motion: transform/opacity only; zeroed under prefers-reduced-motion. */
@@ -151,8 +153,6 @@
   --accent-text: #5847e0;
   --accent-soft: rgba(109, 93, 246, 0.1);
   --accent-border: rgba(109, 93, 246, 0.3);
-  /* Start of the accent gradient of the brand mark. */
-  --accent-light: #8b7cf8;
   --on-accent: #ffffff;
   /* Translucent white on accent fills (counter inside a primary button). */
   --on-accent-soft: rgba(255, 255, 255, 0.22);
@@ -185,10 +185,9 @@
   --elev-1: 0 1px 2px rgba(22, 21, 31, 0.04), 0 4px 12px rgba(30, 41, 80, 0.04);
   --elev-2: 0 1px 2px rgba(22, 21, 31, 0.04), 0 12px 32px rgba(30, 41, 80, 0.08);
   --elev-nav: 0 10px 30px rgba(15, 17, 21, 0.16);
-  /* A raised control (switch knob) and the accent glow of the brand mark. */
+  /* A raised control (switch knob). */
   --elev-control: 0 1px 3px rgba(0, 0, 0, 0.25);
-  --elev-accent: 0 8px 20px rgba(109, 93, 246, 0.28);
-  --nav-bg: rgba(255, 255, 255, 0.78);
+  --nav-bg: rgba(255, 255, 255, 0.92);
 }
 
 /* 3. Dark palette ----------------------------------------------------------- */
@@ -211,7 +210,6 @@
   --accent-text: #ab9ffb;
   --accent-soft: rgba(139, 124, 248, 0.16);
   --accent-border: rgba(139, 124, 248, 0.4);
-  --accent-light: #8b7cf8;
   --on-accent: #ffffff;
   --on-accent-soft: rgba(255, 255, 255, 0.22);
   --secondary: #6aa5ff;
@@ -242,8 +240,7 @@
   --elev-2: 0 12px 32px rgba(0, 0, 0, 0.35);
   --elev-nav: 0 10px 30px rgba(0, 0, 0, 0.5);
   --elev-control: 0 1px 3px rgba(0, 0, 0, 0.25);
-  --elev-accent: 0 8px 20px rgba(109, 93, 246, 0.28);
-  --nav-bg: rgba(23, 26, 34, 0.8);
+  --nav-bg: rgba(23, 26, 34, 0.92);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -266,8 +263,7 @@
     --accent-text: #ab9ffb;
     --accent-soft: rgba(139, 124, 248, 0.16);
     --accent-border: rgba(139, 124, 248, 0.4);
-    --accent-light: #8b7cf8;
-    --on-accent: #ffffff;
+      --on-accent: #ffffff;
     --on-accent-soft: rgba(255, 255, 255, 0.22);
     --secondary: #6aa5ff;
     --brand-gradient: linear-gradient(135deg, #4f7cff 0%, #6d5df6 55%, #ff7a59 100%);
@@ -297,8 +293,7 @@
     --elev-2: 0 12px 32px rgba(0, 0, 0, 0.35);
     --elev-nav: 0 10px 30px rgba(0, 0, 0, 0.5);
     --elev-control: 0 1px 3px rgba(0, 0, 0, 0.25);
-    --elev-accent: 0 8px 20px rgba(109, 93, 246, 0.28);
-    --nav-bg: rgba(23, 26, 34, 0.8);
+      --nav-bg: rgba(23, 26, 34, 0.92);
   }
 }
 
@@ -1089,12 +1084,21 @@ body {
   flex-shrink: 0;
 }
 
-.app-header {
+.home-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  min-height: var(--tap-min);
   margin-bottom: var(--space-4);
+}
+
+.brand-logo {
+  display: block;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-xs);
 }
 
 .brand {
@@ -1104,46 +1108,11 @@ body {
   min-width: 0;
 }
 
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  flex-shrink: 0;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--accent-light), var(--accent));
-  color: var(--on-accent);
-  font-weight: 800;
-  font-size: 19px;
-  box-shadow: var(--elev-accent);
-}
-
-.brand-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
 .brand-name {
   font-size: var(--type-headline-size);
   font-weight: 800;
   letter-spacing: 0.08em;
   line-height: 1.2;
-}
-
-.brand-sub {
-  font-size: var(--type-footnote-size);
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-shrink: 0;
 }
 
 .streak-chip {
@@ -1434,36 +1403,34 @@ body {
     padding: var(--space-3) 10px;
   }
 
-  /* The subtitle wraps instead of being cut off next to the streak chip. */
-  .brand-sub {
-    font-size: var(--type-caption-size);
-    white-space: normal;
-    line-height: 1.25;
-  }
-
-  .app-header {
-    gap: var(--space-2);
-  }
-
   .streak-chip {
     padding: 0 10px 0 var(--space-2);
   }
 }
 
-/* Computer: a wider frame (TASK_031: 1160px, was 1000px). The home and
-   statistics screens use it in two columns; every other screen is centred
-   in it at a comfortable reading width — the study session and messages at
-   640px, "Карточки" and "Профиль" at 720px (TASK_030 left them at 640px
-   against the left edge). */
+/* Computer (TASK_037): the side navigation holds the left column
+   (--sidebar-w); the content area to its right keeps the TASK_031 frame of
+   up to 1160px. Home and statistics use it in two columns; the session and
+   messages read at 640px, "Карточки" and "Профиль" at 720px. The study
+   session has no side column (focus mode). */
 @media (min-width: 900px) {
   .app {
-    max-width: 1160px;
-    padding-top: var(--space-8);
+    max-width: none;
+    margin: 0;
+    padding: var(--space-8) var(--space-10) 80px calc(var(--sidebar-w) + var(--space-10));
   }
 
-  .app > :not(.app-header, .main-nav, .home-grid, .stats-screen) {
-    max-width: 640px;
+  .app.in-session {
+    padding-left: var(--space-10);
+  }
+
+  .app > * {
+    max-width: 1160px;
     margin-inline: auto;
+  }
+
+  .app > :not(.main-nav, .home-grid, .stats-screen, .ui-toast-host) {
+    max-width: 640px;
   }
 
   .app > .cards-screen,
@@ -1471,17 +1438,22 @@ body {
     max-width: 720px;
   }
 
+
+  .home-greeting {
+    font-size: 32px;
+  }
+
+}
+
+/* Two columns need the room left of the side column: from 1100 px (TASK_037;
+   at 900–1099 px the content area is ~580 px and stays one column). */
+@media (min-width: 1100px) {
   .home-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
     align-items: start;
     gap: var(--space-6);
   }
-
-  .home-greeting {
-    font-size: 32px;
-  }
-
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1572,6 +1544,28 @@ body {
   outline-offset: -2px;
 }
 
+/* Phones: the home header shows the brand and the streak. */
+.main-nav-brand,
+.main-nav-footer {
+  display: none;
+}
+
+/* Phones (TASK_037, I-1): content fades out above the bar instead of showing
+   through the glass. Not in a study session (no bar there). */
+@media (max-width: 899px) {
+  .app:not(.in-session)::after {
+    content: '';
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9;
+    height: calc(var(--nav-h) + var(--space-8) + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(to bottom, transparent, var(--bg) 55%);
+    pointer-events: none;
+  }
+}
+
 /* Session exit, at the end of the progress row. */
 .session-exit {
   min-height: var(--tap-min);
@@ -1590,27 +1584,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-}
-
-.profile-head,
-.screen-head {
-  padding: var(--space-1) 2px 0;
-}
-
-.profile-title,
-.screen-title {
-  margin: 0;
-  font-size: var(--type-title-1-size);
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.profile-lead,
-.screen-lead {
-  margin: 2px 0 0;
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.45;
 }
 
 .profile-section {
@@ -1754,60 +1727,67 @@ body {
   }
 }
 
-/* Computer: the bar becomes a horizontal tab row under the header; from
-   1100px, where it fits between the brand and the header buttons, it moves
-   into the header row, centred. */
+/* Computer (TASK_037): a side column — the brand on top, the four sections,
+   the streak at the bottom. One element with the phone bar, placed by CSS. */
 @media (min-width: 900px) {
-  .app {
-    position: relative;
-    padding-bottom: 80px;
+  .main-nav {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    width: var(--sidebar-w);
+    padding: var(--space-6) var(--space-4);
+    transform: none;
+    border: 0;
+    border-right: 1px solid var(--border);
+    border-radius: 0;
+    background: var(--surface);
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
-  .main-nav {
-    position: static;
-    width: fit-content;
-    margin: 0 auto var(--space-6);
-    transform: none;
-    border-radius: var(--radius-md);
-    box-shadow: var(--elev-2);
+  .main-nav-brand {
+    display: flex;
+    padding: 0 var(--space-2);
   }
 
   .main-nav-list {
     display: flex;
-    padding: var(--space-1);
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: 0;
   }
 
   .main-nav-item {
     flex-direction: row;
-    gap: var(--space-2);
-    min-height: 40px;
-    padding: 0 14px;
+    justify-content: flex-start;
+    gap: var(--space-3);
+    min-height: var(--tap-min);
+    padding: 0 var(--space-3);
     border-radius: var(--radius-sm);
   }
 
   .main-nav-item .icon {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
   }
 
   .main-nav-label {
-    font-size: 14px;
+    font-size: var(--type-callout-size);
   }
 
-  .app-header {
-    min-height: 48px;
-    margin-bottom: var(--space-6);
+  .main-nav-footer {
+    display: flex;
+    margin-top: auto;
+    padding: 0 var(--space-2);
   }
-}
 
-@media (min-width: 1100px) {
-  .main-nav {
-    position: absolute;
-    top: 32px;
-    bottom: auto;
-    left: 50%;
-    margin: 0;
-    transform: translateX(-50%);
+  /* The brand and the streak are in the side column. */
+  .home-header {
+    display: none;
   }
 }
 
@@ -2189,7 +2169,8 @@ body {
 
 /* Computer: one row of numbers; activity on the left, stages and difficult
    words on the right. */
-@media (min-width: 900px) {
+/* Statistics: four KPIs in a row and two columns from 1100 px (TASK_037). */
+@media (min-width: 1100px) {
   .kpi-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: var(--space-4);
@@ -2213,10 +2194,6 @@ body {
     display: grid;
     grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
     align-items: start;
-  }
-
-  .screen-title {
-    font-size: 32px;
   }
 }
 
@@ -2354,7 +2331,8 @@ html {
    sits in the header and stays. */
 @media (max-width: 899px) and (pointer: coarse) {
   .app:has(input:not([type='checkbox'], [type='radio'], [type='file']):focus, textarea:focus, select:focus)
-    .main-nav {
+    .main-nav,
+  .app:has(input:not([type='checkbox'], [type='radio'], [type='file']):focus, textarea:focus, select:focus)::after {
     display: none;
   }
 }
@@ -2384,6 +2362,16 @@ html {
 /* "Доступна новая версия" — shown after the service worker installed an update. */
 .app-update {
   margin-bottom: var(--space-4);
+}
+
+/* `#/cards/<id>` brings a row into view and focuses it (TASK_037). */
+.card-row:focus {
+  outline: none;
+}
+
+.card-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* Layout hooks of screens on the shared Button (TASK_036): spacing only —

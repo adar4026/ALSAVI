@@ -2,7 +2,7 @@ import type { LearningEngine, LearningStats } from '@alsavi/engine';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityChart } from './ActivityCharts';
 import { WORD_FORMS } from './home-view';
-import { Banner, Button, SegmentedControl } from './ui';
+import { Banner, Button, ScreenHeader, SegmentedControl } from './ui';
 import {
   ACTIVITY_PERIODS,
   activityDigest,
@@ -80,10 +80,7 @@ export function StatsScreen({ engine, onStudy, onAddWord, onShowDifficult, refre
 
   return (
     <div className="stats-screen">
-      <div className="screen-head">
-        <h1 className="screen-title">Статистика</h1>
-        <p className="screen-lead">Ваш прогресс по настоящей истории ответов.</p>
-      </div>
+      <ScreenHeader title="Статистика" subtitle="Ваш прогресс по настоящей истории ответов." />
 
       <KpiGrid stats={stats} />
 

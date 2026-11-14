@@ -21,6 +21,7 @@ export { SheetController, type CloseReason, type SheetPhase } from './sheet-stat
 export { Stat, StatGroup } from './Stat';
 export { EmptyState, Skeleton, type SkeletonVariant } from './States';
 export { Stepper } from './Stepper';
+export { ScreenHeader } from './ScreenHeader';
 export { Surface } from './Surface';
 export { Switch } from './Switch';
 export { SearchField, TextArea, TextField } from './TextField';

@@ -1,13 +1,22 @@
 import { assertValidNewCardsPerDay, LearningEngine, StudySession, type EngineStats } from '@alsavi/engine';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { AppHeader } from './AppHeader';
+import { HomeHeader } from './HomeHeader';
 import { localDayStart, shouldStartNewSession, UNSAVED_EDIT_CONFIRM } from './app-lifecycle';
 import type { StatusFilter } from './card-list';
 import { CardManager } from './CardManager';
 import { DexieStore } from './dexie-store';
 import { HomeScreen, type CardsIntent } from './HomeScreen';
 import { MainNav } from './MainNav';
-import { hashForView, isOpenReviewMessage, isReviewLink, urlForView, viewFromHash, type View } from './nav';
+import {
+  hashForRoute,
+  isOpenReviewMessage,
+  isReviewLink,
+  routeFromHash,
+  sameRoute,
+  urlForRoute,
+  type Route,
+  type View,
+} from './nav';
 import { NoteFormController } from './note-form';
 import { loadDifficultPractice } from './practice-flow';
 import { PracticeSession } from './PracticeSession';
@@ -18,7 +27,8 @@ import { createReminderClient } from './reminder-client';
 import { snapshotFromEngine } from './reminder-snapshot';
 import { ReviewSession } from './ReviewSession';
 import { StatsScreen } from './StatsScreen';
-import { Banner, Button } from './ui';
+import { StreakChip } from './StreakChip';
+import { Banner, Button, toasts, ToastHost } from './ui';
 import { applyTheme, readThemePreference, writeThemePreference, type ThemePreference } from './theme';
 
 /**
@@ -29,7 +39,16 @@ import { applyTheme, readThemePreference, writeThemePreference, type ThemePrefer
 interface CardsEntry {
   status: StatusFilter;
   focus?: 'add';
+  /** `#/cards/<noteId>` (TASK_037): the word to bring into view. */
+  noteId?: string;
   seq: number;
+}
+
+/** How "Карточки" opens for an address (TASK_037). */
+function cardsEntryFor(route: Route, seq: number): CardsEntry {
+  if (route.card?.kind === 'new') return { status: 'all', focus: 'add', seq };
+  if (route.card?.kind === 'note') return { status: 'all', noteId: route.card.id, seq };
+  return { status: 'all', seq };
 }
 
 /** `localStorage` can throw on access (blocked site data) — treat as absent. */
@@ -96,13 +115,17 @@ export function App() {
   const [reviewRequested, setReviewRequested] = useState(() => isReviewLink(window.location.hash));
   // The section comes from the address (TASK_030): `#/stats` opens
   // "Статистика", no hash — the home screen.
-  const [view, setView] = useState<View>(() => viewFromHash(window.location.hash));
-  // The section on screen, readable synchronously by the navigation guards below.
+  // Inside "Карточки" the address can also name the form or one word (TASK_037).
+  const initialRoute = useMemo(() => routeFromHash(window.location.hash), []);
+  const [view, setView] = useState<View>(initialRoute.view);
+  // The section and the full address on screen, readable synchronously by
+  // the navigation guards below.
   const viewRef = useRef(view);
+  const routeRef = useRef<Route>(initialRoute);
   // How "Карточки" opens: 'all' from the navigation, 'difficult' from the
   // statistics and home screens (TASK_026), the form from "Добавить слово"
-  // (TASK_029).
-  const [cardsEntry, setCardsEntry] = useState<CardsEntry>({ status: 'all', seq: 0 });
+  // (TASK_029, `#/cards/new` since TASK_037), one word (`#/cards/<id>`).
+  const [cardsEntry, setCardsEntry] = useState<CardsEntry>(() => cardsEntryFor(initialRoute, 0));
   // Initial value: the same stored choice the inline script in index.html
   // already applied before the first paint.
   const [theme, setTheme] = useState<ThemePreference>(() => readThemePreference(safeLocalStorage()));
@@ -188,20 +211,25 @@ export function App() {
     const sync = () => {
       if (isReviewLink(window.location.hash)) {
         const { pathname, search } = window.location;
-        window.history.replaceState(null, '', `${pathname}${search}${hashForView(viewRef.current)}`);
+        window.history.replaceState(null, '', `${pathname}${search}${hashForRoute(routeRef.current)}`);
         openReviewRef.current();
         return;
       }
-      const next = viewFromHash(window.location.hash);
-      if (next !== viewRef.current && !confirmLeaveCards()) {
+      const route = routeFromHash(window.location.hash);
+      if (sameRoute(route, routeRef.current)) return;
+      // Another section, or another address inside "Карточки" (which
+      // re-mounts the screen): an open editor would lose its text — ask.
+      if (!confirmLeaveCards()) {
         // Stay: the browser already changed the address — put it back.
         const { pathname, search } = window.location;
-        window.history.pushState(null, '', `${pathname}${search}${hashForView(viewRef.current)}`);
+        window.history.pushState(null, '', `${pathname}${search}${hashForRoute(routeRef.current)}`);
         return;
       }
+      if (route.view === 'cards') setCardsEntry((prev) => cardsEntryFor(route, prev.seq + 1));
       setPracticing(false);
-      viewRef.current = next;
-      setView(next);
+      routeRef.current = route;
+      viewRef.current = route.view;
+      setView(route.view);
     };
     window.addEventListener('popstate', sync);
     window.addEventListener('hashchange', sync);
@@ -211,12 +239,14 @@ export function App() {
     };
   }, [confirmLeaveCards]);
 
-  const go = useCallback((next: View) => {
-    const url = urlForView(next, window.location);
+  const go = useCallback((next: View | Route) => {
+    const route: Route = typeof next === 'string' ? { view: next } : next;
+    const url = urlForRoute(route, window.location);
     if (url !== null) window.history.pushState(null, '', url);
     setPracticing(false);
-    viewRef.current = next;
-    setView(next);
+    routeRef.current = route;
+    viewRef.current = route.view;
+    setView(route.view);
     window.scrollTo(0, 0);
   }, []);
 
@@ -266,10 +296,18 @@ export function App() {
       // Re-mounts "Карточки" (new `seq`), so an open editor would be lost too.
       if (!confirmLeaveCards()) return;
       setCardsEntry((prev) => ({ status, focus, seq: prev.seq + 1 }));
-      go('cards');
+      go(focus === 'add' ? { view: 'cards', card: { kind: 'new' } } : 'cards');
     },
     [confirmLeaveCards, go]
   );
+
+  // `#/cards/<id>` for a word that is not in the collection (TASK_037).
+  const onMissingNote = useCallback(() => {
+    const { pathname, search } = window.location;
+    window.history.replaceState(null, '', `${pathname}${search}#/cards`);
+    routeRef.current = { view: 'cards' };
+    toasts.show({ message: 'Карточка не найдена' });
+  }, []);
 
   const onNavigate = useCallback(
     (next: View) => {
@@ -393,6 +431,8 @@ export function App() {
   // A study session is a focus mode: no navigation and no settings button —
   // the session's number hotkeys stay its own; "Завершить" leads back.
   const settingsReady = bootstrap === 'ready' && settingsAppliedTo === session;
+  const streakDays = stats ? stats.streakDays : null;
+  const reviewedToday = (stats?.reviewsToday ?? 0) > 0;
   const inSession = practicing || (view === 'home' && reviewPhase === 'session');
 
   useEffect(() => {
@@ -403,12 +443,17 @@ export function App() {
 
   return (
     <div className={inSession ? 'app in-session' : 'app'}>
-      <AppHeader
-        streakDays={stats ? stats.streakDays : null}
-        reviewedToday={(stats?.reviewsToday ?? 0) > 0}
-        onOpenSettings={inSession ? undefined : () => navigate('profile')}
-      />
-      {!inSession && <MainNav view={view} onNavigate={onNavigate} />}
+      {/* Focus mode (session, practice): no header and no navigation. The
+          brand header belongs to "Главная"; other sections have their own
+          large title (TASK_037). */}
+      {!inSession && view === 'home' && <HomeHeader streakDays={streakDays} reviewedToday={reviewedToday} />}
+      {!inSession && (
+        <MainNav
+          view={view}
+          onNavigate={onNavigate}
+          footer={<StreakChip streakDays={streakDays} reviewedToday={reviewedToday} />}
+        />
+      )}
       {updateReady && !inSession && (
         <Banner
           tone="info"
@@ -484,6 +529,8 @@ export function App() {
           key={cardsEntry.seq}
           initialStatus={cardsEntry.status}
           initialFocus={cardsEntry.focus}
+          initialNoteId={cardsEntry.noteId}
+          onMissingNote={onMissingNote}
           engine={engine}
           onChanged={() => void refreshStats()}
           onPractice={startPractice}
@@ -491,6 +538,7 @@ export function App() {
           registerUnsavedCheck={registerUnsavedCheck}
         />
       )}
+      {!inSession && <ToastHost />}
     </div>
   );
 }

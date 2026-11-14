@@ -163,7 +163,7 @@ describe('design tokens (TASK_035)', () => {
       'footnote', 'caption', 'overline', 'kpi'].flatMap((r) => [`--type-${r}`, `--type-${r}-size`, `--type-${r}-line`, `--type-${r}-weight`]),
     '--space-1', '--space-2', '--space-3', '--space-4', '--space-5', '--space-6', '--space-8', '--space-10', '--space-12',
     '--radius-xs', '--radius-sm', '--radius-md', '--radius-lg', '--radius-pill',
-    '--tap-min', '--control-h', '--button-h', '--button-h-lg', '--rating-h', '--row-h', '--nav-h', '--icon',
+    '--tap-min', '--control-h', '--button-h', '--button-h-lg', '--rating-h', '--row-h', '--nav-h', '--sidebar-w', '--icon',
     '--ease', '--ease-in', '--dur-1', '--dur-2', '--dur-3',
   ];
 

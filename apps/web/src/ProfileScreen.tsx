@@ -7,7 +7,7 @@ import type { Platform } from './reminder-browser';
 import type { ReminderClient } from './reminder-client';
 import { RemindersSection } from './RemindersSection';
 import { THEME_OPTIONS, type ThemePreference } from './theme';
-import { Button, SegmentedControl } from './ui';
+import { Button, ScreenHeader, SegmentedControl } from './ui';
 
 const SKIP_LABELS: Record<string, string> = {
   'cloze-note-type': 'cloze',
@@ -172,10 +172,7 @@ export function ProfileScreen({
 
   return (
     <div className="profile-screen">
-      <div className="profile-head">
-        <h1 className="profile-title">Профиль</h1>
-        <p className="profile-lead">Аккаунта нет: все карточки и история хранятся только на этом устройстве.</p>
-      </div>
+      <ScreenHeader title="Профиль" subtitle="Аккаунта нет: все карточки и история хранятся только на этом устройстве." />
 
       <ProfileSection id="profile-study" title="Обучение">
         <div className="setting-row">

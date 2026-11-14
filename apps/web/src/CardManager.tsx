@@ -27,7 +27,7 @@ import { draftFromNote, NoteFormController } from './note-form';
 import { NoteForm } from './NoteForm';
 import { difficultPracticeCards } from './practice-flow';
 import { countLabel } from './stats-view';
-import { Banner, Button, IconButton } from './ui';
+import { Banner, Button, IconButton, ScreenHeader } from './ui';
 
 const STATUS_FILTERS: Array<[StatusFilter, string]> = [
   ['all', 'Все'],
@@ -58,6 +58,13 @@ interface Props {
    * screen, TASK_029).
    */
   initialFocus?: 'add';
+  /**
+   * `#/cards/<noteId>` (TASK_037): bring this word's row into view once the
+   * list has loaded — the card view replaces this in TASK_041.
+   */
+  initialNoteId?: string;
+  /** The word of `initialNoteId` is not in the collection. */
+  onMissingNote?: () => void;
   /** Start the difficult-words practice (TASK_032). */
   onPractice?: () => void;
   /**
@@ -77,6 +84,8 @@ export function CardManager({
   onChanged,
   initialStatus = 'all',
   initialFocus,
+  initialNoteId,
+  onMissingNote,
   onPractice,
   createForm,
   registerUnsavedCheck,
@@ -150,9 +159,28 @@ export function CardManager({
   // Bring a card opened from elsewhere (e.g. the duplicate warning) into view.
   useEffect(() => {
     if (!scrollToId) return;
-    document.getElementById(`note-${scrollToId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const row = document.getElementById(`note-${scrollToId}`);
+    row?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // Focus the row for keyboard and screen-reader users — unless its editor
+    // already took focus (the duplicate warning opens the word for editing).
+    if (row && !row.contains(document.activeElement)) row.focus({ preventScroll: true });
     setScrollToId(null);
   }, [scrollToId, visible]);
+
+  // `#/cards/<noteId>` (TASK_037): once loaded, show that word — in the archive
+  // filter if it is archived — or report that it does not exist. Only once.
+  const handledNote = useRef(false);
+  useEffect(() => {
+    if (!initialNoteId || !loaded || handledNote.current) return;
+    handledNote.current = true;
+    const entry = entries.find((e) => e.note.id === initialNoteId);
+    if (!entry) {
+      onMissingNote?.();
+      return;
+    }
+    setFilter({ ...EMPTY_FILTER, status: entry.archived ? 'archived' : 'all' });
+    setScrollToId(entry.note.id);
+  }, [initialNoteId, loaded, entries, onMissingNote]);
 
   const afterWrite = useCallback(async () => {
     await reload();
@@ -200,6 +228,7 @@ export function CardManager({
 
   return (
     <div className="cards-screen">
+      <ScreenHeader title="Карточки" />
       <section className="panel" aria-labelledby="add-title">
         <h2 id="add-title" className="panel-title">
           Новая карточка
@@ -357,7 +386,7 @@ export function CardManager({
 
         <ul className="card-list">
           {visible.map((entry) => (
-            <li className="card-row" key={entry.note.id} id={`note-${entry.note.id}`}>
+            <li className="card-row" key={entry.note.id} id={`note-${entry.note.id}`} tabIndex={-1}>
               {editingId === entry.note.id ? (
                 <NoteEditor
                   engine={engine}

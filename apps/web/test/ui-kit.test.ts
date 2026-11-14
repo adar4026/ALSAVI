@@ -103,6 +103,17 @@ describe('no duplicate primitives', () => {
     'goal-bar',
     'goal-bar-fill',
     'switch',
+    // TASK_037: the shell's headers are HomeHeader and ScreenHeader.
+    'app-header',
+    'brand-mark',
+    'brand-sub',
+    'header-actions',
+    'screen-head',
+    'screen-title',
+    'screen-lead',
+    'profile-head',
+    'profile-title',
+    'profile-lead',
   ];
   const sources = readdirSync(resolve(webRoot, 'src'))
     .filter((f) => f.endsWith('.tsx'))
@@ -120,4 +131,18 @@ describe('no duplicate primitives', () => {
       expect(css, `styles.css .${name}`).not.toMatch(new RegExp(`\\.${name}(?![\\w-])`));
     });
   }
+});
+
+/** The shell (TASK_037): the logo is a file that ships with the PWA. */
+describe('shell', () => {
+  it('the header logo is an existing PWA icon (precached, no new asset)', () => {
+    const header = read('src/HomeHeader.tsx');
+    const m = header.match(/BASE_URL\}(icons\/[\w.-]+\.png)/);
+    expect(m).not.toBeNull();
+    expect(() => read(`public/${m![1]}`)).not.toThrow();
+  });
+
+  it('no settings button in the header any more — "Профиль" is a tab', () => {
+    expect(read('src/HomeHeader.tsx')).not.toMatch(/sliders|Настройки/);
+  });
 });
