@@ -31,7 +31,7 @@
 
 | | primary | secondary | tertiary | destructive |
 |---|---|---|---|---|
-| D | `--accent` / `--on-accent` | `--accent-soft` / `--accent-text` | прозрачный / `--accent-text` | `--danger-soft` / `--danger-text` (в диалоге — `--danger` / белый) |
+| D | `--accent` / `--on-accent` | `--accent-soft` / `--accent-text` | прозрачный / `--accent-text` | `--danger-soft` / `--danger-text` (в диалоге — `--danger-fill` / белый, см. DESIGN_SYSTEM §10) |
 | H | `--accent-strong` | soft +4 % | подчёркивание | soft +4 % |
 | P | scale .97, `--accent-strong` | scale .97 | opacity .6 | scale .97 |
 | F | `--focus-ring` | то же | то же | то же |
