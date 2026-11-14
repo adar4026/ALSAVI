@@ -1,24 +1,34 @@
 import type { Note } from '@alsavi/engine';
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
 import { parseTagInput, type NoteEntry } from './card-list';
+import { Icon } from './Icon';
 import type { NoteFormController } from './note-form';
-import { Banner, Button } from './ui';
+import { Banner, Button, Chip, ChipRow, Switch, TextArea, TextField } from './ui';
 
 interface Props {
   controller: NoteFormController;
   /** Tags already used in the collection, offered as one-tap chips. */
   tagSuggestions: readonly string[];
   onSaved: (note: Note) => void;
-  /** Edit mode: close the editor without saving. */
-  onCancel?: () => void;
   /** Duplicate warning: show the existing card instead of adding a new one. */
   onOpenDuplicate?: (entry: NoteEntry) => void;
-  /** Create mode: lets the parent focus the word field (e.g. from the empty-state CTA). */
+  /** Put the cursor into "Слово" when the form appears (the sheet just opened). */
+  autoFocus?: boolean;
+  /** Lets the parent reach the word field. */
   frontInputRef?: RefObject<HTMLInputElement | null>;
 }
 
-/** Add/edit form (TASK_023) — a thin view over `NoteFormController`. */
-export function NoteForm({ controller, tagSuggestions, onSaved, onCancel, onOpenDuplicate, frontInputRef }: Props) {
+const TEXT_FIELDS = ['front', 'back', 'example', 'memo'] as const;
+
+/**
+ * New-word / edit form (TASK_023, redesigned for the sheet in TASK_040) — a
+ * thin view over `NoteFormController`, which is unchanged. Only the word and
+ * its translation are asked for; the example, the personal note and the
+ * tags open on demand. Enter in "Слово" moves to "Перевод", Enter there
+ * saves. The action sits at the bottom of the sheet and stays above the
+ * on-screen keyboard (`Sheet`).
+ */
+export function NoteForm({ controller, tagSuggestions, onSaved, onOpenDuplicate, autoFocus = false, frontInputRef }: Props) {
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
   const { draft, fieldErrors, status, duplicate, error } = state;
   const isCreate = controller.mode.kind === 'create';
@@ -26,7 +36,11 @@ export function NoteForm({ controller, tagSuggestions, onSaved, onCancel, onOpen
   const id = useId();
   const ownFrontRef = useRef<HTMLInputElement>(null);
   const frontRef = frontInputRef ?? ownFrontRef;
-  const [showMore, setShowMore] = useState(() => Boolean(draft.example || draft.memo));
+  const backRef = useRef<HTMLInputElement>(null);
+  // Optional parts open on demand, or right away when they already hold text.
+  const [showExample, setShowExample] = useState(() => Boolean(draft.example));
+  const [showMemo, setShowMemo] = useState(() => Boolean(draft.memo));
+  const [showTags, setShowTags] = useState(() => Boolean(draft.tags));
 
   // After a successful save: report it, and in create mode put the cursor
   // back into the word field for the next word. Starts at the controller's
@@ -42,10 +56,17 @@ export function NoteForm({ controller, tagSuggestions, onSaved, onCancel, onOpen
     if (isCreate) frontRef.current?.focus();
   }, [lastSaved, onSaved, isCreate, frontRef]);
 
-  // Edit mode opens on demand ("Изменить"): move focus into the editor.
   useEffect(() => {
-    if (!isCreate) frontRef.current?.focus();
-  }, [isCreate, frontRef]);
+    if (autoFocus) frontRef.current?.focus();
+  }, [autoFocus, frontRef]);
+
+  // The duplicate warning replaces the action at the bottom of the sheet:
+  // bring its choices into view (on a short phone they start below the fold).
+  const formRef = useRef<HTMLFormElement>(null);
+  const isDuplicate = status === 'duplicate';
+  useEffect(() => {
+    if (isDuplicate) formRef.current?.querySelector('.duplicate-warning')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [isDuplicate]);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -57,139 +78,132 @@ export function NoteForm({ controller, tagSuggestions, onSaved, onCancel, onOpen
     });
   }
 
+  // Enter in "Слово" goes on to "Перевод" instead of submitting half a card.
+  function onFrontKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    backRef.current?.focus();
+  }
+
   const currentTags = parseTagInput(draft.tags);
   const suggestions = tagSuggestions.filter((t) => !currentTags.includes(t)).slice(0, 12);
+  const hasText = TEXT_FIELDS.some((f) => draft[f].trim() !== '');
 
   function addTag(tag: string) {
     const trimmed = draft.tags.trim().replace(/[,;]\s*$/, '');
     controller.update({ tags: trimmed ? `${trimmed}, ${tag}` : tag });
+    setShowTags(true);
   }
 
+  // "Очистить": the typed text goes, the tags and the reverse switch stay —
+  // like after a save (consecutive words are usually from one topic).
+  function clear() {
+    controller.update({ front: '', back: '', example: '', memo: '' });
+    setShowExample(false);
+    setShowMemo(false);
+    frontRef.current?.focus();
+  }
+
+  const submitLabel = saving
+    ? 'Сохранение…'
+    : isCreate
+      ? draft.alsoReverse
+        ? 'Добавить 2 карточки'
+        : 'Добавить'
+      : 'Сохранить';
+
   return (
-    <form
-      className="note-form"
-      onSubmit={onSubmit}
-      noValidate
-      aria-label={isCreate ? 'Новая карточка' : `Редактирование: ${draft.front}`}
-    >
-      <div className="field">
-        <label htmlFor={`${id}-front`}>Слово или фраза</label>
-        <input
-          id={`${id}-front`}
-          ref={frontRef}
-          value={draft.front}
-          onChange={(e) => controller.update({ front: e.target.value })}
-          placeholder="например, la práctica"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          enterKeyHint="next"
-          aria-invalid={Boolean(fieldErrors.front)}
-          aria-describedby={fieldErrors.front ? `${id}-front-err` : undefined}
-          disabled={saving}
-        />
-        {fieldErrors.front && (
-          <div id={`${id}-front-err`} className="field-error">
-            {fieldErrors.front}
-          </div>
-        )}
-      </div>
-      <div className="field">
-        <label htmlFor={`${id}-back`}>Перевод</label>
-        <input
-          id={`${id}-back`}
-          value={draft.back}
-          onChange={(e) => controller.update({ back: e.target.value })}
-          placeholder="например, практика"
-          autoCapitalize="none"
-          enterKeyHint={isCreate ? 'done' : 'next'}
-          aria-invalid={Boolean(fieldErrors.back)}
-          aria-describedby={fieldErrors.back ? `${id}-back-err` : undefined}
-          disabled={saving}
-        />
-        {fieldErrors.back && (
-          <div id={`${id}-back-err`} className="field-error">
-            {fieldErrors.back}
-          </div>
-        )}
-      </div>
+    <form ref={formRef} className="note-form" onSubmit={onSubmit} noValidate aria-label={isCreate ? 'Новое слово' : `Изменить: ${draft.front}`}>
+      <TextField
+        id={`${id}-front`}
+        ref={frontRef}
+        label="Слово или фраза"
+        lang="es"
+        value={draft.front}
+        onChange={(e) => controller.update({ front: e.target.value })}
+        onKeyDown={onFrontKeyDown}
+        placeholder="например, la práctica"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        enterKeyHint="next"
+        error={fieldErrors.front}
+        disabled={saving}
+      />
+      <TextField
+        id={`${id}-back`}
+        ref={backRef}
+        label="Перевод"
+        value={draft.back}
+        onChange={(e) => controller.update({ back: e.target.value })}
+        placeholder="например, практика"
+        autoCapitalize="none"
+        enterKeyHint="done"
+        error={fieldErrors.back}
+        disabled={saving}
+      />
 
-      {showMore ? (
-        <>
-          <div className="field">
-            <label htmlFor={`${id}-example`}>
-              Пример <span className="optional">— необязательно</span>
-            </label>
-            <textarea
-              id={`${id}-example`}
-              rows={2}
-              value={draft.example}
-              onChange={(e) => controller.update({ example: e.target.value })}
-              placeholder="La práctica hace al maestro."
-              disabled={saving}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor={`${id}-memo`}>
-              Личная заметка <span className="optional">— необязательно</span>
-            </label>
-            <textarea
-              id={`${id}-memo`}
-              rows={2}
-              value={draft.memo}
-              onChange={(e) => controller.update({ memo: e.target.value })}
-              placeholder="ассоциация, контекст, где услышал"
-              disabled={saving}
-            />
-          </div>
-        </>
-      ) : (
-        <Button variant="tertiary" className="form-more" onClick={() => setShowMore(true)} aria-expanded={false}>
-          + Пример и личная заметка
-        </Button>
-      )}
-
-      <div className="field">
-        <label htmlFor={`${id}-tags`}>
-          Теги <span className="optional">— через запятую</span>
-        </label>
-        <input
-          id={`${id}-tags`}
-          value={draft.tags}
-          onChange={(e) => controller.update({ tags: e.target.value })}
-          placeholder="глаголы, документы"
-          autoCapitalize="none"
-          autoCorrect="off"
-          enterKeyHint="done"
-          disabled={saving}
-        />
+      <div className="note-form-more">
+        {showExample ? (
+          <TextArea
+            label="Пример"
+            lang="es"
+            value={draft.example}
+            onChange={(e) => controller.update({ example: e.target.value })}
+            placeholder="La práctica hace al maestro."
+            disabled={saving}
+          />
+        ) : (
+          <AddRow label="Пример" onClick={() => setShowExample(true)} />
+        )}
+        {showMemo ? (
+          <TextArea
+            label="Личная заметка"
+            value={draft.memo}
+            onChange={(e) => controller.update({ memo: e.target.value })}
+            placeholder="ассоциация, контекст, где услышал"
+            disabled={saving}
+          />
+        ) : (
+          <AddRow label="Личная заметка" onClick={() => setShowMemo(true)} />
+        )}
+        {showTags ? (
+          <TextField
+            label="Теги"
+            hint="Через запятую."
+            value={draft.tags}
+            onChange={(e) => controller.update({ tags: e.target.value })}
+            placeholder="глаголы, документы"
+            autoCapitalize="none"
+            autoCorrect="off"
+            enterKeyHint="done"
+            disabled={saving}
+          />
+        ) : (
+          <AddRow label="Теги" onClick={() => setShowTags(true)} />
+        )}
         {suggestions.length > 0 && (
-          <div className="chip-row" role="group" aria-label="Добавить существующий тег">
+          <ChipRow label="Добавить существующий тег" className="note-form-tags">
             {suggestions.map((t) => (
-              <button
-                key={t}
-                type="button"
-                className="chip chip-add"
-                onClick={() => addTag(t)}
-                aria-label={`Добавить тег ${t}`}
-                disabled={saving}
-              >
+              <Chip key={t} variant="suggestion" onClick={() => addTag(t)} aria-label={`Добавить тег ${t}`} disabled={saving}>
                 + {t}
-              </button>
+              </Chip>
             ))}
-          </div>
+          </ChipRow>
         )}
       </div>
 
       {isCreate && (
-        <label className="reverse-toggle">
-          <input
-            type="checkbox"
+        <label className="note-form-switch">
+          <span className="note-form-switch-text">
+            <span className="note-form-switch-title">Обратная карточка</span>
+            <span className="note-form-switch-hint">перевод → слово, своё расписание</span>
+          </span>
+          <Switch
             checked={draft.alsoReverse}
             onChange={(e) => controller.update({ alsoReverse: e.target.checked })}
             disabled={saving}
           />
-          Создать также обратную карточку
         </label>
       )}
 
@@ -217,22 +231,30 @@ export function NoteForm({ controller, tagSuggestions, onSaved, onCancel, onOpen
         </Banner>
       )}
 
-      {error && (
-        <Banner tone="error">{error}</Banner>
-      )}
+      {error && <Banner tone="error">{error}</Banner>}
 
       {status !== 'duplicate' && (
-        <div className="form-actions">
-          <Button type="submit" disabled={saving}>
-            {saving ? 'Сохранение…' : isCreate ? (draft.alsoReverse ? 'Добавить карточки' : 'Добавить карточку') : 'Сохранить'}
+        <div className="note-form-actions">
+          <Button type="submit" size="lg" block disabled={saving}>
+            {submitLabel}
           </Button>
-          {onCancel && (
-            <Button variant="secondary" onClick={onCancel} disabled={saving}>
-              Отмена
+          {isCreate && hasText && !saving && (
+            <Button variant="tertiary" className="note-form-clear" onClick={clear}>
+              Очистить
             </Button>
           )}
         </div>
       )}
     </form>
+  );
+}
+
+/** A collapsed optional part: "+ Пример". */
+function AddRow({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" className="note-form-add" onClick={onClick} aria-expanded={false}>
+      <Icon name="plus" size={20} />
+      {label}
+    </button>
   );
 }

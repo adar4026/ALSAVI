@@ -120,6 +120,8 @@
   --nav-h: 64px;
   /* Side navigation column on a computer (≥ 900 px, TASK_037). */
   --sidebar-w: 240px;
+  /* Height covered by the on-screen keyboard; a Sheet sets it at runtime (TASK_040). */
+  --keyboard-inset: 0px;
   --icon: 24px;
 
   /* Motion: transform/opacity only; zeroed under prefers-reduced-motion. */
@@ -325,22 +327,6 @@ body {
   color: var(--text-secondary);
   font-size: var(--type-callout-size);
   line-height: 1.6;
-}
-
-.reverse-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: 14px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  user-select: none;
-}
-
-.reverse-toggle input {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
 }
 
 .import-row {
@@ -598,34 +584,7 @@ body {
   font-weight: 700;
 }
 
-.note-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.field label {
-  font-size: var(--type-footnote-size);
-  font-weight: 600;
-  color: var(--text);
-}
-
-.field .optional {
-  font-weight: 400;
-  color: var(--text-secondary);
-}
-
 /* 16px text in inputs: iOS Safari zooms the page into anything smaller. */
-.field input,
-.field textarea,
 .search-input {
   width: 100%;
   min-height: var(--tap-min);
@@ -638,21 +597,10 @@ body {
   color: var(--text);
 }
 
-.field textarea {
-  resize: vertical;
-  line-height: 1.4;
-}
-
-.field input:focus,
-.field textarea:focus,
 .search-input:focus {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
   border-color: transparent;
-}
-
-.field input[aria-invalid='true'] {
-  border-color: var(--danger);
 }
 
 .field-error {
@@ -695,12 +643,6 @@ body {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
-}
-
-.chip-add {
-  color: var(--accent-text);
-  background: var(--accent-soft);
-  border-color: transparent;
 }
 
 .chip-count {
@@ -2087,10 +2029,6 @@ html {
   margin-top: 10px;
 }
 
-.form-more {
-  align-self: flex-start;
-}
-
 /* --- TASK_039: home screen ------------------------------------------------ */
 .home-date {
   margin: 0;
@@ -2216,4 +2154,97 @@ html {
   .week-chart--compact .week-count {
     display: none;
   }
+}
+
+/* --- TASK_040: "Новое слово" / "Изменить слово" sheet ------------------- */
+.note-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* Optional parts: a "+ Пример" row until opened. */
+.note-form-more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.note-form-add {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--accent-text);
+  font: var(--type-callout);
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+
+.note-form-add:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .note-form-add:hover {
+    background: var(--accent-soft);
+  }
+}
+
+/* Reverse card: a 52 px switch row on the grouped surface. */
+.note-form-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.note-form-switch-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.note-form-switch-title {
+  font: var(--type-body);
+}
+
+.note-form-switch-hint {
+  font: var(--type-footnote);
+  color: var(--text-secondary);
+}
+
+/* The action stays at the bottom of the sheet while the fields scroll — and,
+   with the sheet itself above the keyboard, stays visible while typing. */
+.note-form-actions {
+  position: sticky;
+  bottom: calc(-1 * var(--space-4));
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 calc(-1 * var(--space-5)) calc(-1 * var(--space-4));
+  padding: var(--space-3) var(--space-5) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  background: var(--bg);
+  border-top: 1px solid var(--separator);
+}
+
+/* The keyboard covers the home indicator: no safe-area padding above it. */
+.ui-sheet--keyboard .note-form-actions {
+  padding-bottom: var(--space-3);
 }

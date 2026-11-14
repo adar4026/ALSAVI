@@ -1,4 +1,5 @@
 import type { CardView, LearningEngine } from '@alsavi/engine';
+import type { Note } from '@alsavi/engine';
 import {
   useCallback,
   useEffect,
@@ -27,7 +28,7 @@ import { draftFromNote, NoteFormController } from './note-form';
 import { NoteForm } from './NoteForm';
 import { difficultPracticeCards } from './practice-flow';
 import { countLabel } from './stats-view';
-import { Banner, Button, IconButton, ScreenHeader } from './ui';
+import { Banner, Button, Dialog, IconButton, ScreenHeader, Sheet, SheetController, toasts } from './ui';
 
 const STATUS_FILTERS: Array<[StatusFilter, string]> = [
   ['all', 'Все'],
@@ -54,10 +55,20 @@ interface Props {
   /** State filter to open the list with (e.g. 'difficult' from the statistics screen). */
   initialStatus?: StatusFilter;
   /**
-   * 'add' — open with the new-card form focused ("Добавить слово" on the home
-   * screen, TASK_029).
+   * `#/cards/new` (TASK_040): the "Новое слово" sheet is open over the list.
+   * Opening and closing it is the address's business (`App`), so "Назад"
+   * closes it too.
    */
-  initialFocus?: 'add';
+  createOpen?: boolean;
+  /** "+" / empty list: open the "Новое слово" sheet. */
+  onAdd: () => void;
+  /**
+   * Close the "Новое слово" sheet: `back` returns where it was opened from;
+   * `replace` stays on the list (to show a word right after).
+   */
+  onCloseCreate: (how: 'back' | 'replace') => void;
+  /** Show one word (`#/cards/<id>`) — from the "Добавлено · Открыть" toast. */
+  onOpenNote: (noteId: string) => void;
   /**
    * `#/cards/<noteId>` (TASK_037): bring this word's row into view once the
    * list has loaded — the card view replaces this in TASK_041.
@@ -83,7 +94,10 @@ export function CardManager({
   engine,
   onChanged,
   initialStatus = 'all',
-  initialFocus,
+  createOpen = false,
+  onAdd,
+  onCloseCreate,
+  onOpenNote,
   initialNoteId,
   onMissingNote,
   onPractice,
@@ -100,10 +114,9 @@ export function CardManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [scrollToId, setScrollToId] = useState<string | null>(null);
   const listTitle = useRef<HTMLHeadingElement>(null);
-  const frontInput = useRef<HTMLInputElement>(null);
   const undoButton = useRef<HTMLButtonElement>(null);
 
-  // The open inline editor's controller (at most one), for the unsaved-changes check.
+  // The open edit sheet's controller (at most one), for the unsaved-changes check.
   const editor = useRef<NoteFormController | null>(null);
   useEffect(() => {
     if (!registerUnsavedCheck) return;
@@ -187,29 +200,37 @@ export function CardManager({
     onChanged();
   }, [reload, onChanged]);
 
-  const onCreated = useCallback(() => void afterWrite(), [afterWrite]);
+  // Words added since the sheet last opened: "Отмена" becomes "Готово".
+  const [addedHere, setAddedHere] = useState(0);
+  useEffect(() => {
+    if (createOpen) setAddedHere(0);
+  }, [createOpen]);
+  // A new word is saved: the sheet stays open for the next one; a toast says
+  // what was added and can open it.
+  const onCreated = useCallback(
+    (note: Note) => {
+      setAddedHere((n) => n + 1);
+      void afterWrite();
+      toasts.show({ message: `Добавлено: ${note.front}`, action: { label: 'Открыть', onAction: () => onOpenNote(note.id) } });
+    },
+    [afterWrite, onOpenNote]
+  );
 
   function toggleTag(tag: string) {
     setFilter((f) => ({ ...f, tags: f.tags.includes(tag) ? f.tags.filter((t) => t !== tag) : [...f.tags, tag] }));
   }
 
+  // The duplicate warning's "Открыть существующую": the new-word sheet closes
+  // (its draft stays), the existing word opens for editing over the list.
   function openEntry(entry: NoteEntry) {
     archive.cancel();
+    if (createOpen) onCloseCreate('replace');
     setFilter({ ...EMPTY_FILTER, status: entry.archived ? 'archived' : 'all' });
     setEditingId(entry.note.id);
     setScrollToId(entry.note.id);
   }
 
-  function focusFirstCardField() {
-    frontInput.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    frontInput.current?.focus();
-  }
-
-  // Mount-only: the parent re-mounts this screen (new `key`) for each entry.
-  useEffect(() => {
-    if (initialFocus === 'add') focusFirstCardField();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const editingEntry = editingId ? (entries.find((e) => e.note.id === editingId) ?? null) : null;
 
   async function confirmArchive() {
     if (!(await archive.confirm())) return;
@@ -228,19 +249,10 @@ export function CardManager({
 
   return (
     <div className="cards-screen">
-      <ScreenHeader title="Карточки" />
-      <section className="panel" aria-labelledby="add-title">
-        <h2 id="add-title" className="panel-title">
-          Новая карточка
-        </h2>
-        <NoteForm
-          controller={createForm}
-          tagSuggestions={tagSuggestions}
-          onSaved={onCreated}
-          onOpenDuplicate={openEntry}
-          frontInputRef={frontInput}
-        />
-      </section>
+      <ScreenHeader
+        title="Карточки"
+        actions={<IconButton icon="plus" label="Добавить слово" variant="accent" onClick={onAdd} />}
+      />
 
       <section aria-labelledby="list-title">
         <h2 id="list-title" className="panel-title" ref={listTitle} tabIndex={-1}>
@@ -356,7 +368,9 @@ export function CardManager({
         {loaded && !loadError && entries.length === 0 && (
           <div className="list-empty">
             <div className="empty-state">Карточек пока нет. Добавьте первое слово — оно сразу появится в очереди на Главной.</div>
-            <Button onClick={focusFirstCardField}>Добавить первую карточку</Button>
+            <Button icon="plus" onClick={onAdd}>
+              Добавить первое слово
+            </Button>
           </div>
         )}
 
@@ -387,142 +401,214 @@ export function CardManager({
         <ul className="card-list">
           {visible.map((entry) => (
             <li className="card-row" key={entry.note.id} id={`note-${entry.note.id}`} tabIndex={-1}>
-              {editingId === entry.note.id ? (
-                <NoteEditor
-                  engine={engine}
-                  entry={entry}
-                  controllerRef={editor}
-                  tagSuggestions={tagSuggestions}
-                  onDone={(saved) => {
-                    setEditingId(null);
-                    if (saved) void afterWrite();
-                  }}
-                />
-              ) : (
-                <>
-                  <div className="row-main">
-                    <div className="row-head">
-                      <span className="front" lang="es">
-                        {entry.note.front}
-                      </span>
-                      <span className={`status status-${entry.archived ? 'archived' : entry.status}`}>
-                        {entry.archived ? 'в архиве' : statusLabel(entry, loadedAt)}
-                      </span>
-                    </div>
-                    <div className="back">{entry.note.back}</div>
-                    {entry.note.example && <div className="example">{entry.note.example}</div>}
-                    {entry.note.memo && <div className="memo">{entry.note.memo}</div>}
-                    {(entry.tags.length > 0 || entry.cards.length > 1) && (
-                      <div className="row-meta">
-                        {entry.tags.map((t) => (
-                          <span key={t} className="tag">
-                            #{t}
-                          </span>
-                        ))}
-                        {entry.cards.length > 1 && <span className="meta-note">+ обратная карточка</span>}
-                      </div>
-                    )}
+              <>
+                <div className="row-main">
+                  <div className="row-head">
+                    <span className="front" lang="es">
+                      {entry.note.front}
+                    </span>
+                    <span className={`status status-${entry.archived ? 'archived' : entry.status}`}>
+                      {entry.archived ? 'в архиве' : statusLabel(entry, loadedAt)}
+                    </span>
                   </div>
-                  {archiveState.pending?.noteId === entry.note.id ? (
-                    <div
-                      className="confirm"
-                      role="alertdialog"
-                      aria-labelledby={`confirm-${entry.note.id}`}
-                      aria-describedby={`confirm-desc-${entry.note.id}`}
-                      onKeyDown={onDialogKeyDown}
-                    >
-                      <strong id={`confirm-${entry.note.id}`}>Убрать «{entry.note.front}» в архив?</strong>
-                      <p id={`confirm-desc-${entry.note.id}`}>
-                        Карточка исчезнет из повторений и из списка. История повторений сохранится, вернуть
-                        карточку можно в разделе «Архив». «Отмена» ничего не изменит.
-                      </p>
-                      {archiveState.error && <div className="field-error">{archiveState.error}</div>}
-                      <div className="form-actions">
-                        <Button variant="danger" onClick={() => void confirmArchive()} disabled={archiveState.busy}>
-                          Убрать в архив
-                        </Button>
-                        <Button variant="secondary" onClick={() => archive.cancel()} disabled={archiveState.busy} autoFocus>
-                          Отмена
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="row-actions">
-                      <Button
-                        variant="secondary"
-                        aria-label={`Редактировать «${entry.note.front}»`}
-                        onClick={() => {
-                          archive.cancel();
-                          setEditingId(entry.note.id);
-                        }}
-                      >
-                        Изменить
-                      </Button>
-                      {entry.archived ? (
-                        <Button
-                          variant="secondary"
-                          aria-label={`Вернуть «${entry.note.front}» из архива`}
-                          onClick={() => void unarchive({ noteId: entry.note.id, label: entry.note.front })}
-                          disabled={archiveState.busy}
-                        >
-                          Вернуть
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="secondary"
-                          aria-label={`Убрать «${entry.note.front}» в архив`}
-                          onClick={() => {
-                            setEditingId(null);
-                            archive.request({ noteId: entry.note.id, label: entry.note.front });
-                          }}
-                        >
-                          В архив
-                        </Button>
-                      )}
+                  <div className="back">{entry.note.back}</div>
+                  {entry.note.example && <div className="example">{entry.note.example}</div>}
+                  {entry.note.memo && <div className="memo">{entry.note.memo}</div>}
+                  {(entry.tags.length > 0 || entry.cards.length > 1) && (
+                    <div className="row-meta">
+                      {entry.tags.map((t) => (
+                        <span key={t} className="tag">
+                          #{t}
+                        </span>
+                      ))}
+                      {entry.cards.length > 1 && <span className="meta-note">+ обратная карточка</span>}
                     </div>
                   )}
-                </>
-              )}
+                </div>
+                {archiveState.pending?.noteId === entry.note.id ? (
+                  <div
+                    className="confirm"
+                    role="alertdialog"
+                    aria-labelledby={`confirm-${entry.note.id}`}
+                    aria-describedby={`confirm-desc-${entry.note.id}`}
+                    onKeyDown={onDialogKeyDown}
+                  >
+                    <strong id={`confirm-${entry.note.id}`}>Убрать «{entry.note.front}» в архив?</strong>
+                    <p id={`confirm-desc-${entry.note.id}`}>
+                      Карточка исчезнет из повторений и из списка. История повторений сохранится, вернуть
+                      карточку можно в разделе «Архив». «Отмена» ничего не изменит.
+                    </p>
+                    {archiveState.error && <div className="field-error">{archiveState.error}</div>}
+                    <div className="form-actions">
+                      <Button variant="danger" onClick={() => void confirmArchive()} disabled={archiveState.busy}>
+                        Убрать в архив
+                      </Button>
+                      <Button variant="secondary" onClick={() => archive.cancel()} disabled={archiveState.busy} autoFocus>
+                        Отмена
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="row-actions">
+                    <Button
+                      variant="secondary"
+                      aria-label={`Редактировать «${entry.note.front}»`}
+                      onClick={() => {
+                        archive.cancel();
+                        setEditingId(entry.note.id);
+                      }}
+                    >
+                      Изменить
+                    </Button>
+                    {entry.archived ? (
+                      <Button
+                        variant="secondary"
+                        aria-label={`Вернуть «${entry.note.front}» из архива`}
+                        onClick={() => void unarchive({ noteId: entry.note.id, label: entry.note.front })}
+                        disabled={archiveState.busy}
+                      >
+                        Вернуть
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        aria-label={`Убрать «${entry.note.front}» в архив`}
+                        onClick={() => {
+                          setEditingId(null);
+                          archive.request({ noteId: entry.note.id, label: entry.note.front });
+                        }}
+                      >
+                        В архив
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </>
             </li>
           ))}
         </ul>
       </section>
+
+      <Sheet
+        open={createOpen}
+        title="Новое слово"
+        onRequestClose={() => onCloseCreate('back')}
+        leading={
+          addedHere === 0 && (
+            <Button variant="tertiary" onClick={() => onCloseCreate('back')}>
+              Отмена
+            </Button>
+          )
+        }
+        trailing={
+          addedHere > 0 && (
+            <Button variant="tertiary" onClick={() => onCloseCreate('back')}>
+              Готово
+            </Button>
+          )
+        }
+      >
+        <NoteForm
+          controller={createForm}
+          tagSuggestions={tagSuggestions}
+          onSaved={onCreated}
+          onOpenDuplicate={openEntry}
+          autoFocus
+        />
+      </Sheet>
+
+      {editingEntry && (
+        <EditSheet
+          key={editingEntry.note.id}
+          engine={engine}
+          entry={editingEntry}
+          controllerRef={editor}
+          tagSuggestions={tagSuggestions}
+          onClosed={(saved) => {
+            const id = editingEntry.note.id;
+            setEditingId(null);
+            if (saved) void afterWrite();
+            // Opened from the duplicate warning, the sheet's return target (in
+            // the closed "Новое слово" sheet) is gone: land on the word's row.
+            // Runs after the sheet's own focus restore.
+            setTimeout(() => {
+              if (document.activeElement === document.body) document.getElementById(`note-${id}`)?.focus({ preventScroll: true });
+            }, 50);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-/** Inline editor for one note: its own `NoteFormController`, prefilled from the note. */
-function NoteEditor({
+/**
+ * "Изменить слово" (TASK_040): the same form in a sheet, prefilled from the
+ * note, with its own `NoteFormController` — created once per opened word, so
+ * list reloads do not reset what is being typed. Closing with changes asks
+ * "Отменить изменения?" (D-18); a save closes it.
+ */
+function EditSheet({
   engine,
   entry,
   controllerRef,
   tagSuggestions,
-  onDone,
+  onClosed,
 }: {
   engine: LearningEngine;
   entry: NoteEntry;
   /** Points at this editor's controller while it is open. */
   controllerRef: RefObject<NoteFormController | null>;
   tagSuggestions: readonly string[];
-  onDone: (saved: boolean) => void;
+  onClosed: (saved: boolean) => void;
 }) {
-  // Created once per opened editor: later list reloads must not reset what
-  // the user is typing.
-  const [controller] = useState(
+  const [form] = useState(
     () => new NoteFormController(engine, { kind: 'edit', noteId: entry.note.id }, draftFromNote(entry.note))
   );
+  const [sheet] = useState(() => {
+    const s = new SheetController({ hasUnsavedChanges: () => form.hasUnsavedChanges(), confirmDiscard: true });
+    s.open();
+    return s;
+  });
+  const phase = useSyncExternalStore(sheet.subscribe, sheet.getPhase);
   useEffect(() => {
-    controllerRef.current = controller;
+    controllerRef.current = form;
     return () => {
-      if (controllerRef.current === controller) controllerRef.current = null;
+      if (controllerRef.current === form) controllerRef.current = null;
     };
-  }, [controller, controllerRef]);
+  }, [form, controllerRef]);
+  const onClosedRef = useRef(onClosed);
+  useEffect(() => {
+    onClosedRef.current = onClosed;
+  });
+  useEffect(() => {
+    if (phase === 'closed') onClosedRef.current(sheet.lastReason === 'done');
+  }, [phase, sheet]);
+  const onSaved = useCallback(() => void sheet.requestClose('done'), [sheet]);
+
   return (
-    <NoteForm
-      controller={controller}
-      tagSuggestions={tagSuggestions}
-      onSaved={() => onDone(true)}
-      onCancel={() => onDone(false)}
-    />
+    <>
+      <Sheet
+        open={phase !== 'closed'}
+        title="Изменить слово"
+        onRequestClose={(reason) => void sheet.requestClose(reason)}
+        leading={
+          <Button variant="tertiary" onClick={() => void sheet.requestClose('cancel')}>
+            Отмена
+          </Button>
+        }
+      >
+        <NoteForm controller={form} tagSuggestions={tagSuggestions} onSaved={onSaved} />
+      </Sheet>
+      <Dialog
+        open={phase === 'confirming'}
+        title="Отменить изменения?"
+        message={<>Изменения в «{entry.note.front}» не сохранятся.</>}
+        confirmLabel="Отменить изменения"
+        cancelLabel="Продолжить"
+        destructive
+        onConfirm={() => sheet.discard()}
+        onCancel={() => sheet.keepEditing()}
+      />
+    </>
   );
 }

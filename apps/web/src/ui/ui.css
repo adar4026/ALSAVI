@@ -1235,6 +1235,18 @@
   position: static;
 }
 
+/* Inside a sheet: above its action dock (the dialog is the containing block). */
+.ui-toast-host--sheet {
+  position: absolute;
+  bottom: calc(var(--button-h-lg) + var(--space-8) + env(safe-area-inset-bottom, 0px));
+}
+
+/* While a modal dialog is open, the page's own toasts sit behind the backdrop
+   (inert) — the dialog shows them instead. */
+body:has(dialog[open]) .app > .ui-toast-host {
+  visibility: hidden;
+}
+
 .ui-toast {
   display: flex;
   align-items: center;
@@ -1309,6 +1321,22 @@
 
 .ui-sheet[open] {
   animation: ui-sheet-up var(--dur-3) var(--ease) both;
+}
+
+/* Above the on-screen keyboard (TASK_040): `--keyboard-inset` is set by the
+   Sheet from visualViewport; 0 without a keyboard. */
+.ui-sheet {
+  margin-bottom: var(--keyboard-inset);
+}
+
+.ui-sheet .ui-sheet-frame,
+.ui-sheet {
+  max-height: calc(100dvh - var(--space-6) - var(--keyboard-inset));
+}
+
+/* The keyboard covers the home indicator: no safe-area padding above it. */
+.ui-sheet--keyboard .ui-sheet-footer {
+  padding-bottom: var(--space-3);
 }
 
 .ui-sheet-frame {

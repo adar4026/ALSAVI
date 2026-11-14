@@ -1,5 +1,18 @@
-import { useEffect, useId, useReducer, useRef, type MouseEvent, type ReactNode, type RefObject, type SyntheticEvent } from 'react';
+import {
+  useEffect,
+  useId,
+  useReducer,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+  type SyntheticEvent,
+} from 'react';
+import { keyboardInset } from './keyboard-inset';
 import type { CloseReason } from './sheet-state';
+import { ToastHost } from './Toast';
 import { cx } from './cx';
 
 /**
@@ -92,6 +105,31 @@ function restoreFocus(el: HTMLElement | null) {
   }, 0);
 }
 
+/**
+ * The height the on-screen keyboard covers while `active` (TASK_040), from
+ * `visualViewport` — 0 without a keyboard or where the API is missing.
+ */
+function useKeyboardInset(active: boolean): number {
+  const [inset, setInset] = useState(0);
+  useEffect(() => {
+    const vv = typeof window === 'undefined' ? null : window.visualViewport;
+    if (!active || !vv) {
+      setInset(0);
+      return;
+    }
+    const update = () =>
+      setInset(keyboardInset({ layoutHeight: window.innerHeight, visualHeight: vv.height, visualOffsetTop: vv.offsetTop }));
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, [active]);
+  return inset;
+}
+
 /** A click on the backdrop lands on the dialog element itself, outside its box. */
 function isBackdropClick(e: MouseEvent<HTMLDialogElement>): boolean {
   if (e.target !== e.currentTarget) return false;
@@ -120,12 +158,15 @@ export interface SheetProps {
 export function Sheet({ open, title, onRequestClose, leading, trailing, footer, children, className }: SheetProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  // The sheet rises above the on-screen keyboard, so its action stays visible.
+  const inset = useKeyboardInset(open);
   const onCancel = useModal(ref, open, { onNativeClose: () => onRequestClose('escape') });
   return (
     <dialog
       ref={ref}
-      className={cx('ui-sheet', className)}
+      className={cx('ui-sheet', inset > 0 && 'ui-sheet--keyboard', className)}
       aria-labelledby={titleId}
+      style={{ '--keyboard-inset': `${inset}px` } as CSSProperties}
       onCancel={onCancel}
       onClick={(e) => {
         if (isBackdropClick(e)) onRequestClose('backdrop');
@@ -143,6 +184,9 @@ export function Sheet({ open, title, onRequestClose, leading, trailing, footer, 
           </header>
           <div className="ui-sheet-body">{children}</div>
           {footer && <div className="ui-sheet-footer">{footer}</div>}
+          {/* Toasts about the sheet's own actions ("Добавлено · Открыть") must
+              be reachable: the page behind a modal dialog is inert. */}
+          <ToastHost placement="sheet" />
         </div>
       )}
     </dialog>

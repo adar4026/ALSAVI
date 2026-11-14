@@ -7,7 +7,7 @@ import { toasts as appToasts, type ToastQueue } from './toast-queue';
  * errors are Banners, not toasts. The countdown pauses while the toast is
  * hovered or holds focus. Mount one `ToastHost` per app (the shell, TASK_037+).
  */
-export function ToastHost({ queue = appToasts, placement = 'nav' }: { queue?: ToastQueue; placement?: 'nav' | 'dock' | 'inline' }) {
+export function ToastHost({ queue = appToasts, placement = 'nav' }: { queue?: ToastQueue; placement?: 'nav' | 'dock' | 'inline' | 'sheet' }) {
   const { current } = useSyncExternalStore(queue.subscribe, queue.getState);
   return (
     <div className={`ui-toast-host ui-toast-host--${placement}`} role="status" aria-live="polite">

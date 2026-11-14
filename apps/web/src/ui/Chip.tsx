@@ -3,9 +3,9 @@ import { cx } from './cx';
 
 /**
  * Chip (TASK_036): `filter` (toggle, `aria-pressed`), `tag` (`#tag` with a
- * count), `suggestion` ("+ tag"). Will replace `.chip`, `.chip-tag`,
- * `.chip-add` with the card list and form (TASK_040–041); a row of chips
- * scrolls horizontally inside `ChipRow`.
+ * count), `suggestion` ("+ tag", the form's tag suggestions since TASK_040).
+ * Will replace `.chip` and `.chip-tag` with the card list (TASK_041); a row
+ * of chips scrolls horizontally inside `ChipRow`.
  */
 export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-pressed'> {
   variant?: 'filter' | 'tag' | 'suggestion';

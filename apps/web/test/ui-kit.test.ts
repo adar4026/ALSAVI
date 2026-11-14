@@ -140,6 +140,11 @@ describe('no duplicate primitives', () => {
     'week-card',
     'home-lead',
     'eyebrow',
+    // TASK_040: the note form is built from TextField, TextArea, Switch and Chip.
+    'field',
+    'reverse-toggle',
+    'chip-add',
+    'form-more',
   ];
   const sources = readdirSync(resolve(webRoot, 'src'))
     .filter((f) => f.endsWith('.tsx'))
