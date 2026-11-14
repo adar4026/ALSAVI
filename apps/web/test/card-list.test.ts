@@ -7,8 +7,14 @@ import {
   filterEntries,
   findDuplicate,
   foldText,
+  addedAt,
+  lapsesOf,
   parseTagInput,
+  SORT_ORDERS,
+  sortEntries,
+  statusCounts,
   type ListFilter,
+  type NoteEntry,
 } from '../src/card-list.js';
 
 const T0 = new Date('2026-09-01T10:00:00Z').getTime();
@@ -187,5 +193,85 @@ describe('findDuplicate', () => {
     const entries = await entriesOf(engine, clock.t);
     expect(findDuplicate(entries, 'el piso', 'квартира')!.archived).toBe(true);
     expect(findDuplicate(entries, 'el piso', 'квартира', piso.note.id)).toBeUndefined();
+  });
+});
+
+describe('sortEntries (TASK_041)', () => {
+  // Synthetic entries: only the fields the orders read.
+  const entry = (front: string, o: { created: number; due?: number; status?: NoteEntry['status']; lapses?: number[] }) =>
+    ({
+      note: { id: `n-${front}`, front, back: '' },
+      tags: [],
+      cards: (o.lapses ?? [0]).map((lapses, i) => ({
+        id: `c-${front}-${i}`,
+        createdAt: o.created + i,
+        due: o.due ?? o.created,
+        scheduling: { lapses },
+      })),
+      status: o.status ?? 'review',
+      nextDue: o.due ?? o.created,
+      archived: false,
+    }) as unknown as NoteEntry;
+
+  const a = entry('árbol', { created: 3, due: 50, lapses: [1] });
+  const b = entry('Barco', { created: 0, due: 20, lapses: [0, 2] });
+  const c = entry('casa', { created: 2, due: 5, status: 'new' });
+  const d = entry('arena', { created: 4, due: 20, lapses: [1] });
+  const list = [a, b, c, d];
+
+  it('newest first (by the latest card), the order the list always had', () => {
+    expect(fronts(sortEntries(list, 'newest'))).toEqual(['arena', 'árbol', 'casa', 'Barco']);
+  });
+
+  it('alphabetical in Spanish, ignoring case and accents', () => {
+    expect(fronts(sortEntries(list, 'alpha'))).toEqual(['árbol', 'arena', 'Barco', 'casa']);
+  });
+
+  it('nearest repetition first; never-studied words last; ties keep their order', () => {
+    expect(fronts(sortEntries(list, 'due'))).toEqual(['Barco', 'arena', 'árbol', 'casa']);
+    expect(fronts(sortEntries([d, b, a, c], 'due'))).toEqual(['arena', 'Barco', 'árbol', 'casa']);
+  });
+
+  it('most forgotten first, lapses summed over both cards; stable on ties', () => {
+    expect(fronts(sortEntries(list, 'lapses'))).toEqual(['Barco', 'árbol', 'arena', 'casa']);
+    expect(lapsesOf(b)).toBe(2);
+  });
+
+  it('returns a new array and leaves the input alone', () => {
+    const copy = [...list];
+    const sorted = sortEntries(list, 'alpha');
+    expect(sorted).not.toBe(list);
+    expect(list).toEqual(copy);
+  });
+
+  it('four orders with Russian labels', () => {
+    expect(SORT_ORDERS.map((o) => o.label)).toEqual(['Сначала новые', 'По алфавиту', 'Ближайшие повторения', 'Чаще забываю']);
+  });
+
+  it('addedAt is the first card of the note', () => {
+    expect(addedAt(b)).toBe(0);
+  });
+});
+
+describe('statusCounts (TASK_041)', () => {
+  it('each chip counts what its filter would show for the current search', async () => {
+    const { engine, clock, piso, alquilar } = await seed();
+    await engine.archiveNote(piso.note.id);
+    // alquilar: learned, then forgotten → difficult and learning (relearning).
+    const [card] = alquilar.cards;
+    await engine.review(card!.id, 'good');
+    clock.t += 10 * DAY;
+    await engine.review(card!.id, 'good');
+    clock.t += 30 * DAY;
+    await engine.review(card!.id, 'again');
+    const entries = await entriesOf(engine, clock.t);
+    const counts = statusCounts(entries, '', clock.t);
+    for (const status of ['all', 'new', 'learning', 'due', 'difficult', 'archived'] as const) {
+      expect(counts[status], status).toBe(filterEntries(entries, f({ status }), clock.t).length);
+    }
+    expect(counts.all).toBe(3);
+    expect(counts.archived).toBe(1);
+    expect(counts.difficult).toBe(1);
+    expect(statusCounts(entries, 'iglesia', clock.t).all).toBe(1);
   });
 });

@@ -145,6 +145,21 @@ describe('no duplicate primitives', () => {
     'reverse-toggle',
     'chip-add',
     'form-more',
+    // TASK_041: the list is ListRow + SearchField + Chip; archive is a Dialog.
+    'card-row',
+    'card-list',
+    'row-actions',
+    'list-controls',
+    'list-count',
+    'list-empty',
+    'search-input',
+    'chip',
+    'chip-row',
+    'chip-tag',
+    'status',
+    'confirm',
+    'practice-cta',
+    'archive-undo',
   ];
   const sources = readdirSync(resolve(webRoot, 'src'))
     .filter((f) => f.endsWith('.tsx'))

@@ -14,6 +14,7 @@ import {
   routeFromHash,
   sameRoute,
   urlForRoute,
+  type CardTarget,
   type Route,
   type View,
 } from './nav';
@@ -32,31 +33,26 @@ import { Banner, Button, EmptyState, Skeleton, toasts, ToastHost } from './ui';
 import { applyTheme, readThemePreference, writeThemePreference, type ThemePreference } from './theme';
 
 /**
- * How "Карточки" opens: the list filter and an optional word (TASK_029/037).
- * `seq` changes on every navigation so `CardManager` re-mounts and applies
- * them — even when the same entry is chosen twice in a row. The "Новое
- * слово" sheet (`#/cards/new`, TASK_040) is not an entry: it opens and closes
- * over the list without re-mounting it.
+ * How "Карточки" opens from another section: the list filter (TASK_029).
+ * `seq` changes on each such entry so `CardManager` re-mounts and applies it
+ * — even when the same entry is chosen twice in a row. Inside "Карточки" the
+ * addresses `#/cards`, `#/cards/new` (the "Новое слово" sheet, TASK_040) and
+ * `#/cards/<id>` (the card view, TASK_041) only change what is shown over or
+ * beside the list: no re-mount, the list keeps its filters and scroll.
  */
 interface CardsEntry {
   status: StatusFilter;
-  /** `#/cards/<noteId>` (TASK_037): the word to bring into view. */
-  noteId?: string;
   seq: number;
 }
 
-/** How "Карточки" opens for an address (TASK_037). */
-function cardsEntryFor(route: Route, seq: number): CardsEntry {
-  if (route.card?.kind === 'note') return { status: 'all', noteId: route.card.id, seq };
-  return { status: 'all', seq };
-}
-
-const isCreateRoute = (route: Route): boolean => route.view === 'cards' && route.card?.kind === 'new';
-
-/** `#/cards` ↔ `#/cards/new`: only the sheet opens or closes, the list stays. */
-function onlySheetChanges(a: Route, b: Route): boolean {
-  return a.view === 'cards' && b.view === 'cards' && isCreateRoute(a) !== isCreateRoute(b) && a.card?.kind !== 'note' && b.card?.kind !== 'note';
-}
+/**
+ * `history.state` of an entry this visit pushed for a sheet or a card view:
+ * closing it is "Назад" (back where it was opened from). Without it (opened
+ * by address), closing replaces the entry with `#/cards`.
+ */
+const CARDS_SUB_ENTRY = { alsaviCardsSub: true } as const;
+const isCardsSubEntry = (): boolean =>
+  (window.history.state as { alsaviCardsSub?: boolean } | null)?.alsaviCardsSub === true;
 
 /** `localStorage` can throw on access (blocked site data) — treat as absent. */
 function safeLocalStorage(): Storage | null {
@@ -132,13 +128,11 @@ export function App() {
   // How "Карточки" opens: 'all' from the navigation, 'difficult' from the
   // statistics and home screens (TASK_026), the form from "Добавить слово"
   // (TASK_029, `#/cards/new` since TASK_037), one word (`#/cards/<id>`).
-  const [cardsEntry, setCardsEntry] = useState<CardsEntry>(() => cardsEntryFor(initialRoute, 0));
-  // The "Новое слово" sheet (`#/cards/new`, TASK_040). `createPushed`: this
-  // visit added the sheet's history entry, so closing it is "Назад" (back to
-  // where it was opened from); otherwise (opened by address) the entry is
-  // replaced with `#/cards`.
-  const [createOpen, setCreateOpen] = useState(() => isCreateRoute(initialRoute));
-  const createPushed = useRef(false);
+  const [cardsEntry, setCardsEntry] = useState<CardsEntry>({ status: 'all', seq: 0 });
+  // What "Карточки" shows besides the list: the "Новое слово" sheet or a word.
+  const [cardTarget, setCardTarget] = useState<CardTarget | undefined>(() =>
+    initialRoute.view === 'cards' ? initialRoute.card : undefined
+  );
   // Initial value: the same stored choice the inline script in index.html
   // already applied before the first paint.
   const [theme, setTheme] = useState<ThemePreference>(() => readThemePreference(safeLocalStorage()));
@@ -230,24 +224,22 @@ export function App() {
       }
       const route = routeFromHash(window.location.hash);
       if (sameRoute(route, routeRef.current)) return;
-      // The sheet opens or closes over the same list: no re-mount, nothing to lose.
-      if (onlySheetChanges(route, routeRef.current)) {
-        createPushed.current = false;
-        setCreateOpen(isCreateRoute(route));
+      // Inside "Карточки": a sheet or the card view opens or closes over the
+      // same list — no re-mount, nothing to lose.
+      if (route.view === 'cards' && routeRef.current.view === 'cards') {
+        setCardTarget(route.card);
         routeRef.current = route;
         return;
       }
-      // Another section, or another address inside "Карточки" (which
-      // re-mounts the screen): an open editor would lose its text — ask.
+      // Another section: an open editor would lose its text — ask.
       if (!confirmLeaveCards()) {
         // Stay: the browser already changed the address — put it back.
         const { pathname, search } = window.location;
         window.history.pushState(null, '', `${pathname}${search}${hashForRoute(routeRef.current)}`);
         return;
       }
-      if (route.view === 'cards') setCardsEntry((prev) => cardsEntryFor(route, prev.seq + 1));
-      createPushed.current = false;
-      setCreateOpen(isCreateRoute(route));
+      if (route.view === 'cards') setCardsEntry((prev) => ({ status: 'all', seq: prev.seq + 1 }));
+      setCardTarget(route.view === 'cards' ? route.card : undefined);
       setPracticing(false);
       routeRef.current = route;
       viewRef.current = route.view;
@@ -264,9 +256,8 @@ export function App() {
   const go = useCallback((next: View | Route) => {
     const route: Route = typeof next === 'string' ? { view: next } : next;
     const url = urlForRoute(route, window.location);
-    if (url !== null) window.history.pushState(null, '', url);
-    createPushed.current = url !== null && isCreateRoute(route);
-    setCreateOpen(isCreateRoute(route));
+    if (url !== null) window.history.pushState(route.card ? CARDS_SUB_ENTRY : null, '', url);
+    setCardTarget(route.view === 'cards' ? route.card : undefined);
     setPracticing(false);
     routeRef.current = route;
     viewRef.current = route.view;
@@ -325,58 +316,58 @@ export function App() {
     [confirmLeaveCards, go]
   );
 
-  // "+" on the list: the sheet opens over it — the list, its filters and
-  // scroll position stay as they are.
-  const openCreate = useCallback(() => {
-    if (routeRef.current.view !== 'cards' || routeRef.current.card) {
-      openCards('all', 'add');
-      return;
-    }
-    const route: Route = { view: 'cards', card: { kind: 'new' } };
-    const url = urlForRoute(route, window.location);
-    if (url !== null) window.history.pushState(null, '', url);
-    createPushed.current = url !== null;
-    routeRef.current = route;
-    setCreateOpen(true);
-  }, [openCards]);
+  /**
+   * Open the "Новое слово" sheet or a word inside "Карточки" (TASK_040/041).
+   * From the list (or for the sheet) it is a new history entry, so "Назад"
+   * closes it; one word replacing another (the next row on a computer, the
+   * sheet's "Открыть") replaces the entry. From another section "Карточки"
+   * opens afresh.
+   */
+  const openCardTarget = useCallback(
+    (target: CardTarget) => {
+      const current = routeRef.current;
+      const route: Route = { view: 'cards', card: target };
+      if (current.view !== 'cards') {
+        if (!confirmLeaveCards()) return;
+        setCardsEntry((prev) => ({ status: 'all', seq: prev.seq + 1 }));
+        go(route);
+        return;
+      }
+      if (sameRoute(route, current)) return;
+      const url = urlForRoute(route, window.location);
+      if (url !== null) {
+        if (!current.card || target.kind === 'new') window.history.pushState(CARDS_SUB_ENTRY, '', url);
+        else window.history.replaceState(window.history.state, '', url);
+      }
+      routeRef.current = route;
+      setCardTarget(target);
+    },
+    [confirmLeaveCards, go]
+  );
 
-  const closeCreate = useCallback((how: 'back' | 'replace') => {
-    if (!isCreateRoute(routeRef.current)) return;
-    if (how === 'back' && createPushed.current) {
-      // The popstate handler above closes the sheet (or changes the section).
+  const openCreate = useCallback(() => openCardTarget({ kind: 'new' }), [openCardTarget]);
+  const openNote = useCallback((id: string) => openCardTarget({ kind: 'note', id }), [openCardTarget]);
+
+  /** Close the sheet or the card view: "Назад" when this visit opened it, else back to `#/cards`. */
+  const closeCardTarget = useCallback(() => {
+    if (routeRef.current.view !== 'cards' || !routeRef.current.card) return;
+    if (isCardsSubEntry()) {
+      // The popstate handler above closes it (or changes the section).
       window.history.back();
       return;
     }
     const { pathname, search } = window.location;
     window.history.replaceState(null, '', `${pathname}${search}#/cards`);
-    createPushed.current = false;
     routeRef.current = { view: 'cards' };
-    setCreateOpen(false);
+    setCardTarget(undefined);
   }, []);
-
-  // "Добавлено · Открыть": the sheet closes, the word is shown (`#/cards/<id>`
-  // in place of `#/cards/new`, so "Назад" still leads where the sheet was
-  // opened from).
-  const openNote = useCallback((noteId: string) => {
-    // The toast can outlive the sheet (e.g. into an edit sheet opened next).
-    if (!confirmLeaveCards()) return;
-    const route: Route = { view: 'cards', card: { kind: 'note', id: noteId } };
-    const { pathname, search } = window.location;
-    window.history.replaceState(null, '', `${pathname}${search}${hashForRoute(route)}`);
-    createPushed.current = false;
-    routeRef.current = route;
-    viewRef.current = 'cards';
-    setCreateOpen(false);
-    setPracticing(false);
-    setView('cards');
-    setCardsEntry((prev) => cardsEntryFor(route, prev.seq + 1));
-  }, [confirmLeaveCards]);
 
   // `#/cards/<id>` for a word that is not in the collection (TASK_037).
   const onMissingNote = useCallback(() => {
     const { pathname, search } = window.location;
     window.history.replaceState(null, '', `${pathname}${search}#/cards`);
     routeRef.current = { view: 'cards' };
+    setCardTarget(undefined);
     toasts.show({ message: 'Карточка не найдена' });
   }, []);
 
@@ -624,11 +615,10 @@ export function App() {
         <CardManager
           key={cardsEntry.seq}
           initialStatus={cardsEntry.status}
-          createOpen={createOpen}
+          target={cardTarget}
           onAdd={openCreate}
-          onCloseCreate={closeCreate}
           onOpenNote={openNote}
-          initialNoteId={cardsEntry.noteId}
+          onCloseTarget={closeCardTarget}
           onMissingNote={onMissingNote}
           engine={engine}
           onChanged={() => void refreshStats()}

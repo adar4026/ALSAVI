@@ -2,7 +2,7 @@ import type { EngineStore, LearningEngine } from '@alsavi/engine';
 import { backupFilename, createBackup, restoreBackup } from '@alsavi/backup';
 import { useEffect, useId, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { exportedStatus, restoreConfirmText, restoredStatus } from './backup-messages';
-import { importApkgFile, type ImportReport } from './importApkg';
+import type { ImportReport } from './importApkg';
 import type { Platform } from './reminder-browser';
 import type { ReminderClient } from './reminder-client';
 import { RemindersSection } from './RemindersSection';
@@ -115,6 +115,10 @@ export function ProfileScreen({
     if (!file) return;
     setImportStatus(`Импорт «${file.name}»…`);
     try {
+      // Loaded on demand (TASK_041): the Anki reader and sql.js are needed only
+      // here and kept out of the main bundle; the chunk is precached like the
+      // rest of dist/, so import still works offline.
+      const { importApkgFile } = await import('./importApkg');
       const report = await importApkgFile(file, engine);
       setImportStatus(describeReport(report));
       onChanged();

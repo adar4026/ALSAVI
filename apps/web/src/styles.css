@@ -584,252 +584,18 @@ body {
   font-weight: 700;
 }
 
-/* 16px text in inputs: iOS Safari zooms the page into anything smaller. */
-.search-input {
-  width: 100%;
-  min-height: var(--tap-min);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px var(--space-3);
-  font: inherit;
-  font-size: 16px;
-  color: var(--text);
-}
-
-.search-input:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
-  border-color: transparent;
-}
-
-.field-error {
-  font-size: var(--type-footnote-size);
-  color: var(--danger-text);
-}
-
-.form-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
-}
-
-.chip:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.chip {
-  min-height: 36px;
-  padding: 6px var(--space-3);
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 14px;
-  cursor: pointer;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
-
-.chip[aria-pressed='true'] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-
-.chip-count {
-  opacity: 0.7;
-  font-size: var(--type-caption-size);
-  font-variant-numeric: tabular-nums;
-}
-
-.archive-undo {
-  margin-bottom: var(--space-3);
-}
-
-.list-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: var(--space-4);
-}
-
 .hint {
   font-size: var(--type-footnote-size);
   color: var(--text-secondary);
-}
-
-.list-count {
-  font-size: var(--type-footnote-size);
-  color: var(--text-secondary);
-  margin-bottom: var(--space-2);
-  font-variant-numeric: tabular-nums;
-}
-
-.list-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-6) 0;
-}
-
-.card-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.card-row {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 14px var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  font-size: var(--type-callout-size);
-  min-width: 0;
-}
-
-.row-main {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.row-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.card-row .front {
-  font-weight: 600;
-  font-size: var(--type-headline-size);
-}
-
-.card-row .back {
-  color: var(--text);
-}
-
-.card-row .example {
-  color: var(--text-secondary);
-  font-style: italic;
-  font-size: 14px;
-}
-
-.card-row .memo {
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.status {
-  flex-shrink: 0;
-  font-size: var(--type-caption-size);
-  font-weight: 600;
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-pill);
-  color: var(--text-secondary);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  white-space: nowrap;
-}
-
-.status-due {
-  color: var(--accent-text);
-  background: var(--accent-soft);
-  border-color: var(--accent-border);
-}
-
-.status-learning {
-  color: var(--warning-text);
-  background: var(--warning-soft);
-  border-color: var(--warning-border);
-}
-
-.status-review {
-  color: var(--success-text);
-  background: var(--success-soft);
-  border-color: var(--success-border);
-}
-
-.row-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-2);
-  margin-top: 2px;
-  font-size: var(--type-footnote-size);
-}
-
-.tag {
-  color: var(--accent-text);
-}
-
-.meta-note {
-  color: var(--text-secondary);
-}
-
-.row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.row-actions .ui-button {
-  min-width: 96px;
-}
-
-.confirm {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border-radius: 10px;
-  background: var(--danger-soft);
-  border: 1px solid var(--danger-border);
-}
-
-.confirm p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.45;
-  color: var(--text);
 }
 
 @media (max-width: 380px) {
   .panel {
     padding: var(--space-4) 14px;
   }
-
-  .card-row {
-    padding: var(--space-3) 14px;
-  }
-
-  .row-actions .ui-button {
-    flex: 1;
-  }
 }
 
 /* --- TASK_026: "Статистика" --- */
-
-#list-title:focus {
-  outline: none;
-}
 
 .sr-only {
   position: absolute;
@@ -1932,36 +1698,6 @@ body {
 
 /* --- TASK_032: difficult-words practice ------------------------------------ */
 
-/* Start button under the "Трудные" filter of "Карточки". */
-.practice-cta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-}
-
-.practice-count {
-  display: inline-grid;
-  place-items: center;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--on-accent-soft);
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-}
-
-.practice-cta .hint {
-  margin: 0;
-}
-
-@media (max-width: 380px) {
-  .practice-start {
-    width: 100%;
-  }
-}
-
 /* --- TASK_033: phone polish — navigation overlap, keyboard, tap targets ---- */
 
 /* The floating navigation bar covers the bottom of the viewport on phones.
@@ -1991,15 +1727,6 @@ html {
   }
 }
 
-/* Touch screens: filter and tag chips get a full 44px tap height, and the
-   keyboard hints ("Пробел", "1 · 2 · 3 · 4") are hidden — there is no
-   keyboard to press them on. */
-@media (pointer: coarse) {
-  .chip {
-    min-height: var(--tap-min);
-  }
-}
-
 /* A touch tablet in the computer layout (navigation tabs in the header). */
 @media (min-width: 900px) and (pointer: coarse) {
   .main-nav-item {
@@ -2010,16 +1737,6 @@ html {
 /* "Доступна новая версия" — shown after the service worker installed an update. */
 .app-update {
   margin-bottom: var(--space-4);
-}
-
-/* `#/cards/<id>` brings a row into view and focuses it (TASK_037). */
-.card-row:focus {
-  outline: none;
-}
-
-.card-row:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 /* Layout hooks of screens on the shared Button (TASK_036): spacing only —
@@ -2247,4 +1964,321 @@ html {
 /* The keyboard covers the home indicator: no safe-area padding above it. */
 .ui-sheet--keyboard .note-form-actions {
   padding-bottom: var(--space-3);
+}
+
+/* --- TASK_041: card list and card view ------------------------------------ */
+
+/* Search, state chips and the tools stay at the top while the list scrolls —
+   under the compact title bar on a phone. */
+.cards-tools {
+  position: sticky;
+  top: calc(var(--tap-min) + env(safe-area-inset-top, 0px));
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0 calc(-1 * var(--space-5)) var(--space-3);
+  padding: var(--space-2) var(--space-5) var(--space-3);
+  background: var(--bg);
+}
+
+.cards-tools-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.cards-tool {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: var(--type-footnote);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cards-tool[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.cards-tool:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.cards-tool:focus-visible,
+.cards-sort:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The native select (iOS shows its own picker); the pill around it is the look. */
+.cards-sort {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.cards-sort select {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.cards-sort select:focus {
+  outline: none;
+}
+
+.cards-found {
+  flex-shrink: 0;
+  margin-left: auto;
+  font: var(--type-footnote);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (pointer: coarse) {
+  .cards-tool {
+    min-height: var(--tap-min);
+  }
+}
+
+.cards-practice {
+  margin-bottom: var(--space-3);
+}
+
+.cards-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--elev-1);
+}
+
+/* Each row sits in its own <li>: the separator the kit draws between
+   adjacent rows is drawn here between items. */
+.cards-rows > li + li > .ui-list-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: var(--space-4);
+  right: 0;
+  height: 1px;
+  background: var(--separator);
+}
+
+.cards-row-end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.cards-row-when {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.cards-row-reverse {
+  display: flex;
+  color: var(--text-tertiary);
+}
+
+.cards-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.cards-tags-hint,
+.cards-tags-found {
+  margin: 0 0 var(--space-3);
+  font: var(--type-footnote);
+  color: var(--text-secondary);
+}
+
+.cards-tags-found {
+  margin: var(--space-4) 0 0;
+}
+
+.cards-error {
+  margin: var(--space-3) 0 0;
+  font: var(--type-footnote);
+  color: var(--danger-text);
+}
+
+/* Card view. */
+.card-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.card-detail-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--tap-min);
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) calc(-1 * var(--space-3));
+}
+
+.card-detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-2) 0 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--accent-text);
+  font: var(--type-body);
+  cursor: pointer;
+}
+
+.card-detail-back:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.card-detail-front {
+  margin: 0;
+  font: var(--type-title-1);
+  overflow-wrap: anywhere;
+}
+
+.card-detail-front:focus {
+  outline: none;
+}
+
+.card-detail-translation {
+  margin: var(--space-1) 0 0;
+  font: var(--type-title-2);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.card-detail-note {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.card-detail-label {
+  margin: 0 0 var(--space-1);
+  font: var(--type-overline);
+  letter-spacing: var(--type-overline-tracking);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.card-detail-note p {
+  margin: 0;
+  font: var(--type-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.card-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card-detail-tag {
+  padding: var(--space-1) 10px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font: var(--type-footnote);
+  font-weight: 600;
+}
+
+.card-detail-value {
+  color: var(--text-secondary);
+  font: var(--type-callout);
+  text-align: right;
+}
+
+.card-detail-learning .ui-list-row {
+  min-height: 52px;
+}
+
+.card-detail-learning .ui-list-row-title {
+  font: var(--type-body);
+}
+
+/* Narrow phones: the page gutter is 12 px (TASK_037); the sticky tools span it. */
+@media (max-width: 380px) {
+  .cards-tools {
+    margin-inline: calc(-1 * var(--space-3));
+    padding-inline: var(--space-3);
+  }
+}
+
+/* Computer: the list stays on the left, the chosen word on the right
+   (master–detail) — from 1100 px, where both columns have room (TASK_037). */
+@media (min-width: 900px) {
+  .cards-tools {
+    top: 0;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+}
+
+@media (min-width: 1100px) {
+  .app > .cards-screen.is-split {
+    max-width: 1160px;
+  }
+
+  .cards-screen.is-split .cards-body {
+    display: grid;
+    grid-template-columns: 380px minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-8);
+  }
+
+  .cards-pane {
+    position: sticky;
+    top: var(--space-8);
+    max-height: calc(100dvh - 2 * var(--space-8));
+    overflow-y: auto;
+    padding-left: var(--space-8);
+    border-left: 1px solid var(--separator);
+  }
+
+  .cards-pane .ui-empty {
+    margin-top: var(--space-12);
+  }
+}
+
+.cards-more {
+  margin-top: var(--space-3);
 }

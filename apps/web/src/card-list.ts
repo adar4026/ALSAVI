@@ -114,23 +114,38 @@ function matchesStatus(entry: NoteEntry, status: StatusFilter, now: number): boo
   }
 }
 
-function matchesQuery(entry: NoteEntry, query: string): boolean {
-  const tokens = foldText(query).split(' ').filter(Boolean);
+// The folded search text of an entry, computed once per entry object (an
+// entry is rebuilt only when the list reloads) — folding is the costly part
+// of a search over thousands of notes (TASK_041 check).
+const haystacks = new WeakMap<NoteEntry, string>();
+function haystackOf(entry: NoteEntry): string {
+  let text = haystacks.get(entry);
+  if (text === undefined) {
+    const { front, back, example = '', memo = '' } = entry.note;
+    text = foldText([front, back, example, memo, ...entry.tags].join('\n'));
+    haystacks.set(entry, text);
+  }
+  return text;
+}
+
+const queryTokens = (query: string): string[] => foldText(query).split(' ').filter(Boolean);
+
+function matchesTokens(entry: NoteEntry, tokens: readonly string[]): boolean {
   if (tokens.length === 0) return true;
-  const { front, back, example = '', memo = '' } = entry.note;
-  const haystack = foldText([front, back, example, memo, ...entry.tags].join('\n'));
+  const haystack = haystackOf(entry);
   return tokens.every((t) => haystack.includes(t));
 }
 
 /** Archived notes appear only under the "archived" filter; every other filter shows active notes. */
 export function filterEntries(entries: readonly NoteEntry[], filter: ListFilter, now: number): NoteEntry[] {
   const wantArchived = filter.status === 'archived';
+  const tokens = queryTokens(filter.query);
   return entries.filter(
     (e) =>
       e.archived === wantArchived &&
       filter.tags.every((t) => e.tags.includes(t)) &&
       matchesStatus(e, filter.status, now) &&
-      matchesQuery(e, filter.query)
+      matchesTokens(e, tokens)
   );
 }
 
@@ -160,4 +175,82 @@ export function findDuplicate(
   return entries.find(
     (e) => e.note.id !== excludeNoteId && foldText(e.note.front) === f && foldText(e.note.back) === b
   );
+}
+
+/**
+ * Rows rendered at first and added by "Показать ещё" (TASK_041, C-10): with a
+ * few thousand cards, rendering every row made search and filters lag.
+ */
+export const LIST_PAGE = 100;
+
+/**
+ * List orders (TASK_041, Q10): four, chosen per visit — not saved. "Сначала
+ * новые" is the order the list always had.
+ */
+export type SortOrder = 'newest' | 'alpha' | 'due' | 'lapses';
+
+export const SORT_ORDERS: ReadonlyArray<{ value: SortOrder; label: string }> = [
+  { value: 'newest', label: 'Сначала новые' },
+  { value: 'alpha', label: 'По алфавиту' },
+  { value: 'due', label: 'Ближайшие повторения' },
+  { value: 'lapses', label: 'Чаще забываю' },
+];
+
+/** When the note was added: its first card. */
+export function addedAt(entry: NoteEntry): number {
+  return Math.min(...entry.cards.map((c) => c.createdAt));
+}
+
+/** How many times its cards were forgotten after being learned (FSRS lapses). */
+export function lapsesOf(entry: NoteEntry): number {
+  return entry.cards.reduce((sum, c) => sum + c.scheduling.lapses, 0);
+}
+
+const newestKey = (e: NoteEntry) => Math.max(...e.cards.map((c) => c.createdAt));
+const spanish = new Intl.Collator('es', { sensitivity: 'base' });
+
+/**
+ * The entries in one of the four orders; a new array, stable (ties keep the
+ * order they came in). "Ближайшие повторения" puts notes not yet studied last:
+ * a new card is "due" from its creation, but it is not a repetition.
+ */
+export function sortEntries(entries: readonly NoteEntry[], order: SortOrder): NoteEntry[] {
+  // Keys are computed once per entry, not per comparison.
+  if (order === 'alpha') {
+    return entries
+      .map((entry, index) => ({ entry, index }))
+      .sort((a, b) => spanish.compare(a.entry.note.front, b.entry.note.front) || a.index - b.index)
+      .map(({ entry }) => entry);
+  }
+  const key: (e: NoteEntry) => number = {
+    newest: (e: NoteEntry) => -newestKey(e),
+    due: (e: NoteEntry) => (e.status === 'new' ? Number.POSITIVE_INFINITY : e.nextDue),
+    lapses: (e: NoteEntry) => -lapsesOf(e),
+  }[order];
+  return entries
+    .map((entry, index) => ({ entry, index, key: key(entry) }))
+    .sort((a, b) => (a.key === b.key ? a.index - b.index : a.key < b.key ? -1 : 1))
+    .map(({ entry }) => entry);
+}
+
+const STATUS_FILTER_VALUES: readonly StatusFilter[] = ['all', 'new', 'learning', 'due', 'difficult', 'archived'];
+
+/**
+ * The number on each state chip (TASK_041): what that filter would show for
+ * the current search. Tags are left out — the active and the archived list
+ * have different tags, and the tag filter is reset across that switch.
+ */
+export function statusCounts(entries: readonly NoteEntry[], query: string, now: number): Record<StatusFilter, number> {
+  const counts = Object.fromEntries(STATUS_FILTER_VALUES.map((s) => [s, 0])) as Record<StatusFilter, number>;
+  const tokens = queryTokens(query);
+  // One pass; the same rules as `filterEntries` (tested against it).
+  for (const e of entries) {
+    if (!matchesTokens(e, tokens)) continue;
+    if (e.archived) {
+      counts.archived++;
+      continue;
+    }
+    for (const status of STATUS_FILTER_VALUES) if (status !== 'archived' && matchesStatus(e, status, now)) counts[status]++;
+  }
+  return counts;
 }

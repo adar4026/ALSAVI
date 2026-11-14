@@ -14,6 +14,7 @@ export type IconName =
   | 'plus'
   | 'arrow-right'
   | 'chevron-right'
+  | 'chevron-left'
   | 'home'
   | 'chart'
   | 'user'
@@ -35,7 +36,9 @@ export type IconName =
   | 'info'
   | 'refresh'
   | 'book'
-  | 'minus';
+  | 'minus'
+  // TASK_041: a word with a reverse card in the list.
+  | 'swap';
 
 const PATHS: Record<IconName, ReactElement> = {
   flame: (
@@ -65,6 +68,7 @@ const PATHS: Record<IconName, ReactElement> = {
   plus: <path d="M12 5v14M5 12h14" />,
   'arrow-right': <path d="M5 12h14M13 6l6 6-6 6" />,
   'chevron-right': <path d="M9.5 6l6 6-6 6" />,
+  'chevron-left': <path d="M14.5 6l-6 6 6 6" />,
   home: <path d="M4 10.5 12 4l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5H15v-6H9v6H5.5A1.5 1.5 0 0 1 4 19v-8.5Z" />,
   chart: <path d="M5 20V11M12 20V4.5M19 20v-6.5M3.5 20.5h17" />,
   play: <path d="M8 5.5v13l10.5-6.5L8 5.5Z" />,
@@ -128,6 +132,7 @@ const PATHS: Record<IconName, ReactElement> = {
   refresh: <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3L19.5 9M19.5 4.5V9H15" />,
   book: <path d="M5 5.5A1.5 1.5 0 0 1 6.5 4H19v14H6.5A1.5 1.5 0 0 0 5 19.5v-14ZM5 19.5A1.5 1.5 0 0 0 6.5 21H19" />,
   minus: <path d="M5 12h14" />,
+  swap: <path d="M5 8.5h13.5M15 5l3.5 3.5L15 12M19 15.5H5.5M9 12l-3.5 3.5L9 19" />,
 };
 
 export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
