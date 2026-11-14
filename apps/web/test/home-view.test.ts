@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { dailyGoal, goalText, greeting, limitNote, quickCount, remainingLabel, WORD_FORMS } from '../src/home-view';
+import {
+  dailyGoal,
+  difficultTile,
+  greeting,
+  heroText,
+  limitNote,
+  queueLegend,
+  showsProgress,
+  startLabel,
+  todayLabel,
+  weekDigest,
+} from '../src/home-view';
 
 describe('greeting', () => {
   it('follows the local hour', () => {
@@ -81,39 +92,44 @@ describe('limitNote', () => {
   });
 });
 
-describe('remainingLabel', () => {
-  it('agrees the verb and the noun with the number', () => {
-    expect(remainingLabel(1)).toBe('осталась 1 карточка');
-    expect(remainingLabel(2)).toBe('осталось 2 карточки');
-    expect(remainingLabel(5)).toBe('осталось 5 карточек');
-    expect(remainingLabel(11)).toBe('осталось 11 карточек');
-    expect(remainingLabel(21)).toBe('осталась 21 карточка');
+describe('todayLabel', () => {
+  it('weekday, day and month in Russian', () => {
+    expect(todayLabel(new Date(2026, 10, 14, 9, 0))).toBe('суббота, 14 ноября');
+    expect(todayLabel(new Date(2026, 0, 1, 23, 59))).toBe('четверг, 1 января');
   });
 });
 
-describe('goalText — real counts, never a percentage', () => {
+describe('heroText — real counts, never a percentage', () => {
   it('before the first answer: the size of the queue', () => {
-    expect(goalText(dailyGoal({ answeredToday: 0, remaining: 12, newWithheld: 0 }))).toEqual({
-      title: 'Сегодня в очереди 12 карточек',
-      detail: 'Цель дня — пройти очередь',
+    expect(heroText(dailyGoal({ answeredToday: 0, remaining: 12, newWithheld: 0 }))).toEqual({
+      kind: 'queue',
+      number: 12,
+      unit: 'карточек к повторению',
+      detail: null,
+    });
+    expect(heroText(dailyGoal({ answeredToday: 0, remaining: 1, newWithheld: 0 }))).toMatchObject({ unit: 'карточка к повторению' });
+    expect(heroText(dailyGoal({ answeredToday: 0, remaining: 3, newWithheld: 0 }))).toMatchObject({ unit: 'карточки к повторению' });
+  });
+
+  it('in progress: what is left and the answers so far', () => {
+    expect(heroText(dailyGoal({ answeredToday: 23, remaining: 4, newWithheld: 0 }))).toEqual({
+      kind: 'queue',
+      number: 4,
+      unit: 'карточки в очереди',
+      detail: 'Сегодня уже 23 ответа',
     });
   });
 
-  it('in progress: what is left and how many answers today', () => {
-    expect(goalText(dailyGoal({ answeredToday: 23, remaining: 1, newWithheld: 0 }))).toEqual({
-      title: 'Осталась 1 карточка',
-      detail: 'Сегодня 23 ответа',
+  it('done and idle are messages', () => {
+    expect(heroText(dailyGoal({ answeredToday: 32, remaining: 0, newWithheld: 0 }))).toEqual({
+      kind: 'message',
+      title: 'Очередь пройдена',
+      detail: 'Сегодня 32 ответа',
     });
-  });
-
-  it('done and idle', () => {
-    expect(goalText(dailyGoal({ answeredToday: 1, remaining: 0, newWithheld: 0 }))).toEqual({
-      title: 'Очередь на сегодня пройдена',
-      detail: 'Сегодня 1 ответ',
+    expect(heroText(dailyGoal({ answeredToday: 0, remaining: 0, newWithheld: 0 }))).toMatchObject({
+      kind: 'message',
+      title: 'Сегодня повторять нечего',
     });
-    expect(goalText(dailyGoal({ answeredToday: 0, remaining: 0, newWithheld: 0 })).title).toBe(
-      'Сегодня повторять нечего'
-    );
   });
 
   it('no text contains a percent sign', () => {
@@ -123,16 +139,46 @@ describe('goalText — real counts, never a percentage', () => {
       { answeredToday: 9, remaining: 0, newWithheld: 0 },
       { answeredToday: 0, remaining: 0, newWithheld: 0 },
     ];
-    for (const input of samples) {
-      const { title, detail } = goalText(dailyGoal(input));
-      expect(`${title} ${detail}`).not.toContain('%');
-    }
+    for (const input of samples) expect(JSON.stringify(heroText(dailyGoal(input)))).not.toContain('%');
   });
 });
 
-describe('quickCount', () => {
-  it('says "пока нет" for zero instead of a bare 0', () => {
-    expect(quickCount(0, WORD_FORMS)).toBe('пока нет');
-    expect(quickCount(3, WORD_FORMS)).toBe('3 слова');
+describe('start button and progress bar', () => {
+  it('"Начать повторение" before the first answer, then "Продолжить"', () => {
+    expect(startLabel(dailyGoal({ answeredToday: 0, remaining: 5, newWithheld: 0 }))).toBe('Начать повторение');
+    expect(startLabel(dailyGoal({ answeredToday: 2, remaining: 5, newWithheld: 0 }))).toBe('Продолжить');
+  });
+
+  it('the bar appears only once there are answers and cards remain', () => {
+    expect(showsProgress(dailyGoal({ answeredToday: 0, remaining: 5, newWithheld: 0 }))).toBe(false);
+    expect(showsProgress(dailyGoal({ answeredToday: 1, remaining: 5, newWithheld: 0 }))).toBe(true);
+    expect(showsProgress(dailyGoal({ answeredToday: 9, remaining: 0, newWithheld: 0 }))).toBe(false);
+    expect(showsProgress(dailyGoal({ answeredToday: 0, remaining: 0, newWithheld: 0 }))).toBe(false);
+  });
+});
+
+describe('queueLegend', () => {
+  it('words each group with its number and leaves empty ones out', () => {
+    expect(queueLegend({ newCount: 5, learningCount: 4, reviewCount: 3 }).map((i) => i.label)).toEqual([
+      '5 новых',
+      '4 в процессе',
+      '3 повторить',
+    ]);
+    expect(queueLegend({ newCount: 1, learningCount: 0, reviewCount: 0 }).map((i) => i.label)).toEqual(['1 новая']);
+    expect(queueLegend({ newCount: 2, learningCount: 0, reviewCount: 7 }).map((i) => i.key)).toEqual(['new', 'review']);
+    expect(queueLegend({ newCount: 0, learningCount: 0, reviewCount: 0 })).toEqual([]);
+  });
+});
+
+describe('difficultTile and weekDigest', () => {
+  it('the tile starts the practice, or is disabled with "пока нет"', () => {
+    expect(difficultTile(7)).toEqual({ detail: '7 слов · тренировка', disabled: false });
+    expect(difficultTile(1)).toEqual({ detail: '1 слово · тренировка', disabled: false });
+    expect(difficultTile(0)).toEqual({ detail: 'пока нет', disabled: true });
+  });
+
+  it('the week in one line', () => {
+    expect(weekDigest({ total: 23, activeDays: 6, days: { length: 7 } })).toBe('23 ответа · 6 из 7 дней с занятиями');
+    expect(weekDigest({ total: 1, activeDays: 1, days: { length: 7 } })).toBe('1 ответ · 1 из 7 дней с занятиями');
   });
 });

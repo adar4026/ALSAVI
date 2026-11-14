@@ -8,11 +8,16 @@ import { barPercent, countLabel, dayLong, dayShort, REVIEW_FORMS, weekdayShort }
  * "Статистика" (TASK_031).
  */
 
-/** Seven labelled bars; each day also carries a full-text label for screen readers. */
-export function WeekChart({ window }: { window: ActivityWindow }) {
+/**
+ * Seven labelled bars; each day also carries a full-text label for screen
+ * readers. `compact` (TASK_039, the home screen): short bars without the
+ * numbers on phones — the line under the chart carries the totals; from
+ * 1100 px, where the home screen has room, the numbers come back (CSS).
+ */
+export function WeekChart({ window, compact = false }: { window: ActivityWindow; compact?: boolean }) {
   const lastIndex = window.days.length - 1;
   return (
-    <ol className="week-chart" aria-label="Повторения по дням за последние 7 дней">
+    <ol className={compact ? 'week-chart week-chart--compact' : 'week-chart'} aria-label="Повторения по дням за последние 7 дней">
       {window.days.map((d, i) => (
         <li key={d.dayStart} className={i === lastIndex ? 'week-day is-today' : 'week-day'}>
           <span className="sr-only">

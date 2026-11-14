@@ -128,6 +128,18 @@ describe('no duplicate primitives', () => {
     'practice-grade',
     'practice-buttons',
     'practice-summary',
+    // TASK_039: the home screen uses Surface, Tile, ProgressBar and its own home-today block.
+    'goal-card',
+    'goal-title',
+    'goal-detail',
+    'goal-progress',
+    'queue-split',
+    'queue-count',
+    'quick-grid',
+    'quick-action',
+    'week-card',
+    'home-lead',
+    'eyebrow',
   ];
   const sources = readdirSync(resolve(webRoot, 'src'))
     .filter((f) => f.endsWith('.tsx'))

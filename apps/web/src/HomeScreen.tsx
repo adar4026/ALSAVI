@@ -2,21 +2,23 @@ import type { LearningEngine, LearningStats, StudySession, StudySessionOverview 
 import { useCallback, useEffect, useState } from 'react';
 import { WeekChart } from './ActivityCharts';
 import {
-  CARD_FORMS,
   dailyGoal,
-  goalText,
+  difficultTile,
   greeting,
+  heroText,
   limitNote,
-  quickCount,
-  WORD_FORMS,
+  queueLegend,
+  showsProgress,
+  startLabel,
+  todayLabel,
+  weekDigest,
   type DailyGoal,
 } from './home-view';
-import { Icon, type IconName } from './Icon';
-import { activitySummary } from './stats-view';
-import { Banner, Button, ProgressBar } from './ui';
+import { Icon } from './Icon';
+import { Banner, Button, EmptyState, ProgressBar, Skeleton, Surface, Tile } from './ui';
 
-/** Where "Карточки" opens from a quick action. */
-export type CardsIntent = 'all' | 'difficult' | 'add';
+/** Where "Карточки" opens from the home screen. */
+export type CardsIntent = 'all' | 'difficult' | 'add' | 'archived';
 
 interface Props {
   engine: LearningEngine;
@@ -25,10 +27,12 @@ interface Props {
   onStart: () => void;
   onOpenCards: (intent: CardsIntent) => void;
   onOpenStats: () => void;
+  /** Starts the difficult-words practice (Q7: the tile goes straight there). */
+  onPractice: () => void;
   /**
    * Changes when the app returns to the foreground (TASK_033). An installed
    * iPhone app is resumed, not reloaded: without a re-read, yesterday's
-   * "На сегодня всё" would greet the learner in the morning.
+   * "Очередь пройдена" would greet the learner in the morning.
    */
   refreshKey?: number;
 }
@@ -39,16 +43,16 @@ interface HomeData {
 }
 
 /**
- * Home screen (TASK_029, replaces the TASK_022 "Учиться сегодня" screen):
- * greeting, today's goal (finish the queue), "Продолжить обучение", quick
- * actions and the week. Rendered by `App` only after the daily new-card limit
- * is applied to `session` (bootstrap gate), so `overview()` already respects
- * it. Read-only: the queue comes from `StudySession.overview()` — the same
- * selector the session uses — and every other number from
- * `engine.getLearningStats()`. Re-read on every mount, i.e. also on return
- * from a session.
+ * Home screen (TASK_029, redesigned in TASK_039): "what do I do today?" — the
+ * date and a greeting, one card with one number and one button, two quick
+ * actions and a compact week. Rendered by `App` only after the daily
+ * new-card limit is applied to `session` (bootstrap gate), so `overview()`
+ * already respects it. Read-only: the queue comes from
+ * `StudySession.overview()` — the same selector the session uses — and every
+ * other number from `engine.getLearningStats()`. Words and states live in
+ * `home-view.ts`.
  */
-export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats, refreshKey = 0 }: Props) {
+export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats, onPractice, refreshKey = 0 }: Props) {
   const [data, setData] = useState<HomeData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,24 +85,33 @@ export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats,
     );
   }
 
-  if (!data) return <div className="home home-loading" aria-busy="true" />;
+  if (!data) return <Skeleton variant="home" />;
 
   const { overview, stats } = data;
-  const hello = <Greeting />;
 
   if (stats.cards.active === 0) {
+    const archivedOnly = stats.cards.archived > 0;
     return (
       <div className="home">
-        {hello}
-        <section className="home-card welcome-card" aria-labelledby="welcome-title">
-          <h2 id="welcome-title" className="home-card-title">
-            {stats.cards.archived > 0 ? 'В активной коллекции пока нет карточек' : 'Пока нет ни одной карточки'}
-          </h2>
-          <p className="home-card-text">Добавь первое слово, чтобы начать учиться.</p>
-          <Button size="lg" block icon="plus" className="home-cta" onClick={() => onOpenCards('add')}>
-            Добавить первую карточку
-          </Button>
-        </section>
+        <Greeting />
+        <Surface variant="hero" className="home-empty">
+          <EmptyState
+            brand
+            icon="plus"
+            title={archivedOnly ? 'В активной коллекции нет слов' : 'Начнём с первого слова'}
+            text="Добавь слово — и оно сразу появится в очереди на сегодня."
+            action={
+              <Button size="lg" icon="plus" onClick={() => onOpenCards('add')}>
+                Добавить слово
+              </Button>
+            }
+          />
+          {archivedOnly && (
+            <Button variant="tertiary" className="home-empty-archive" onClick={() => onOpenCards('archived')}>
+              Открыть архив
+            </Button>
+          )}
+        </Surface>
       </div>
     );
   }
@@ -108,63 +121,61 @@ export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats,
     remaining: overview.total,
     newWithheld: overview.newWithheld,
   });
+  const tile = difficultTile(stats.difficult.total);
 
   return (
     <div className="home home-grid">
       <div className="home-main">
-        {hello}
-        <GoalCard goal={goal} overview={overview} onStart={onStart} onRecheck={() => void reload()} />
+        <Greeting />
+        <TodayCard
+          goal={goal}
+          overview={overview}
+          onStart={onStart}
+          onRecheck={() => void reload()}
+        />
       </div>
 
       <div className="home-side">
-        <section aria-labelledby="quick-title">
-          <h2 id="quick-title" className="home-section-title">
-            Быстрые действия
-          </h2>
-          <div className="quick-grid">
-            <QuickAction
-              icon="cards"
-              label="Мои карточки"
-              detail={quickCount(stats.cards.active, CARD_FORMS)}
-              onClick={() => onOpenCards('all')}
-            />
-            <QuickAction
-              icon="target"
-              label="Трудные слова"
-              detail={quickCount(stats.difficult.total, WORD_FORMS)}
-              onClick={() => onOpenCards('difficult')}
-            />
-            <QuickAction icon="plus" label="Добавить слово" detail="новая карточка" onClick={() => onOpenCards('add')} />
-          </div>
-        </section>
+        <div className="home-tiles">
+          <Tile
+            icon="target"
+            tone="warm"
+            label="Трудные слова"
+            detail={tile.detail}
+            disabled={tile.disabled}
+            onClick={onPractice}
+          />
+          <Tile icon="plus" label="Добавить слово" detail="в коллекцию" onClick={() => onOpenCards('add')} />
+        </div>
 
-        <section className="home-card week-card" aria-labelledby="week-title">
-          <div className="home-card-head">
-            <h2 id="week-title" className="home-section-title">
-              Неделя
-            </h2>
-            <Button variant="tertiary" onClick={onOpenStats}>
-              Вся статистика
+        <Surface
+          title="Неделя"
+          className="home-week"
+          action={
+            <Button variant="tertiary" iconEnd="chevron-right" onClick={onOpenStats}>
+              Статистика
             </Button>
-          </div>
-          <WeekChart window={stats.activity.last7} />
-          <p className="hint week-summary">{activitySummary(stats.activity.last7)}</p>
-        </section>
+          }
+        >
+          <WeekChart window={stats.activity.last7} compact />
+          <p className="home-week-digest">{weekDigest(stats.activity.last7)}</p>
+        </Surface>
       </div>
     </div>
   );
 }
 
 function Greeting() {
+  const now = new Date();
   return (
     <div className="home-hero">
-      <h1 className="home-greeting">{greeting(new Date().getHours())}</h1>
-      <p className="home-lead">Продолжим учить испанский.</p>
+      <p className="home-date">{todayLabel(now)}</p>
+      <h1 className="home-greeting">{greeting(now.getHours())}</h1>
     </div>
   );
 }
 
-function GoalCard({
+function TodayCard({
   goal,
   overview,
   onStart,
@@ -175,86 +186,69 @@ function GoalCard({
   onStart: () => void;
   onRecheck: () => void;
 }) {
-  const text = goalText(goal);
+  const hero = heroText(goal);
   const note = limitNote(goal);
-  const fraction = goal.kind === 'active' ? goal.fraction : goal.kind === 'done' ? 1 : null;
 
   return (
-    <section className={`home-card goal-card goal-${goal.kind}`} aria-labelledby="goal-title">
-      <span className="eyebrow">Цель дня</span>
-      <h2 id="goal-title" className="goal-title">
-        {text.title}
+    <section className={`ui-surface ui-surface--hero home-today home-today--${goal.kind}`} aria-labelledby="today-title">
+      <h2 id="today-title" className="home-today-overline">
+        Сегодня
       </h2>
-      <p className="goal-detail">{text.detail}</p>
 
-      {fraction !== null && (
-        <ProgressBar
-          className="goal-progress"
-          value={fraction}
-          tone={goal.kind === 'done' ? 'success' : 'accent'}
-          aria-labelledby="goal-title"
-          ariaValue={{ now: Math.round(fraction * 100), min: 0, max: 100 }}
-          valueText={`${text.title}. ${text.detail}`}
-        />
-      )}
-
-      {note && <p className="hint goal-note">{note}</p>}
-
-      {goal.kind === 'active' ? (
+      {hero.kind === 'queue' ? (
         <>
-          <dl className="queue-split">
-            <QueueCount label="Новые" value={overview.newCount} />
-            <QueueCount label="В процессе" value={overview.learningCount} />
-            <QueueCount label="Повторить" value={overview.reviewCount} />
-          </dl>
+          <p className="home-today-number">
+            <span className="home-today-value">{hero.number}</span> <span className="home-today-unit">{hero.unit}</span>
+          </p>
+          {hero.detail && <p className="home-today-detail">{hero.detail}</p>}
+          <ul className="home-legend" aria-label="Из них">
+            {queueLegend(overview).map((item) => (
+              <li key={item.key} className={`home-legend-item is-${item.key}`}>
+                {item.label}
+              </li>
+            ))}
+          </ul>
+          {showsProgress(goal) && goal.kind === 'active' && (
+            <ProgressBar
+              className="home-today-progress"
+              value={goal.fraction}
+              aria-labelledby="today-title"
+              ariaValue={{ now: Math.round(goal.fraction * 100), min: 0, max: 100 }}
+              valueText={`${hero.number} ${hero.unit}. ${hero.detail ?? ''}`}
+            />
+          )}
+          {note && <p className="home-today-note">{note}</p>}
           <Button
             size="lg"
             block
             iconEnd="arrow-right"
             className="home-cta"
             onClick={onStart}
-            aria-label={`Продолжить обучение, карточек в очереди: ${overview.total}`}
+            aria-label={`${startLabel(goal)}, карточек в очереди: ${overview.total}`}
             autoFocus
           >
-            Продолжить обучение
+            {startLabel(goal)}
           </Button>
         </>
       ) : (
-        <Button variant="secondary" className="goal-recheck" onClick={onRecheck}>
-          Проверить снова
-        </Button>
+        <>
+          {goal.kind === 'done' && (
+            <span className="home-today-mark" aria-hidden="true">
+              <Icon name="check" size={26} />
+            </span>
+          )}
+          <p className="home-today-title">{hero.title}</p>
+          <p className="home-today-detail">{hero.detail}</p>
+          {note && <p className="home-today-note">{note}</p>}
+          {/* The useful next steps (practice, a new word) are the tiles right
+              below — not repeated here (D-10: no duplicate entries). */}
+          <div className="home-today-actions">
+            <Button variant="tertiary" icon="refresh" className="home-recheck" onClick={onRecheck}>
+              Проверить снова
+            </Button>
+          </div>
+        </>
       )}
     </section>
-  );
-}
-
-function QueueCount({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="queue-count">
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
-  );
-}
-
-function QuickAction({
-  icon,
-  label,
-  detail,
-  onClick,
-}: {
-  icon: IconName;
-  label: string;
-  detail: string;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" className="quick-action" onClick={onClick}>
-      <span className="quick-icon">
-        <Icon name={icon} />
-      </span>
-      <span className="quick-label">{label}</span>
-      <span className="quick-detail">{detail}</span>
-    </button>
   );
 }

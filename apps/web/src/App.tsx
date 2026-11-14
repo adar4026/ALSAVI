@@ -335,6 +335,18 @@ export function App() {
     window.scrollTo(0, 0);
   }, [confirmLeaveCards]);
 
+  // Leaving the practice returns where it was started (TASK_039): from
+  // "Карточки" to the "Трудные" list (TASK_032), from "Главная" (its tile, the
+  // session's end screen) back home.
+  const exitPractice = useCallback(() => {
+    if (viewRef.current === 'cards') {
+      openCards('difficult');
+      return;
+    }
+    setPracticing(false);
+    window.scrollTo(0, 0);
+  }, [openCards]);
+
   const refreshStats = useCallback(async () => {
     setStats(await engine.getStats());
     // Everything that can move a due date (an answer, an edit, an import, a
@@ -476,7 +488,11 @@ export function App() {
         </Banner>
       )}
       {practicing ? (
-        <PracticeSession loadCards={loadPracticeCards} onExit={() => openCards('difficult')} />
+        <PracticeSession
+          loadCards={loadPracticeCards}
+          onExit={exitPractice}
+          exitLabel={view === 'cards' ? 'К трудным словам' : 'На главную'}
+        />
       ) : view === 'home' ? (
         settingsReady ? (
           reviewPhase === 'home' ? (
@@ -486,6 +502,7 @@ export function App() {
               onStart={() => setReviewPhase('session')}
               onOpenCards={onHomeOpenCards}
               onOpenStats={() => navigate('stats')}
+              onPractice={startPractice}
               refreshKey={resumeTick}
             />
           ) : (

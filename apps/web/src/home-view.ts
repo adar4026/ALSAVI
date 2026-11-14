@@ -60,36 +60,6 @@ export function dailyGoal({ answeredToday, remaining, newWithheld }: DailyGoalIn
   return { kind: 'idle', withheld };
 }
 
-/** "осталась 1 карточка" / "осталось 5 карточек" — the verb agrees with the number. */
-export function remainingLabel(n: number): string {
-  const verb = pluralRu(n, ['осталась', 'осталось', 'осталось']);
-  return `${verb} ${countLabel(n, CARD_FORMS)}`;
-}
-
-export interface GoalText {
-  title: string;
-  detail: string;
-}
-
-export function goalText(goal: DailyGoal): GoalText {
-  switch (goal.kind) {
-    case 'active':
-      return goal.answered === 0
-        ? { title: `Сегодня в очереди ${countLabel(goal.remaining, CARD_FORMS)}`, detail: 'Цель дня — пройти очередь' }
-        : {
-            title: remainingLabel(goal.remaining).replace(/^./, (c) => c.toUpperCase()),
-            detail: `Сегодня ${countLabel(goal.answered, ANSWER_FORMS)}`,
-          };
-    case 'done':
-      return { title: 'Очередь на сегодня пройдена', detail: `Сегодня ${countLabel(goal.answered, ANSWER_FORMS)}` };
-    case 'idle':
-      return {
-        title: 'Сегодня повторять нечего',
-        detail: 'Возвращайся, когда подойдёт срок следующего повторения.',
-      };
-  }
-}
-
 const NEW_CARD_FORMS = ['новая карточка', 'новые карточки', 'новых карточек'] as const;
 
 /**
@@ -108,7 +78,87 @@ export function limitNote(goal: DailyGoal): string | null {
   return 'Дневной лимит новых карточек достигнут — новые вернутся завтра.';
 }
 
-/** Subtitle of a quick action with a count, e.g. "12 карточек" / "пока нет". */
-export function quickCount(n: number, forms: readonly [string, string, string]): string {
-  return n === 0 ? 'пока нет' : countLabel(n, forms);
+/* --- TASK_039: the redesigned home screen ----------------------------------- */
+
+/** "суббота, 14 ноября" — the overline above the greeting (device locale calendar, Russian words). */
+export function todayLabel(date: Date): string {
+  return new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }).format(date);
+}
+
+/**
+ * The "Сегодня" card (SCREEN_SPECIFICATIONS §1): one large number while cards
+ * wait, a title once there is nothing to do. Real counts only — never a
+ * percentage (one card may take several answers).
+ */
+export type HeroText =
+  | { kind: 'queue'; number: number; unit: string; detail: string | null }
+  | { kind: 'message'; title: string; detail: string };
+
+export function heroText(goal: DailyGoal): HeroText {
+  switch (goal.kind) {
+    case 'active': {
+      const noun = pluralRu(goal.remaining, CARD_FORMS);
+      return goal.answered === 0
+        ? { kind: 'queue', number: goal.remaining, unit: `${noun} к повторению`, detail: null }
+        : {
+            kind: 'queue',
+            number: goal.remaining,
+            unit: `${noun} в очереди`,
+            detail: `Сегодня уже ${countLabel(goal.answered, ANSWER_FORMS)}`,
+          };
+    }
+    case 'done':
+      return { kind: 'message', title: 'Очередь пройдена', detail: `Сегодня ${countLabel(goal.answered, ANSWER_FORMS)}` };
+    case 'idle':
+      return {
+        kind: 'message',
+        title: 'Сегодня повторять нечего',
+        detail: 'Возвращайся, когда подойдёт срок следующего повторения.',
+      };
+  }
+}
+
+/** "Начать повторение" before the first answer of the day, then "Продолжить". */
+export function startLabel(goal: DailyGoal): string {
+  return goal.kind === 'active' && goal.answered > 0 ? 'Продолжить' : 'Начать повторение';
+}
+
+/** The progress bar appears only after the first answer (H-4: an empty bar in the morning looks broken). */
+export function showsProgress(goal: DailyGoal): boolean {
+  return goal.kind === 'active' && goal.answered > 0;
+}
+
+export interface LegendItem {
+  key: 'new' | 'learning' | 'review';
+  label: string;
+}
+
+const NEW_FORMS = ['новая', 'новые', 'новых'] as const;
+
+/**
+ * The queue split under the number: "5 новых · 4 в процессе · 3 повторить",
+ * from `StudySession.overview()`; empty groups are left out.
+ */
+export function queueLegend(o: { newCount: number; learningCount: number; reviewCount: number }): LegendItem[] {
+  const items: LegendItem[] = [];
+  if (o.newCount > 0) items.push({ key: 'new', label: countLabel(o.newCount, NEW_FORMS) });
+  if (o.learningCount > 0) items.push({ key: 'learning', label: `${o.learningCount} в процессе` });
+  if (o.reviewCount > 0) items.push({ key: 'review', label: `${o.reviewCount} повторить` });
+  return items;
+}
+
+/**
+ * The "Трудные слова" tile: starts the practice (Q7) — or says "пока нет"
+ * and is disabled when no word has been forgotten yet.
+ */
+export function difficultTile(words: number): { detail: string; disabled: boolean } {
+  return words > 0
+    ? { detail: `${countLabel(words, WORD_FORMS)} · тренировка`, disabled: false }
+    : { detail: 'пока нет', disabled: true };
+}
+
+/** One line under the compact week: "23 ответа · 6 из 7 дней с занятиями". */
+export function weekDigest(w: { total: number; activeDays: number; days: { length: number } }): string {
+  const days = w.days.length;
+  return `${countLabel(w.total, ANSWER_FORMS)} · ${w.activeDays} из ${days} ${pluralRu(days, ['дня', 'дней', 'дней'])} с занятиями`;
 }

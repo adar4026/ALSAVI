@@ -15,8 +15,10 @@ import { ActionDock, Badge, Button, RatingBar, SessionHeader, Skeleton, Stat, St
 interface Props {
   /** Loads the cards to practise (`loadDifficultPractice`) — the screen's only data access. */
   loadCards: () => Promise<CardView[]>;
-  /** Back to "Карточки" → "Трудные". Leaving records nothing — there is nothing to record. */
+  /** Back where the practice was started. Leaving records nothing — there is nothing to record. */
   onExit: () => void;
+  /** Label of the way back: "К трудным словам" (from "Карточки") or "На главную". */
+  exitLabel?: string;
 }
 
 const PRACTICE_TONES: Record<PracticeGrade, 'danger' | 'warning' | 'success'> = {
@@ -35,7 +37,7 @@ const PRACTICE_LABEL = 'Тренировка · расписание не мен
  * session: `App` hides the navigation. All logic lives in
  * `PracticeController` (`practice-flow.ts`), which is unchanged.
  */
-export function PracticeSession({ loadCards, onExit }: Props) {
+export function PracticeSession({ loadCards, onExit, exitLabel = 'К трудным словам' }: Props) {
   const controller = useMemo(() => new PracticeController(loadCards), [loadCards]);
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
 
@@ -70,7 +72,7 @@ export function PracticeSession({ loadCards, onExit }: Props) {
               </Button>
             )}
             <Button variant={error ? 'secondary' : 'primary'} size="lg" block onClick={onExit}>
-              К трудным словам
+              {exitLabel}
             </Button>
           </>
         }
@@ -109,7 +111,7 @@ export function PracticeSession({ loadCards, onExit }: Props) {
               Повторить ещё раз
             </Button>
             <Button variant="tertiary" className="session-summary-link" onClick={onExit}>
-              К трудным словам
+              {exitLabel}
             </Button>
           </>
         }
