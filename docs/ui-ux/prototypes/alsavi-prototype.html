@@ -1,0 +1,938 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>ALSAVI прототип</title>
+<meta name="description" content="Визуальный прототип следующей версии интерфейса ALSAVI: экраны, состояния и переходы. Проектный материал, не рабочее приложение." />
+<style>
+/* =====================================================================
+   ALSAVI v2 — prototype. Tokens mirror docs/ui-ux/DESIGN_SYSTEM.md.
+   Self-contained: no network, no dependencies. Open the file in a browser.
+   ===================================================================== */
+:root {
+  --page-bg: #e8e8ef; --page-text: #16151f; --page-muted: #5f5e73; --page-card: #ffffff; --page-border: #dddce8;
+  --z: .74;
+}
+:root[data-page='dark'] { --page-bg: #08090c; --page-text: #ecebf3; --page-muted: #a3a2b6; --page-card: #14161d; --page-border: #262a35; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--page-bg); color: var(--page-text); font: 15px/1.45 -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+
+/* ---------- page toolbar ---------- */
+.tb { position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 12px 20px; background: color-mix(in srgb, var(--page-bg) 88%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--page-border); }
+.tb h1 { margin: 0 8px 0 0; font-size: 17px; font-weight: 700; letter-spacing: .02em; }
+.tb h1 small { font-weight: 500; color: var(--page-muted); letter-spacing: 0; }
+.tb-group { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--page-card); border: 1px solid var(--page-border); }
+.tb-group button { border: 0; background: transparent; padding: 6px 12px; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--page-muted); min-height: 32px; }
+.tb-group button[aria-pressed='true'] { background: #6d5df6; color: #fff; }
+.tb label { font-size: 12px; color: var(--page-muted); font-weight: 600; }
+.wrap { max-width: 1600px; margin: 0 auto; padding: 24px 20px 80px; }
+.intro { max-width: 860px; color: var(--page-muted); margin: 0 0 8px; }
+.sec { margin: 40px 0 0; }
+.sec h2 { font-size: 22px; margin: 0 0 4px; }
+.sec > p { margin: 0 0 18px; color: var(--page-muted); max-width: 900px; }
+.frames { display: flex; flex-wrap: wrap; gap: 28px 26px; align-items: flex-start; }
+.frame { display: flex; flex-direction: column; gap: 10px; }
+.frame-label { font-size: 13px; font-weight: 700; }
+.frame-label span { display: block; font-weight: 500; color: var(--page-muted); max-width: calc(var(--w) * var(--z)); }
+.zoom { zoom: var(--z); }
+
+/* ---------- device ---------- */
+.phone { width: calc(var(--w) * 1px + 20px); height: calc(var(--h) * 1px + 20px); padding: 10px; border-radius: 54px; background: #0b0b0e; box-shadow: 0 0 0 2px #2a2a31, 0 30px 60px rgba(0,0,0,.25); position: relative; }
+.phone.se { border-radius: 40px; }
+.screen { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: 44px; }
+.phone.se .screen { border-radius: 30px; }
+.island { position: absolute; top: 11px; left: 50%; width: 120px; height: 34px; transform: translateX(-50%); background: #000; border-radius: 20px; z-index: 40; }
+.phone.se .island { display: none; }
+.sbar { position: absolute; top: 0; left: 0; right: 0; height: var(--safe-top); display: flex; align-items: center; justify-content: space-between; padding: 0 30px; font: 600 15px/1 -apple-system, sans-serif; z-index: 35; color: var(--text); pointer-events: none; }
+.phone.se .sbar { padding: 0 14px; font-size: 12px; }
+.sbar-r { display: flex; gap: 5px; align-items: center; }
+.sbar-r i { display: inline-block; width: 17px; height: 10px; border: 1.5px solid currentColor; border-radius: 3px; position: relative; }
+.sbar-r i::after { content: ''; position: absolute; inset: 1.5px 4px 1.5px 1.5px; background: currentColor; border-radius: 1px; }
+.homeind { position: absolute; bottom: 8px; left: 50%; width: 134px; height: 5px; border-radius: 3px; transform: translateX(-50%); background: var(--text); opacity: .85; z-index: 45; }
+.phone.se .homeind { display: none; }
+.desktop { width: 1280px; height: 800px; border-radius: 14px; overflow: hidden; box-shadow: 0 0 0 1px var(--page-border), 0 30px 60px rgba(0,0,0,.18); position: relative; }
+
+/* ---------- ALSAVI tokens (light) ---------- */
+.screen, .desktop {
+  color-scheme: light;
+  --bg: #f6f6fb; --surface: #fff; --surface-2: #f0eff7; --surface-3: #e7e6f1; --surface-raised: #fff;
+  --text: #16151f; --text-2: #5f5e73; --text-3: #8a899c; --word: #16151f;
+  --border: #e5e4ef; --sep: #ecebf4; --overlay: rgba(15,17,21,.32);
+  --accent: #6d5df6; --accent-strong: #5a49e8; --accent-text: #5847e0; --accent-soft: rgba(109,93,246,.10); --accent-border: rgba(109,93,246,.30); --on-accent: #fff;
+  --danger: #e5484d; --danger-text: #c62a2f; --danger-soft: rgba(229,72,77,.10);
+  --warning: #f59e0b; --warning-text: #a14a06; --warning-soft: rgba(245,158,11,.14);
+  --success: #16a34a; --success-text: #127234; --success-soft: rgba(22,163,74,.10);
+  --info: #3b82f6; --info-text: #1d5fd1; --info-soft: rgba(59,130,246,.10);
+  --streak: #ea580c; --streak-text: #c2410c;
+  --stage-new: #d6d4e6; --stage-learning: #b4abfa; --stage-learned: #6d5df6;
+  --elev-1: 0 1px 2px rgba(22,21,31,.04), 0 4px 12px rgba(30,41,80,.04);
+  --elev-2: 0 1px 2px rgba(22,21,31,.04), 0 12px 32px rgba(30,41,80,.08);
+  --elev-nav: 0 10px 30px rgba(15,17,21,.16);
+  --nav-bg: rgba(255,255,255,.92);
+  --brand: linear-gradient(135deg, #4f7cff 0%, #6d5df6 55%, #ff7a59 100%);
+  --ease: cubic-bezier(.2,.7,.2,1);
+  --safe-top: 47px; --safe-bottom: 34px;
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+}
+.phone.se .screen { --safe-top: 20px; --safe-bottom: 0px; }
+.screen[data-theme='dark'], .desktop[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0f1115; --surface: #171a22; --surface-2: #1f2330; --surface-3: #2a2f3d; --surface-raised: #343a48;
+  --text: #ecebf3; --text-2: #a3a2b6; --text-3: #6f6e82; --word: #f3f2fa;
+  --border: #2a2e3a; --sep: #252935; --overlay: rgba(0,0,0,.56);
+  --accent-strong: #7f71f8; --accent-text: #ab9ffb; --accent-soft: rgba(139,124,248,.16); --accent-border: rgba(139,124,248,.4);
+  --danger: #ff6b6b; --danger-text: #ff8a8a; --danger-soft: rgba(255,107,107,.14);
+  --warning: #fbbf24; --warning-text: #fbbf24; --warning-soft: rgba(251,191,36,.14);
+  --success: #4ade80; --success-text: #4ade80; --success-soft: rgba(74,222,128,.14);
+  --info: #6aa5ff; --info-text: #7fb2ff; --info-soft: rgba(106,165,255,.14);
+  --streak: #fb923c; --streak-text: #fb923c;
+  --stage-new: #3b4050; --stage-learning: #5e52c4; --stage-learned: #9d90fa;
+  --elev-1: none; --elev-2: 0 12px 32px rgba(0,0,0,.35); --elev-nav: 0 10px 30px rgba(0,0,0,.5);
+  --nav-bg: rgba(23,26,34,.92);
+}
+
+/* ---------- layout inside a screen ---------- */
+.scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; padding: calc(var(--safe-top) + 6px) 20px calc(64px + 10px + var(--safe-bottom) + 28px); scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
+.w375 .scroll { padding-left: 16px; padding-right: 16px; }
+.stack > * + * { margin-top: 16px; }
+.overline { font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+.title1 { font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -.01em; margin: 2px 0 0; }
+.title2 { font-size: 22px; line-height: 28px; font-weight: 650; margin: 0; }
+.headline { font-size: 17px; line-height: 22px; font-weight: 600; margin: 0; }
+.callout { font-size: 15px; line-height: 20px; color: var(--text-2); margin: 0; }
+.foot { font-size: 13px; line-height: 18px; color: var(--text-2); font-weight: 500; margin: 0; }
+.num { font-family: ui-rounded, 'SF Pro Rounded', -apple-system, sans-serif; font-variant-numeric: tabular-nums; }
+.display { font-size: 40px; line-height: 44px; font-weight: 700; letter-spacing: -.02em; }
+.muted { color: var(--text-2); }
+
+.homehead { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: .04em; }
+.brand img { width: 32px; height: 32px; border-radius: 9px; display: block; }
+.streak { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 12px 0 9px; border-radius: 999px; background: var(--surface); box-shadow: var(--elev-1); border: 1px solid var(--border); font-weight: 700; font-size: 15px; color: var(--streak-text); }
+.streak.pending { color: var(--text-2); }
+.screenhead { padding-top: 4px; }
+.screenhead-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+
+/* surfaces */
+.hero { background: var(--surface); border-radius: 22px; box-shadow: var(--elev-2); padding: 22px; }
+.card { background: var(--surface); border-radius: 16px; border: 1px solid var(--border); box-shadow: var(--elev-1); padding: 18px; }
+.inset { background: var(--surface-2); border-radius: 12px; padding: 12px 14px; }
+.cardhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+
+/* buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 12px; border: 0; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; transition: transform .1s var(--ease), background-color .15s; }
+.btn:active { transform: scale(.97); }
+.btn-lg { min-height: 52px; border-radius: 14px; font-size: 17px; padding: 0 20px; }
+.btn-block { display: flex; width: 100%; }
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-secondary { background: var(--accent-soft); color: var(--accent-text); }
+.btn-tertiary { background: transparent; color: var(--accent-text); padding: 0 6px; }
+.btn-destructive { background: var(--danger-soft); color: var(--danger-text); }
+.btn-danger-fill { background: var(--danger); color: #fff; }
+.btn[disabled] { opacity: .4; }
+.iconbtn { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 999px; border: 0; background: transparent; color: var(--text); cursor: pointer; }
+.iconbtn.filled { background: var(--accent); color: var(--on-accent); width: 40px; height: 40px; }
+.iconbtn.soft { background: var(--surface-2); }
+.link { color: var(--accent-text); font-weight: 600; font-size: 15px; background: none; border: 0; cursor: pointer; padding: 10px 0; display: inline-flex; align-items: center; gap: 2px; }
+
+/* home */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 18px; font-size: 13px; color: var(--text-2); font-weight: 500; }
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.pbar { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; margin: 0 0 18px; }
+.pbar > i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tile { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-height: 104px; padding: 16px; border-radius: 16px; border: 1px solid var(--border); background: var(--surface); box-shadow: var(--elev-1); text-align: left; cursor: pointer; }
+.tile .ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-text); }
+.tile.warm .ic { background: var(--danger-soft); color: var(--danger-text); }
+.tile b { font-size: 15px; line-height: 20px; display: block; }
+.tile small { font-size: 13px; color: var(--text-2); }
+.done-mark { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--success-soft); color: var(--success-text); margin-bottom: 12px; }
+.minibars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: end; height: 48px; }
+.minibars i { display: block; border-radius: 5px 5px 2px 2px; background: var(--accent); min-height: 3px; }
+.minibars i.zero { background: var(--surface-2); height: 6px !important; }
+.minidays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; font-size: 11px; color: var(--text-3); font-weight: 600; margin-top: 6px; }
+.minidays .today { color: var(--accent-text); }
+
+/* nav capsule */
+.nav { position: absolute; left: 12px; right: 12px; bottom: calc(10px + var(--safe-bottom)); z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; padding: 6px; border-radius: 22px; background: var(--nav-bg); border: 1px solid var(--border); box-shadow: var(--elev-nav); backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%); }
+.nav button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 52px; border: 0; border-radius: 16px; background: transparent; color: var(--text-2); font-size: 11px; font-weight: 600; cursor: pointer; }
+.nav button[aria-current='page'] { background: var(--accent-soft); color: var(--accent-text); }
+.navfade { position: absolute; left: 0; right: 0; bottom: 0; height: calc(64px + 10px + var(--safe-bottom) + 24px); background: linear-gradient(to bottom, transparent, var(--bg) 40%); z-index: 29; pointer-events: none; }
+
+/* session */
+.sess { position: absolute; inset: 0; display: flex; flex-direction: column; padding-top: var(--safe-top); }
+.sess-head { display: flex; align-items: center; gap: 8px; padding: 0 12px 0 6px; height: 48px; }
+.sess-head .track { flex: 1; height: 4px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.sess-head .track i { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width .24s var(--ease); }
+.sess-count { font-size: 13px; font-weight: 600; color: var(--text-2); min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+.sess-tag { position: absolute; left: 0; right: 0; top: calc(var(--safe-top) + 44px); text-align: center; color: var(--accent-text); }
+.sess-body { flex: 1; overflow-y: auto; padding: 0 24px 16px; display: flex; flex-direction: column; scrollbar-width: none; }
+.word-zone { min-height: 38%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; padding-top: 12px; }
+.word { color: var(--word); font-weight: 650; text-wrap: balance; overflow-wrap: anywhere; margin: 0; }
+.w-xl { font-size: 34px; line-height: 40px; letter-spacing: -.01em; }
+.w-l { font-size: 28px; line-height: 34px; }
+.w-m { font-size: 24px; line-height: 30px; font-weight: 600; }
+.w-s { font-size: 20px; line-height: 27px; font-weight: 600; }
+.badge { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--text-2); }
+.badge.accent { background: var(--accent-soft); color: var(--accent-text); }
+.badge.danger { background: var(--danger-soft); color: var(--danger-text); }
+.badge.warning { background: var(--warning-soft); color: var(--warning-text); }
+.badge.success { background: var(--success-soft); color: var(--success-text); }
+.badge.count { min-width: 24px; height: 24px; justify-content: center; padding: 0 7px; }
+.answer { display: flex; flex-direction: column; gap: 12px; animation: rise .18s var(--ease) both; }
+.hair { height: 1px; background: var(--sep); margin: 8px 0 4px; }
+.translation { text-align: center; font-size: 22px; line-height: 28px; font-weight: 500; color: var(--text-2); text-wrap: balance; }
+.inset p { margin: 4px 0 0; font-size: 15px; line-height: 21px; }
+.inset .es { font-style: italic; }
+.dock { padding: 10px 16px calc(12px + var(--safe-bottom)); background: linear-gradient(to bottom, transparent, var(--bg) 14px); }
+.ratings { display: grid; grid-template-columns: repeat(var(--n, 4), 1fr); gap: 6px; }
+.rating { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 64px; border: 0; border-radius: 14px; cursor: pointer; padding: 0 2px; transition: transform .1s var(--ease); }
+.rating:active, .rating.pressed { transform: scale(.96); }
+.rating b { font-size: 15px; line-height: 18px; font-weight: 600; white-space: nowrap; }
+.w375 .rating b { font-size: 14px; }
+.rating small { font-size: 12px; color: var(--text-2); font-weight: 500; font-variant-numeric: tabular-nums; }
+.r-again { background: var(--danger-soft); } .r-again b { color: var(--danger-text); }
+.r-hard { background: var(--warning-soft); } .r-hard b { color: var(--warning-text); }
+.r-good { background: var(--success-soft); } .r-good b { color: var(--success-text); }
+
+.r-again.pressed { background: color-mix(in srgb, var(--danger) 26%, transparent); } .r-hard.pressed { background: color-mix(in srgb, var(--warning) 30%, transparent); } .r-good.pressed { background: color-mix(in srgb, var(--success) 26%, transparent); }
+.banner { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; font-size: 14px; line-height: 19px; margin-bottom: 10px; }
+.banner.error { background: var(--danger-soft); color: var(--danger-text); }
+.banner.warning { background: var(--warning-soft); color: var(--warning-text); }
+.banner.info { background: var(--accent-soft); color: var(--accent-text); }
+.banner .grow { flex: 1; }
+.banner .btn { min-height: 36px; padding: 0 12px; font-size: 14px; }
+.finish { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 28px; gap: 6px; }
+.brandmark { width: 64px; height: 64px; border-radius: 20px; background: var(--brand); display: grid; place-items: center; color: #fff; margin-bottom: 14px; box-shadow: 0 10px 24px rgba(109,93,246,.3); }
+.statrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; margin: 18px 0 6px; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px; text-align: left; }
+.stat dt { font-size: 13px; color: var(--text-2); font-weight: 500; }
+.stat dd { margin: 4px 0 0; font-size: 28px; line-height: 32px; font-weight: 700; }
+.stat dd small { font-size: 15px; font-weight: 600; color: var(--text-2); margin-left: 3px; }
+.stat .det { font-size: 12px; color: var(--text-2); margin-top: 2px; font-weight: 500; }
+
+/* lists & chips */
+.search { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; border-radius: 12px; background: var(--surface-2); color: var(--text-3); font-size: 16px; }
+.search .q { color: var(--text); flex: 1; }
+.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -20px; padding: 2px 20px; -webkit-mask-image: linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 24px), transparent); }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer; white-space: nowrap; }
+.chip small { color: var(--text-2); font-weight: 600; font-size: 12px; }
+.chip[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip[aria-pressed='true'] small { color: rgba(255,255,255,.8); }
+.chip.ghost { background: transparent; }
+.chip.sugg { background: var(--accent-soft); border-color: transparent; color: var(--accent-text); height: 32px; }
+.toolrow { display: flex; align-items: center; gap: 8px; }
+.toolrow .foot { margin-left: auto; }
+.list { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: var(--elev-1); }
+.row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 16px; position: relative; cursor: pointer; }
+.row + .row::before { content: ''; position: absolute; top: 0; left: 16px; right: 0; height: 1px; background: var(--sep); }
+.row:active { background: var(--surface-3); }
+.row .main { flex: 1; min-width: 0; }
+.row .t { font-size: 17px; line-height: 22px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .s { font-size: 15px; line-height: 20px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .end { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 13px; color: var(--text-2); font-weight: 500; white-space: nowrap; }
+.row .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.row .val { color: var(--text-2); font-size: 15px; }
+.row.sel { background: var(--accent-soft); }
+.chev { color: var(--text-3); }
+.group-title { padding: 0 4px 6px; margin-top: 22px; }
+.group-note { padding: 6px 4px 0; }
+.switch { width: 51px; height: 31px; border-radius: 99px; background: var(--surface-3); position: relative; flex: none; }
+.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.18); transition: transform .2s var(--ease); }
+.switch.on { background: var(--success); }
+.switch.on::after { transform: translateX(20px); }
+.stepper { display: inline-flex; align-items: center; gap: 4px; }
+.stepper button { width: 36px; height: 36px; border-radius: 10px; border: 0; background: var(--surface-2); font-size: 20px; color: var(--accent-text); cursor: pointer; }
+.stepper b { min-width: 34px; text-align: center; font-size: 17px; font-variant-numeric: tabular-nums; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; border-radius: 10px; background: var(--surface-2); }
+.seg button { border: 0; background: transparent; border-radius: 8px; height: 32px; font-size: 13px; font-weight: 600; color: var(--text-2); cursor: pointer; white-space: nowrap; padding: 0 10px; }
+.seg button[aria-pressed='true'] { background: var(--surface-raised); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+
+/* sheet, dialog, toast, keyboard */
+.overlay { position: absolute; inset: 0; background: var(--overlay); z-index: 50; animation: fade .2s both; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; top: calc(var(--safe-top) + 10px); z-index: 51; background: var(--bg); border-radius: 22px 22px 0 0; display: flex; flex-direction: column; animation: up .24s var(--ease) both; box-shadow: 0 -10px 40px rgba(0,0,0,.18); }
+.sheet.short { top: auto; }
+.handle { width: 36px; height: 5px; border-radius: 3px; background: var(--surface-3); margin: 8px auto 0; }
+.sheet-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 4px 8px; min-height: 48px; }
+.sheet-head .headline { text-align: center; }
+.sheet-head .r { justify-self: end; }
+.sheet-body { flex: 1; overflow-y: auto; padding: 8px 20px 16px; scrollbar-width: none; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 13px; font-weight: 600; margin: 0 0 6px 2px; }
+.input { display: flex; align-items: center; min-height: 48px; padding: 0 14px; border-radius: 12px; background: var(--surface-2); font-size: 17px; color: var(--text-3); border: 2px solid transparent; }
+.input.filled { color: var(--text); }
+.input.focus { background: var(--surface); border-color: var(--accent); color: var(--text); }
+.input.err { border-color: var(--danger); background: var(--surface); }
+.input .caret { display: inline-block; width: 2px; height: 22px; background: var(--accent); margin-left: 1px; animation: blink 1s steps(1) infinite; }
+.ferr { color: var(--danger-text); font-size: 13px; margin: 6px 2px 0; font-weight: 500; }
+.addrow { display: flex; align-items: center; gap: 10px; min-height: 48px; color: var(--accent-text); font-weight: 600; font-size: 15px; border-top: 1px solid var(--sep); }
+.addrow .sugg-wrap { margin-left: auto; display: flex; gap: 6px; overflow: hidden; }
+.toggle-row { display: flex; align-items: center; gap: 12px; min-height: 56px; border-top: 1px solid var(--sep); border-bottom: 1px solid var(--sep); }
+.toggle-row .main { flex: 1; }
+.kbd { height: 291px; background: #d1d3d9; display: grid; grid-template-rows: repeat(4, 1fr); gap: 11px; padding: 10px 4px calc(10px + var(--safe-bottom)); flex: none; }
+.screen[data-theme='dark'] .kbd { background: #2b2b2f; }
+.kbd div { display: flex; gap: 6px; justify-content: center; }
+.kbd span { flex: 0 0 31px; height: 42px; border-radius: 5px; background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,.3); }
+.screen[data-theme='dark'] .kbd span { background: #6b6b70; }
+.kbd span.w { flex: 0 0 182px; } .kbd span.m { flex: 0 0 42px; background: #abb0ba; }
+.dialog { position: absolute; left: 50%; top: 50%; width: calc(100% - 64px); max-width: 320px; transform: translate(-50%, -50%); z-index: 51; background: var(--surface); border-radius: 22px; padding: 22px 20px 16px; text-align: center; animation: pop .2s var(--ease) both; }
+.dialog p { margin: 8px 0 18px; font-size: 15px; line-height: 20px; color: var(--text-2); }
+.dialog .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.toast { position: absolute; left: 16px; right: 16px; bottom: calc(64px + 10px + var(--safe-bottom) + 12px); z-index: 40; display: flex; align-items: center; gap: 10px; padding: 12px 8px 12px 16px; border-radius: 16px; background: var(--text); color: var(--bg); font-size: 15px; font-weight: 500; box-shadow: 0 10px 30px rgba(0,0,0,.2); animation: up .2s var(--ease) both; }
+.toast .grow { flex: 1; }
+.toast button { border: 0; background: transparent; color: #b4abfa; font-weight: 700; font-size: 15px; padding: 8px 10px; cursor: pointer; }
+.screen[data-theme='dark'] .toast button { color: var(--accent); }
+.toast.in-sheet { bottom: calc(76px + var(--safe-bottom)); }
+
+/* stats */
+.herostat { display: flex; align-items: center; gap: 18px; }
+.ring { flex: none; position: relative; width: 96px; height: 96px; }
+.ring svg { display: block; transform: rotate(-90deg); }
+.ring b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; font-weight: 700; }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.w375 .kpis { grid-template-columns: 1fr 1fr; }
+.w375 .kpis .stat:last-child { grid-column: span 2; }
+.kpis .stat dd { font-size: 24px; line-height: 28px; }
+.bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; align-items: end; height: 140px; }
+.bars.b30 { grid-template-columns: repeat(30, 1fr); gap: 2px; }
+.bars div { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 4px; }
+.bars div span { font-size: 12px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.bars i { display: block; width: 100%; border-radius: 6px 6px 2px 2px; background: var(--accent); min-height: 3px; }
+.bars.b30 i { border-radius: 2px; }
+.bars i.zero { background: var(--surface-2); }
+.axis { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; text-align: center; font-size: 12px; color: var(--text-3); font-weight: 600; margin-top: 6px; }
+.axis .today { color: var(--accent-text); }
+.digest { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+.digest div { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
+.digest b { display: block; font-size: 20px; line-height: 24px; }
+.digest small { font-size: 12px; color: var(--text-2); font-weight: 500; line-height: 15px; display: block; }
+.stagebar { display: flex; gap: 3px; height: 10px; border-radius: 99px; overflow: hidden; margin: 12px 0 10px; }
+.stagebar i { display: block; }
+.stagelist { margin: 0; padding: 0; list-style: none; }
+.stagelist li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--sep); font-size: 15px; }
+.stagelist li:first-child { border-top: 0; }
+.stagelist .grow { flex: 1; }
+.stagelist small { display: block; color: var(--text-2); font-size: 12px; }
+.sdot { width: 10px; height: 10px; border-radius: 50%; }
+.difflist { margin: 6px 0 12px; padding: 0; list-style: none; }
+.difflist li { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--sep); }
+.difflist li:first-child { border-top: 0; }
+.difflist .r { color: var(--danger-text); font-size: 13px; font-weight: 600; white-space: nowrap; }
+
+/* skeleton */
+.sk { background: var(--surface-2); border-radius: 10px; animation: pulse 1.2s ease-in-out infinite; }
+
+/* empty */
+.empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 28px 12px; gap: 8px; }
+.empty .ic { width: 56px; height: 56px; border-radius: 18px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-text); margin-bottom: 6px; }
+
+/* lock screen */
+.lock { position: absolute; inset: 0; background: radial-gradient(120% 80% at 30% 10%, #4f7cff 0%, #2b1f7a 45%, #0b0b1a 100%); color: #fff; display: flex; flex-direction: column; align-items: center; padding-top: calc(var(--safe-top) + 30px); }
+.lock .time { font-size: 82px; font-weight: 600; letter-spacing: -.02em; line-height: 1; margin-top: 6px; }
+.notif { margin-top: auto; margin-bottom: 140px; width: calc(100% - 20px); background: rgba(255,255,255,.22); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-radius: 20px; padding: 12px 14px; display: flex; gap: 10px; cursor: pointer; text-align: left; border: 0; color: #fff; }
+.notif img { width: 38px; height: 38px; border-radius: 9px; }
+.notif b { font-size: 15px; } .notif p { margin: 2px 0 0; font-size: 15px; line-height: 19px; white-space: pre-line; }
+
+/* desktop */
+.dsk { display: grid; grid-template-columns: 240px 1fr; height: 100%; background: var(--bg); color: var(--text); }
+.side { border-right: 1px solid var(--border); padding: 24px 16px; display: flex; flex-direction: column; gap: 4px; background: var(--surface); }
+.side .brand { margin: 0 8px 22px; }
+.side button { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: transparent; font-size: 15px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+.side button[aria-current='page'] { background: var(--accent-soft); color: var(--accent-text); }
+.side .bottom { margin-top: auto; }
+.dmain { overflow: hidden; padding: 32px 40px; }
+.dgrid { display: grid; grid-template-columns: 7fr 5fr; gap: 24px; max-width: 1000px; }
+.split { display: grid; grid-template-columns: 380px 1fr; height: 100%; }
+.split .lpane { border-right: 1px solid var(--border); padding: 28px 20px; overflow: hidden; }
+.split .rpane { padding: 32px 48px; overflow: hidden; }
+
+/* flow map */
+.map { background: var(--page-card); border: 1px solid var(--page-border); border-radius: 20px; padding: 16px; overflow-x: auto; }
+.map svg { display: block; min-width: 1100px; }
+.map .n rect { fill: var(--page-bg); stroke: var(--page-border); }
+.map .n.main rect { fill: #6d5df6; stroke: #6d5df6; }
+.map .n text { fill: var(--page-text); font-size: 14px; font-weight: 600; }
+.map .n.main text { fill: #fff; }
+.map .n .sub { font-size: 11px; font-weight: 500; fill: var(--page-muted); }
+.map .n.main .sub { fill: rgba(255,255,255,.8); }
+.map .n.new rect { stroke: #6d5df6; stroke-dasharray: 5 4; }
+.map path { fill: none; stroke: var(--page-muted); stroke-width: 1.6; }
+.map .el { font-size: 11px; fill: var(--page-muted); font-weight: 500; }
+
+/* interactive */
+.play { display: grid; grid-template-columns: auto 1fr; gap: 36px; align-items: start; }
+.panel { background: var(--page-card); border: 1px solid var(--page-border); border-radius: 20px; padding: 20px; max-width: 520px; position: sticky; top: 80px; }
+.panel h3 { margin: 0 0 4px; font-size: 17px; }
+.panel .scen { display: flex; flex-direction: column; gap: 6px; margin: 14px 0; }
+.panel .scen button { text-align: left; border: 1px solid var(--page-border); background: transparent; border-radius: 12px; padding: 10px 12px; cursor: pointer; font-weight: 600; }
+.panel .scen button small { display: block; color: var(--page-muted); font-weight: 500; }
+.panel .scen button[aria-pressed='true'] { border-color: #6d5df6; box-shadow: 0 0 0 1px #6d5df6 inset; }
+.panel .hint { color: var(--page-muted); font-size: 14px; margin: 0; }
+@media (max-width: 900px) { .play { grid-template-columns: 1fr; } .panel { position: static; } }
+
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes up { from { transform: translateY(100%); } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes pop { from { opacity: 0; transform: translate(-50%, -48%) scale(.96); } }
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes pulse { 50% { opacity: .55; } }
+@keyframes slideout { to { opacity: 0; transform: translateX(-12px); } }
+.leaving { animation: slideout .16s var(--ease) forwards; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="tb">
+  <h1>ALSAVI <small>· прототип v2</small></h1>
+  <div class="tb-group" role="group" aria-label="Режим" id="modeG">
+    <button data-mode="gallery" aria-pressed="true">Экраны и состояния</button>
+    <button data-mode="play" aria-pressed="false">Интерактив</button>
+    <button data-mode="map" aria-pressed="false">Карта переходов</button>
+  </div>
+  <div class="tb-group" role="group" aria-label="Тема" id="themeG">
+    <button data-theme="light" aria-pressed="true">Светлая</button>
+    <button data-theme="dark" aria-pressed="false">Тёмная</button>
+  </div>
+  <div class="tb-group" role="group" aria-label="Устройство" id="devG">
+    <button data-dev="se" aria-pressed="false">375×667</button>
+    <button data-dev="375" aria-pressed="false">375×812</button>
+    <button data-dev="390" aria-pressed="true">390×844</button>
+    <button data-dev="430" aria-pressed="false">430×932</button>
+  </div>
+  <div class="tb-group" role="group" aria-label="Масштаб" id="zoomG">
+    <button data-zoom=".6" aria-pressed="false">60%</button>
+    <button data-zoom=".74" aria-pressed="true">74%</button>
+    <button data-zoom="1" aria-pressed="false">100%</button>
+  </div>
+</header>
+<div class="wrap" id="root"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   Data — sample collection (Spanish ↔ Russian), same shape as NoteEntry.
+   ===================================================================== */
+const LOGO = 'data:image/png;base64,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';
+const WORDS = [
+  { es: 'el resguardo', ru: 'квитанция, корешок', ex: 'Guarda el resguardo de la solicitud.', memo: '', tags: ['документы'], st: 'due', next: 'сейчас', lapses: 1, rev: false, added: '3 ноября' },
+  { es: 'la ventanilla', ru: 'окошко (в учреждении)', ex: 'Pregunte en la ventanilla número tres.', memo: 'как «вентиляция» — маленькое окно', tags: ['документы'], st: 'due', next: 'сейчас', lapses: 2, rev: false, added: '29 октября' },
+  { es: 'aprovechar', ru: 'воспользоваться, использовать', ex: 'Hay que aprovechar el buen tiempo.', memo: '', tags: ['глаголы'], st: 'learning', next: '10 мин', lapses: 0, rev: true, added: '28 октября' },
+  { es: 'el buzón', ru: 'почтовый ящик', ex: '', memo: '', tags: [], st: 'new', next: '—', lapses: 0, rev: false, added: 'сегодня' },
+  { es: 'la queja', ru: 'жалоба', ex: '', memo: '', tags: [], st: 'new', next: '—', lapses: 0, rev: false, added: 'сегодня' },
+  { es: 'echar de menos', ru: 'скучать', ex: 'Echo de menos a mi familia.', memo: '', tags: ['выражения'], st: 'review', next: '12 дн', lapses: 0, rev: false, added: '20 октября' },
+  { es: 'la práctica', ru: 'практика', ex: 'La práctica hace al maestro.', memo: '', tags: ['основа'], st: 'review', next: '5 дн', lapses: 5, rev: false, added: '19 октября' },
+  { es: 'el recibo', ru: 'чек, квитанция', ex: '', memo: '', tags: ['документы'], st: 'review', next: '5 дн', lapses: 1, rev: true, added: '21 октября' },
+  { es: 'sin embargo', ru: 'однако', ex: 'Es caro; sin embargo, merece la pena.', memo: '', tags: ['связки'], st: 'review', next: '1 мес', lapses: 0, rev: false, added: '19 октября' },
+  { es: 'la fianza', ru: 'залог', ex: 'El casero nos devolvió la fianza.', memo: '', tags: ['жильё'], st: 'review', next: '24 дн', lapses: 0, rev: false, added: '24 октября' },
+  { es: 'ponerse de acuerdo', ru: 'договориться', ex: '', memo: '', tags: ['выражения'], st: 'review', next: '3 дн', lapses: 4, rev: false, added: '26 октября' },
+  { es: 'madrugar', ru: 'рано вставать', ex: '', memo: '', tags: ['глаголы'], st: 'review', next: '2 мес', lapses: 0, rev: false, added: '27 октября' },
+];
+const LONG = { es: 'Lo siento muchísimo, no me di cuenta de que ya habías reservado la mesa para todos nosotros', ru: 'Мне очень жаль, я не заметил, что ты уже забронировал столик для всех нас', ex: '', memo: 'длинная фраза — проверка переноса', st: 'review' };
+const INTERVALS = ['10 мин', '1 мес', '2 мес'];
+const WEEK = [10, 6, 6, 6, 4, 8, 0];
+const DAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+const MONTH = [3,0,5,7,4,9,0,6,8,8,10,4,0,7,6,9,5,8,0,6,10,6,6,6,4,8,7,9,5,3];
+
+/* =====================================================================
+   Icons — 24×24, stroke 1.75 (COMPONENT_LIBRARY §9)
+   ===================================================================== */
+const P = {
+  home: '<path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/>',
+  cards: '<rect x="4" y="7" width="12" height="13" rx="2.5"/><path d="M8 4h9.5A2.5 2.5 0 0 1 20 6.5V16"/>',
+  chart: '<path d="M4 20h16M7 16v-5M12 16V6M17 16v-8"/>',
+  user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
+  flame: '<path d="M12 21c3.9 0 6.5-2.6 6.5-6.2 0-3.3-2.3-5.6-4-7.6-.4 2-1.4 3.3-2.6 3.8.2-3-1.1-5.6-3.4-7-.2 3.4-4 5.6-4 10.6C4.5 18.3 7.6 21 12 21z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".6" fill="currentColor"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  chev: '<path d="M9.5 6l6 6-6 6"/>',
+  back: '<path d="M14.5 6l-6 6 6 6"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',
+  sort: '<path d="M7 5v14M4 16l3 3 3-3M17 19V5M14 8l3-3 3 3"/>',
+  tag: '<path d="M4 12.6V5a1 1 0 0 1 1-1h7.6a1 1 0 0 1 .7.3l6.4 6.4a1 1 0 0 1 0 1.4l-7.6 7.6a1 1 0 0 1-1.4 0l-6.4-6.4a1 1 0 0 1-.3-.7z"/><circle cx="8.5" cy="8.5" r="1.2"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  archive: '<rect x="3.5" y="5" width="17" height="4" rx="1"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
+  bell: '<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  palette: '<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.3 0 1.8-1 1.3-2-.6-1.2.2-2.5 1.5-2.5H17a3.5 3.5 0 0 0 3.5-3.5c0-5-3.8-9-8.5-9z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/>',
+  download: '<path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14"/>',
+  upload: '<path d="M12 20V9M7 13.5l5-5 5 5M5 4.5h14"/>',
+  info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/>',
+  refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3L19.5 9M19.5 4.5V9H15"/>',
+  play: '<path d="M8 5.5v13l10.5-6.5z"/>',
+  swap: '<path d="M5 9h13l-3.5-3.5M19 15H6l3.5 3.5"/>',
+  speaker: '<path d="M4.5 9.5h3l4.5-4v13l-4.5-4h-3z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>',
+};
+const ic = (n, s = 24, extra = '') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${P[n]}</svg>`;
+const icF = (n, s = 24) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true">${P[n]}</svg>`;
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const plural = (n, f) => { const a = Math.abs(n) % 100, b = a % 10; return a > 10 && a < 20 ? f[2] : b > 1 && b < 5 ? f[1] : b === 1 ? f[0] : f[2]; };
+const CARD = ['карточка', 'карточки', 'карточек'], WORD = ['слово', 'слова', 'слов'];
+const wordClass = (t) => t.length <= 18 ? 'w-xl' : t.length <= 40 ? 'w-l' : t.length <= 80 ? 'w-m' : 'w-s';
+
+/* =====================================================================
+   Shared pieces
+   ===================================================================== */
+function nav(active) {
+  const items = [['home', 'Главная'], ['cards', 'Карточки'], ['stats', 'Статистика'], ['profile', 'Профиль']];
+  return `<div class="navfade"></div><nav class="nav" aria-label="Разделы">${items.map(([k, l]) =>
+    `<button data-act="tab" data-v="${k}" ${k === active ? 'aria-current="page"' : ''}>${k === active ? icF(k === 'chart' ? 'chart' : k, 24).replace('fill="currentColor"', k === 'chart' || k === 'cards' || k === 'user' ? 'fill="none"' : 'fill="currentColor" fill-opacity=".18"') : ic(k)}<span>${l}</span></button>`).join('')}</nav>`;
+}
+function streak(n = 7, pending = true) { return `<span class="streak ${pending ? 'pending' : ''}" title="Серия">${ic('flame', 18)}<span class="num">${n}</span></span>`; }
+function toast(text, action, inSheet) { return `<div class="toast ${inSheet ? 'in-sheet' : ''}" role="status"><span class="grow">${text}</span>${action ? `<button data-act="${action[1]}">${action[0]}</button>` : ''}</div>`; }
+
+/* =====================================================================
+   Screens. Each returns the inner HTML of .screen.
+   ===================================================================== */
+const S = {};
+
+S.home = (s = {}) => {
+  const v = s.variant || 'start';
+  if (v === 'loading') return `<div class="scroll"><div class="homehead"><div class="sk" style="width:120px;height:32px"></div><div class="sk" style="width:60px;height:32px;border-radius:99px"></div></div>
+    <div class="sk" style="width:140px;height:14px;margin-top:20px"></div><div class="sk" style="width:200px;height:30px;margin-top:8px"></div>
+    <div class="sk" style="height:250px;border-radius:22px;margin-top:20px"></div><div class="tiles" style="margin-top:16px"><div class="sk" style="height:104px;border-radius:16px"></div><div class="sk" style="height:104px;border-radius:16px"></div></div></div>${nav('home')}`;
+  const head = `<div class="homehead"><div class="brand"><img src="${LOGO}" alt="">ALSAVI</div>${v === 'empty' ? '' : streak(7, v !== 'done')}</div>
+    <div style="margin-top:14px"><div class="overline">Суббота, 14 ноября</div><h1 class="title1">${v === 'done' ? 'Добрый вечер' : 'Доброе утро'}</h1></div>`;
+  let hero;
+  if (v === 'empty') {
+    hero = `<section class="hero" style="text-align:center;padding:32px 22px"><div class="brandmark" style="margin:0 auto 16px">${ic('plus', 30)}</div>
+      <h2 class="title2">Начнём с первого слова</h2><p class="callout" style="margin:8px 0 20px">Добавь слово — и оно сразу появится в очереди на сегодня.</p>
+      <button class="btn btn-primary btn-lg btn-block" data-act="add">${ic('plus', 20)}Добавить слово</button></section>`;
+    return `<div class="scroll stack">${head}${hero}</div>${nav('home')}`;
+  }
+  if (v === 'done') {
+    hero = `<section class="hero"><div class="done-mark">${ic('check', 26)}</div><h2 class="title2">Очередь пройдена</h2>
+      <p class="callout" style="margin:4px 0 18px">Сегодня 32 ответа · следующее повторение — завтра</p>
+      <button class="btn btn-secondary btn-lg btn-block" data-act="practice">${ic('target', 20)}Тренировка трудных · 7 слов</button>
+      <div style="text-align:center;margin-top:6px"><button class="btn btn-tertiary">${ic('refresh', 18)}Проверить снова</button></div></section>`;
+  } else {
+    const prog = v === 'progress';
+    hero = `<section class="hero" aria-labelledby="h-today"><div class="overline" id="h-today">Сегодня</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin-top:6px"><span class="display num">${prog ? 4 : 12}</span><span class="callout">${prog ? 'карточки в очереди' : 'карточек к повторению'}</span></div>
+      ${prog ? '<p class="foot" style="margin-top:2px">Сегодня уже 23 ответа</p>' : ''}
+      <div class="legend"><span><i style="background:var(--info)"></i>${prog ? 0 : 5} новых</span><span><i style="background:var(--warning)"></i>${prog ? 2 : 4} в процессе</span><span><i style="background:var(--accent)"></i>${prog ? 2 : 3} повторить</span></div>
+      ${prog ? '<div class="pbar" role="progressbar" aria-valuenow="85"><i style="width:85%"></i></div>' : ''}
+      <button class="btn btn-primary btn-lg btn-block" data-act="start">${prog ? 'Продолжить' : 'Начать повторение'}${ic('arrow', 20)}</button>
+      ${v === 'limit' ? '<p class="foot" style="margin-top:12px">Ещё 6 новых карточек появятся в следующие дни — дневной лимит.</p>' : ''}</section>`;
+  }
+  const tiles = `<div class="tiles">
+    <button class="tile warm" data-act="practice"><span class="ic">${ic('target', 22)}</span><span><b>Трудные слова</b><small>7 слов · тренировка</small></span></button>
+    <button class="tile" data-act="add"><span class="ic">${ic('plus', 22)}</span><span><b>Добавить слово</b><small>в коллекцию</small></span></button></div>`;
+  const max = Math.max(...WEEK);
+  const week = `<section class="card"><div class="cardhead" style="margin-bottom:10px"><h2 class="headline">Неделя</h2><button class="link" data-act="tab" data-v="stats">Статистика${ic('chev', 18)}</button></div>
+    <div class="minibars">${WEEK.map((n) => `<i class="${n ? '' : 'zero'}" style="height:${n ? Math.max(8, n / max * 100) : 0}%"></i>`).join('')}</div>
+    <div class="minidays">${DAYS.map((d, i) => `<span class="${i === 6 ? 'today' : ''}">${d}</span>`).join('')}</div>
+    <p class="foot" style="margin-top:10px">40 ответов · 6 из 7 дней с занятиями</p></section>`;
+  return `<div class="scroll stack">${head}${hero}${tiles}${week}</div>${nav('home')}${s.toast ? toast(s.toast, null) : ''}`;
+};
+
+S.session = (s = {}) => {
+  const practice = !!s.practice;
+  const total = s.total || (practice ? 7 : 12);
+  const i = s.i || 0;
+  const w = s.long ? LONG : (practice ? WORDS[[6, 10, 1, 0, 7, 2, 3][i % 7]] : WORDS[i % WORDS.length]);
+  const pos = Math.min(i + 1, total);
+  const ph = s.phase || 'front';
+  const head = `<div class="sess-head"><button class="iconbtn" data-act="exit" aria-label="${practice ? 'Завершить тренировку' : 'Завершить повторение'}">${ic('close', 24)}</button>
+    <div class="track" role="progressbar" aria-valuenow="${i}" aria-valuemax="${total}"><i style="width:${i / total * 100}%"></i></div><span class="sess-count">${pos} / ${total}</span></div>`;
+  if (ph === 'finish') {
+    const body = practice
+      ? `<div class="finish"><div class="brandmark">${ic('target', 30)}</div><div class="overline" style="color:var(--accent-text)">Тренировка трудных слов</div><h1 class="title1">Тренировка завершена</h1>
+        <div class="statrow" style="grid-template-columns:repeat(3,1fr)"><dl class="stat" style="margin:0"><dt>Повторено</dt><dd class="num">7</dd></dl><dl class="stat" style="margin:0"><dt>Помню</dt><dd class="num">4</dd></dl><dl class="stat" style="margin:0"><dt>С ошибкой</dt><dd class="num">3</dd></dl></div>
+        <p class="foot">Расписание повторений не изменилось.</p></div>
+        <div class="dock" style="display:grid;gap:8px"><button class="btn btn-primary btn-lg btn-block" data-act="practice">Повторить слова с ошибками · 3</button><button class="btn btn-tertiary btn-block" data-act="exit">К трудным словам</button></div>`
+      : `<div class="finish"><div class="brandmark">${ic('check', 32)}</div><h1 class="title1">Готово!</h1><p class="callout">Очередь на сегодня пройдена.</p>
+        <div class="statrow"><dl class="stat" style="margin:0"><dt>Повторено</dt><dd class="num">${total}<small>${plural(total, CARD)}</small></dd></dl><dl class="stat" style="margin:0"><dt>Из них новых</dt><dd class="num">${total >= 12 ? 5 : 1}</dd></dl></div></div>
+        <div class="dock" style="display:grid;gap:8px"><button class="btn btn-secondary btn-lg btn-block" data-act="practice">${ic('target', 20)}Тренировка трудных · 7 слов</button><button class="btn btn-primary btn-lg btn-block" data-act="exit">На главную</button></div>`;
+    return `<div class="sess">${head.replace(/<span class="sess-count">.*?<\/span>/, `<span class="sess-count">${total} / ${total}</span>`).replace(/width:[\d.]+%/, 'width:100%')}${body}</div>`;
+  }
+  if (ph === 'empty') {
+    return `<div class="sess">${head.replace(/<div class="track".*?<\/div><span class="sess-count">.*?<\/span>/, '<div style="flex:1"></div>')}<div class="finish"><div class="done-mark" style="width:64px;height:64px">${ic('check', 30)}</div><h1 class="title1">Сегодня всё повторено</h1>
+      <p class="callout">Новых карточек к повторению нет. Возвращайся, когда подойдёт срок.</p></div><div class="dock"><button class="btn btn-primary btn-lg btn-block" data-act="exit">На главную</button></div></div>`;
+  }
+  const badge = practice ? `<span class="badge danger">забыто ${w.lapses || 3} ${plural(w.lapses || 3, ['раз', 'раза', 'раз'])}</span>` : (w.st === 'new' ? '<span class="badge accent">Новое слово</span>' : '');
+  const revealed = ph !== 'front';
+  const answer = revealed ? `<div class="answer"><div class="hair"></div><div class="translation">${esc(w.ru)}</div>
+    ${w.ex ? `<div class="inset"><div class="overline">Пример</div><p class="es" lang="es">${esc(w.ex)}</p></div>` : ''}
+    ${w.memo ? `<div class="inset"><div class="overline">Моя заметка</div><p>${esc(w.memo)}</p></div>` : ''}</div>` : '';
+  // Owner's decision (D-06): three grades in both the FSRS session and practice.
+  const grades = [['again', 'Не помню'], ['hard', 'С трудом'], ['good', 'Помню']];
+  const dock = revealed
+    ? `<div class="dock">${ph === 'error' ? `<div class="banner error" role="alert">${ic('info', 20)}<span class="grow">Ответ не сохранён. Попробуй ещё раз.</span></div>` : ''}
+      <div class="ratings" style="--n:${grades.length}">${grades.map(([g, l], k) => `<button class="rating r-${g} ${s.pressed === g ? 'pressed' : ''}" data-act="rate" data-v="${g}" aria-label="${l}${practice ? '' : '. Следующий показ: ' + INTERVALS[k]}"><b>${l}</b>${practice ? '' : `<small>${INTERVALS[k]}</small>`}</button>`).join('')}</div></div>`
+    : `<div class="dock"><button class="btn btn-primary btn-lg btn-block" data-act="reveal">Показать ответ</button></div>`;
+  return `<div class="sess">${head}${practice ? '<div class="overline sess-tag">Тренировка · расписание не меняется</div>' : ''}
+    <div class="sess-body"><div class="word-zone" data-act="${revealed ? '' : 'reveal'}" style="${practice ? 'padding-top:24px' : ''}">${badge}<p class="word ${wordClass(w.es)}" lang="es">${esc(w.es)}</p></div>${answer}</div>${dock}</div>`;
+};
+
+function rowHtml(w, idx, sel) {
+  const map = { due: ['повторить', 'var(--accent)'], learning: ['изучается', 'var(--warning)'], new: ['новое', 'var(--info)'], review: [`через ${w.next}`, 'transparent'] };
+  const [label, color] = map[w.st];
+  return `<div class="row ${sel ? 'sel' : ''}" data-act="open" data-v="${idx}" role="button" tabindex="0"><div class="main"><div class="t" lang="es">${esc(w.es)}</div><div class="s">${esc(w.ru)}</div></div>
+    <div class="end"><span>${color !== 'transparent' ? `<i class="dot" style="background:${color}"></i>` : ''}${label}</span>${w.rev ? `<span title="Есть обратная карточка">${ic('swap', 16)}</span>` : ''}</div></div>`;
+}
+
+S.cards = (s = {}) => {
+  const f = s.filter || 'all';
+  const filters = [['all', 'Все', 41], ['due', 'К повторению', 7], ['new', 'Новые', 5], ['learning', 'Изучаются', 4], ['difficult', 'Трудные', 7], ['archived', 'Архив', 2]];
+  let list = WORDS.map((w, k) => [w, k]);
+  if (f === 'difficult') list = list.filter(([w]) => w.lapses > 0);
+  if (f === 'due') list = list.filter(([w]) => w.st === 'due' || w.st === 'learning');
+  if (f === 'new') list = list.filter(([w]) => w.st === 'new');
+  if (f === 'learning') list = list.filter(([w]) => w.st === 'learning');
+  const q = s.query || '';
+  const none = f === 'none';
+  if (s.variant === 'loading') return `<div class="scroll"><div class="sk" style="width:150px;height:32px;margin-top:8px"></div><div class="sk" style="height:44px;margin-top:20px"></div><div class="sk" style="height:34px;margin-top:12px;width:85%"></div><div class="list" style="margin-top:16px">${'<div class="row"><div class="main"><div class="sk" style="width:55%;height:16px"></div><div class="sk" style="width:40%;height:13px;margin-top:8px"></div></div></div>'.repeat(6)}</div></div>${nav('cards')}`;
+  const header = `<div class="screenhead"><div class="screenhead-row"><h1 class="title1">Карточки</h1><button class="iconbtn filled" data-act="add" aria-label="Добавить слово">${ic('plus', 22)}</button></div><p class="foot" style="margin-top:2px">41 слово · 48 карточек</p></div>`;
+  const controls = `<div class="search">${ic('search', 20)}<span class="${q || none ? 'q' : ''}">${none ? 'fianzas' : q || 'Поиск: слово, перевод, пример'}</span>${none ? ic('close', 18) : ''}</div>
+    <div class="chips" role="group" aria-label="Состояние">${filters.map(([k, l, n]) => `<button class="chip" data-act="filter" data-v="${k}" aria-pressed="${k === (none ? 'all' : f)}">${l} <small>${n}</small></button>`).join('')}</div>
+    <div class="toolrow"><button class="chip ghost" data-act="tags">${ic('tag', 16)}Теги</button><button class="chip ghost">${ic('sort', 16)}Сначала новые</button><span class="foot">${none ? '0' : f === 'all' ? '41' : list.length} из 41</span></div>`;
+  let body;
+  if (s.variant === 'empty') {
+    body = `<div class="empty card"><div class="ic">${ic('cards', 28)}</div><h2 class="headline">Здесь будут твои слова</h2><p class="callout">Добавь первое слово — оно сразу появится в очереди на Главной.</p><button class="btn btn-primary" data-act="add" style="margin-top:8px">${ic('plus', 20)}Добавить слово</button></div>`;
+    return `<div class="scroll stack">${header}${body}</div>${nav('cards')}`;
+  }
+  if (none) body = `<div class="empty"><div class="ic">${ic('search', 28)}</div><h2 class="headline">Ничего не найдено</h2><p class="callout">По запросу «fianzas» слов нет. Поиск не учитывает ударения.</p><button class="btn btn-secondary" style="margin-top:8px" data-act="filter" data-v="all">Сбросить фильтры</button></div>`;
+  else body = (f === 'difficult' ? `<div class="banner info" style="margin:0 0 12px">${ic('target', 20)}<span class="grow"><b>Тренировка · 8 карточек</b><br><span style="opacity:.85">Расписание повторений не меняется.</span></span><button class="btn btn-primary" data-act="practice">Начать</button></div>` : '')
+    + `<div class="list">${list.map(([w, k]) => rowHtml(w, k, s.sel === k)).join('')}</div>`;
+  const sheet = s.sheet === 'tags' ? `<div class="overlay" data-act="close"></div><div class="sheet short" role="dialog" aria-label="Теги"><div class="handle"></div><div class="sheet-head"><button class="btn btn-tertiary" data-act="close">Сбросить</button><h2 class="headline">Теги</h2><button class="btn btn-tertiary r" data-act="close">Готово</button></div>
+    <div class="sheet-body" style="padding-bottom:calc(20px + var(--safe-bottom))"><div class="list">${[['документы', 8, true], ['глаголы', 6], ['жильё', 6], ['связки', 4], ['выражения', 3], ['основа', 1], ['фразы', 1]].map(([t, n, on]) => `<div class="row" style="min-height:52px"><div class="main"><div class="t" style="font-weight:500">#${t}</div></div><span class="val">${n}</span>${on ? `<span style="color:var(--accent-text)">${ic('check', 22)}</span>` : '<span style="width:22px"></span>'}</div>`).join('')}</div></div></div>` : '';
+  return `<div class="scroll stack">${header}${controls}${body}</div>${nav('cards')}${sheet}${s.toast ? toast(s.toast, ['Вернуть', 'undo']) : ''}`;
+};
+
+function keyboard() {
+  const row = (n, m) => `<div>${m ? '<span class="m"></span>' : ''}${'<span></span>'.repeat(n)}${m ? '<span class="m"></span>' : ''}</div>`;
+  return `<div class="kbd" aria-hidden="true">${row(10)}${row(9)}${row(7, true)}<div><span class="m" style="flex-basis:86px"></span><span class="w"></span><span class="m" style="flex-basis:86px;background:var(--accent)"></span></div></div>`;
+}
+
+S.add = (s = {}) => {
+  const v = s.variant || 'empty';
+  const under = S.cards({});
+  const edit = v === 'edit';
+  const filled = v !== 'empty';
+  const f1 = edit ? 'la ventanilla' : v === 'dup' ? 'la práctica' : filled && v !== 'error' ? 'la nevera' : '';
+  const f2 = edit ? 'окошко (в учреждении)' : v === 'dup' ? 'практика' : v === 'filled' || v === 'saved' ? 'холодильник' : '';
+  const kb = v === 'empty' || v === 'filled' || v === 'error';
+  const saved = v === 'saved';
+  const field1 = `<div class="field"><label>Слово или фраза</label><div class="input ${v === 'empty' || saved ? 'focus' : f1 ? 'filled' : ''} ${v === 'error' ? 'err' : ''}" lang="es">${saved ? '' : f1 ? esc(f1) : '<span style="color:var(--text-3)">например, la práctica</span>'}${v === 'empty' || saved ? '<span class="caret"></span>' : ''}</div>${v === 'error' ? '<p class="ferr">Введи слово или фразу.</p>' : ''}</div>`;
+  const field2 = `<div class="field"><label>Перевод</label><div class="input ${v === 'filled' ? 'focus' : f2 && !saved ? 'filled' : ''} ${v === 'error' ? 'err' : ''}">${saved ? '<span style="color:var(--text-3)">например, практика</span>' : f2 ? esc(f2) : '<span style="color:var(--text-3)">например, практика</span>'}${v === 'filled' ? '<span class="caret"></span>' : ''}</div>${v === 'error' ? '<p class="ferr">Введи перевод.</p>' : ''}</div>`;
+  const extras = edit
+    ? `<div class="field"><label>Пример</label><div class="input filled" style="min-height:72px;align-items:flex-start;padding-top:12px" lang="es">Pregunte en la ventanilla número tres.</div></div>
+       <div class="field"><label>Личная заметка</label><div class="input filled">как «вентиляция» — маленькое окно</div></div>
+       <div class="field"><label>Теги</label><div class="chips" style="margin:0;padding:0;-webkit-mask-image:none;mask-image:none"><span class="chip" aria-pressed="true">#документы ✕</span><span class="chip sugg">+ глаголы</span><span class="chip sugg">+ жильё</span></div></div>`
+    : `<div class="addrow">${ic('plus', 20)}Пример</div><div class="addrow">${ic('plus', 20)}Личная заметка</div>
+       <div class="addrow">${ic('plus', 20)}Теги<span class="sugg-wrap"><span class="chip sugg">+ жильё</span><span class="chip sugg">+ документы</span></span></div>
+       <div class="toggle-row"><div class="main"><div style="font-size:17px">Обратная карточка</div><div class="foot">перевод → слово, своё расписание</div></div><span class="switch"></span></div>`;
+  const dup = v === 'dup' ? `<div class="banner warning" role="alert" style="flex-direction:column;align-items:stretch;margin-top:14px"><div style="display:flex;gap:10px">${ic('info', 20)}<span>Похожее слово уже есть: <b lang="es">la práctica</b> — практика</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"><button class="btn btn-primary">Всё равно добавить</button><button class="btn btn-secondary">Открыть</button><button class="btn btn-tertiary">Исправить</button></div></div>` : '';
+  const dockBtn = v === 'dup' ? '' : `<div class="dock" style="padding-bottom:${kb ? '10px' : 'calc(12px + var(--safe-bottom))'}"><button class="btn btn-primary btn-lg btn-block" data-act="save">${edit ? 'Сохранить' : 'Добавить'}</button></div>`;
+  return `${under}<div class="overlay"></div><div class="sheet" role="dialog" aria-label="${edit ? 'Изменить слово' : 'Новое слово'}"><div class="handle"></div>
+    <div class="sheet-head"><button class="btn btn-tertiary" data-act="close">Отмена</button><h2 class="headline">${edit ? 'Изменить слово' : 'Новое слово'}</h2><span class="r">${edit ? '' : '<button class="btn btn-tertiary" data-act="close">Готово</button>'}</span></div>
+    <div class="sheet-body">${field1}${field2}${extras}${dup}</div>${dockBtn}${kb ? keyboard() : ''}
+    ${saved ? toast('Добавлено: <b lang="es">la nevera</b>', ['Открыть', 'open0'], true) : ''}</div>`;
+};
+
+S.detail = (s = {}) => {
+  const w = WORDS[s.i ?? 1];
+  const stLabel = { due: 'К повторению', learning: 'Изучается', new: 'Новое', review: 'Изучено' }[w.st];
+  const dialog = s.dialog ? `<div class="overlay"></div><div class="dialog" role="alertdialog" aria-labelledby="dlg-t"><h2 class="headline" id="dlg-t">Убрать «${esc(w.es)}» в архив?</h2>
+    <p>Слово исчезнет из повторений. История сохранится — вернуть можно из «Архива».</p><div class="btns"><button class="btn btn-secondary" data-act="close">Отмена</button><button class="btn btn-danger-fill" data-act="archived">Убрать</button></div></div>` : '';
+  return `<div class="scroll"><div style="display:flex;justify-content:space-between;align-items:center;margin:0 -8px"><button class="btn btn-tertiary" data-act="tab" data-v="cards">${ic('back', 22)}Карточки</button><button class="btn btn-tertiary" data-act="edit">Изменить</button></div>
+    <h1 class="title1" lang="es" style="margin-top:10px">${esc(w.es)}</h1><p class="title2 muted" style="font-weight:500;margin-top:4px">${esc(w.ru)}</p>
+    <div class="stack" style="margin-top:18px">${w.ex ? `<div class="inset"><div class="overline">Пример</div><p class="es" lang="es">${esc(w.ex)}</p></div>` : ''}${w.memo ? `<div class="inset"><div class="overline">Моя заметка</div><p>${esc(w.memo)}</p></div>` : ''}
+    ${w.tags.length ? `<div style="display:flex;gap:8px">${w.tags.map((t) => `<span class="chip ghost" style="height:30px">#${t}</span>`).join('')}</div>` : ''}</div>
+    <div class="overline group-title">Обучение</div>
+    <div class="list"><div class="row" style="cursor:default"><div class="main">Статус</div><span class="badge ${w.st === 'due' ? 'accent' : w.st === 'learning' ? 'warning' : w.st === 'new' ? '' : 'success'}">${stLabel}</span></div>
+    <div class="row" style="cursor:default"><div class="main">Следующий показ</div><span class="val">${w.next}</span></div>
+    <div class="row" style="cursor:default"><div class="main">Забыто</div><span class="val">${w.lapses} ${plural(w.lapses, ['раз', 'раза', 'раз'])}</span></div>
+    <div class="row" style="cursor:default"><div class="main">Обратная карточка</div><span class="val">${w.rev ? 'есть · через 12 дн' : 'нет'}</span></div>
+    <div class="row" style="cursor:default"><div class="main">Добавлено</div><span class="val">${w.added}</span></div></div>
+    <button class="btn btn-destructive btn-block" style="margin-top:22px" data-act="archive">${ic('archive', 20)}В архив</button></div>${nav('cards')}${dialog}`;
+};
+
+S.stats = (s = {}) => {
+  const empty = s.variant === 'empty';
+  const p = s.period || 7;
+  const data = p === 7 ? WEEK : MONTH;
+  const max = Math.max(...data, 1);
+  const r = 40, c = 2 * Math.PI * r, frac = empty ? 0 : 32 / 41;
+  const ring = `<div class="ring"><svg width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="${r}" stroke="var(--surface-2)" stroke-width="9" fill="none"/><circle cx="48" cy="48" r="${r}" stroke="var(--accent)" stroke-width="9" fill="none" stroke-linecap="round" stroke-dasharray="${c * frac} ${c}"/></svg><b class="num">${empty ? '0' : '78%'}</b></div>`;
+  const head = `<div class="screenhead"><h1 class="title1">Статистика</h1></div>`;
+  const hero = `<section class="hero herostat">${ring}<div><div class="overline">Изучено слов</div><div style="margin-top:4px"><span class="num" style="font-size:28px;font-weight:700">${empty ? 0 : 32}</span> <span class="callout" style="display:inline">из ${empty ? 0 : 41} ${empty ? 'слов' : 'слова'}</span></div><p class="foot" style="margin-top:4px">все карточки слова на длинных интервалах ${ic('info', 14, 'style="vertical-align:-2px"')}</p></div></section>`;
+  const kpis = `<dl class="kpis" style="margin:0"><div class="stat"><dt>Точность</dt><dd class="num">${empty ? '—' : '86%'}</dd><div class="det">${empty ? 'пока нет ответов' : 'из 216 ответов'}</div></div>
+    <div class="stat"><dt>Серия</dt><dd class="num">${empty ? 0 : 7}<small>${empty ? 'дней' : 'дней'}</small></dd><div class="det">${empty ? 'с первого ответа' : 'рекорд 9'}</div></div>
+    <div class="stat"><dt>В очереди</dt><dd class="num">${empty ? 0 : 12}</dd><div class="det">${empty ? '—' : 'на сегодня'}</div></div></dl>`;
+  if (empty) return `<div class="scroll stack">${head}${hero}${kpis}<div class="empty card"><div class="ic">${ic('chart', 28)}</div><h2 class="headline">Пока нет статистики</h2><p class="callout">Добавь слова и пройди первое повторение — здесь появится твой прогресс.</p><button class="btn btn-primary" data-act="add" style="margin-top:8px">${ic('plus', 20)}Добавить слово</button></div></div>${nav('stats')}`;
+  const bars = `<div class="bars ${p === 30 ? 'b30' : ''}">${data.map((n, k) => `<div>${p === 7 ? `<span>${n}</span>` : ''}<i class="${n ? '' : 'zero'}" style="height:${n ? n / max * (p === 7 ? 82 : 100) : 3}%"></i></div>`).join('')}</div>
+    ${p === 7 ? `<div class="axis">${DAYS.map((d, k) => `<span class="${k === 6 ? 'today' : ''}">${d}</span>`).join('')}</div>` : '<div class="axis" style="grid-template-columns:1fr 1fr 1fr"><span style="text-align:left">16 окт</span><span>30 окт</span><span style="text-align:right">сегодня</span></div>'}`;
+  const act = `<section class="card"><div class="cardhead"><h2 class="headline">Активность</h2><div class="seg" role="group"><button data-act="period" data-v="7" aria-pressed="${p === 7}">7 дней</button><button data-act="period" data-v="30" aria-pressed="${p === 30}">30 дней</button></div></div>${bars}
+    <div class="digest"><div><b class="num">${p === 7 ? 40 : 174}</b><small>ответов</small></div><div><b class="num">${p === 7 ? '6' : '26'}<span class="muted" style="font-size:13px"> из ${p}</span></b><small>дней с занятиями</small></div><div><b class="num">${p === 7 ? '6,7' : '6,7'}</b><small>в день занятий</small></div></div>
+    <button class="link" style="margin-top:6px">${ic('chev', 16)}По дням</button></section>`;
+  const stages = `<section class="card"><h2 class="headline">Карточки по стадиям</h2><div class="stagebar"><i style="flex:5;background:var(--stage-new)"></i><i style="flex:4;background:var(--stage-learning)"></i><i style="flex:39;background:var(--stage-learned)"></i></div>
+    <ul class="stagelist"><li><span class="sdot" style="background:var(--stage-new)"></span><span class="grow">Новые<small>ещё не показывались</small></span><b class="num">5</b><span class="muted">10%</span></li>
+    <li><span class="sdot" style="background:var(--stage-learning)"></span><span class="grow">Изучаются<small>первые шаги или после ошибки</small></span><b class="num">4</b><span class="muted">8%</span></li>
+    <li><span class="sdot" style="background:var(--stage-learned)"></span><span class="grow">На длинных интервалах<small>прошли шаги изучения</small></span><b class="num">39</b><span class="muted">81%</span></li></ul></section>`;
+  const diff = `<section class="card"><div class="cardhead"><h2 class="headline">Трудные слова</h2><span class="badge count danger num">7</span></div>
+    <ol class="difflist">${[['la práctica', 'практика', 5], ['ponerse de acuerdo', 'договориться', 4], ['la ventanilla', 'окошко', 2]].map(([e, rr, n]) => `<li><span><b lang="es">${e}</b><br><span class="muted" style="font-size:14px">${rr}</span></span><span class="r">забыто ${n} ${plural(n, ['раз', 'раза', 'раз'])}</span></li>`).join('')}</ol>
+    <div style="display:flex;gap:8px"><button class="btn btn-secondary" style="flex:1" data-act="practice">${ic('target', 18)}Тренировка</button><button class="btn btn-tertiary" data-act="filter" data-v="difficult">Все 7${ic('chev', 18)}</button></div></section>`;
+  return `<div class="scroll stack">${head}${hero}${kpis}${act}${stages}${diff}</div>${nav('stats')}`;
+};
+
+S.profile = (s = {}) => {
+  const denied = s.variant === 'denied';
+  const row = (l, end, extra = '') => `<div class="row" style="cursor:default;${extra}"><div class="main" style="font-size:17px">${l}</div>${end}</div>`;
+  return `<div class="scroll"><div class="screenhead"><h1 class="title1">Профиль</h1><p class="foot" style="margin-top:4px">Аккаунта нет — всё хранится на этом устройстве.</p></div>
+    <div class="overline group-title">Обучение</div><div class="list">${row('Новых карточек в день', '<span class="stepper"><button aria-label="Меньше">−</button><b>20</b><button aria-label="Больше">+</button></span>')}${row('Без ограничения', '<span class="switch"></span>')}</div>
+    <p class="foot group-note">Сколько новых слов появляется в очереди за день.</p>
+    <div class="overline group-title">Напоминания</div>
+    ${denied ? `<div class="banner warning">${ic('info', 20)}<span class="grow">Уведомления для ALSAVI запрещены в настройках. Разреши их и вернись сюда.</span></div>` : ''}
+    <div class="list">${row(`${ic('bell', 20, 'style="vertical-align:-4px;margin-right:8px;color:var(--accent-text)"')}Напоминать о повторении`, `<span class="switch ${denied ? '' : 'on'}"></span>`)}
+      ${row('Время', `<span class="val">19:30</span><span class="chev">${ic('chev', 18)}</span>`, denied ? 'opacity:.4' : '')}
+      ${row('Если накопилось много слов', '<span class="switch"></span>', denied ? 'opacity:.4' : '')}
+      ${row('Статус', denied ? '<span class="val" style="color:var(--warning-text)">не разрешены</span>' : `<span class="val" style="color:var(--success-text)">${ic('check', 16, 'style="vertical-align:-3px"')} включены</span>`)}
+      ${row('<span style="color:var(--accent-text)">Проверить уведомление</span>', `<span class="chev">${ic('chev', 18)}</span>`, denied ? 'opacity:.4' : '')}
+      ${row('Как это работает', `<span class="chev">${ic('chev', 18, 'style="transform:rotate(90deg)"')}</span>`)}</div>
+    <div class="overline group-title">Оформление</div><div class="list">${row(`${ic('palette', 20, 'style="vertical-align:-4px;margin-right:8px;color:var(--accent-text)"')}Тема`, '<div class="seg"><button aria-pressed="true">Система</button><button aria-pressed="false">Светлая</button><button aria-pressed="false">Тёмная</button></div>')}</div>
+    <div class="overline group-title">Данные</div><div class="list">${row(`${ic('download', 20, 'style="vertical-align:-4px;margin-right:8px;color:var(--accent-text)"')}Экспорт резервной копии`, `<span class="chev">${ic('chev', 18)}</span>`)}${row(`${ic('upload', 20, 'style="vertical-align:-4px;margin-right:8px;color:var(--accent-text)"')}Восстановить из копии`, `<span class="chev">${ic('chev', 18)}</span>`)}${row(`${ic('cards', 20, 'style="vertical-align:-4px;margin-right:8px;color:var(--accent-text)"')}Импорт из Anki (.apkg)`, `<span class="chev">${ic('chev', 18)}</span>`)}</div>
+    <p class="foot group-note">Резервная копия — один файл со всеми словами и историей повторений.</p>
+    <div class="overline group-title">О приложении</div><div class="list">${row(`<span style="display:flex;align-items:center;gap:10px"><img src="${LOGO}" alt="" width="28" height="28" style="border-radius:7px">ALSAVI · изучение испанского</span>`, '')}</div></div>${nav('profile')}`;
+};
+
+S.lock = () => `<div class="lock"><div style="font-size:18px;font-weight:600;opacity:.9">суббота, 14 ноября</div><div class="time">19:30</div>
+  <button class="notif" data-act="push-open"><img src="${LOGO}" alt=""><span><b>🇪🇸 ALSAVI</b> <span style="opacity:.7;font-size:13px">· сейчас</span><p>Пора повторить слова!\nСегодня ждут 12 карточек.\nПродолжить повторение →</p></span></button></div>`;
+
+/* ---------- desktop ---------- */
+function side(active) {
+  const items = [['home', 'Главная'], ['cards', 'Карточки'], ['stats', 'Статистика'], ['profile', 'Профиль']];
+  return `<aside class="side"><div class="brand"><img src="${LOGO}" alt="">ALSAVI</div>${items.map(([k, l]) => `<button ${k === active ? 'aria-current="page"' : ''}>${ic(k, 20)}${l}</button>`).join('')}<div class="bottom">${streak(7, false)}</div></aside>`;
+}
+S.dHome = () => {
+  const max = Math.max(...WEEK);
+  return `<div class="dsk">${side('home')}<main class="dmain"><div class="overline">Суббота, 14 ноября</div><h1 class="title1" style="margin-bottom:24px">Доброе утро</h1>
+  <div class="dgrid"><section class="hero" style="padding:28px"><div class="overline">Сегодня</div><div style="display:flex;align-items:baseline;gap:12px;margin-top:8px"><span class="display num" style="font-size:56px;line-height:60px">12</span><span class="callout">карточек к повторению</span></div>
+  <div class="legend"><span><i style="background:var(--info)"></i>5 новых</span><span><i style="background:var(--warning)"></i>4 в процессе</span><span><i style="background:var(--accent)"></i>3 повторить</span></div>
+  <button class="btn btn-primary btn-lg">Начать повторение${ic('arrow', 20)}</button><p class="foot" style="margin-top:14px">Пробел — показать ответ · 1–3 — оценка</p></section>
+  <div class="stack" style="margin:0"><div class="tiles"><button class="tile warm"><span class="ic">${ic('target', 22)}</span><span><b>Трудные слова</b><small>7 слов</small></span></button><button class="tile"><span class="ic">${ic('plus', 22)}</span><span><b>Добавить слово</b><small>в коллекцию</small></span></button></div>
+  <section class="card"><div class="cardhead"><h2 class="headline">Неделя</h2><button class="link">Статистика${ic('chev', 18)}</button></div><div class="bars" style="height:120px">${WEEK.map((n) => `<div><span>${n}</span><i class="${n ? '' : 'zero'}" style="height:${n ? n / max * 80 : 3}%"></i></div>`).join('')}</div><div class="axis">${DAYS.map((d, k) => `<span class="${k === 6 ? 'today' : ''}">${d}</span>`).join('')}</div></section></div></div></main></div>`;
+};
+S.dCards = () => `<div class="dsk">${side('cards')}<div class="split"><div class="lpane"><div class="screenhead-row"><h1 class="title1">Карточки</h1><button class="iconbtn filled">${ic('plus', 22)}</button></div><p class="foot" style="margin:2px 0 16px">41 слово · 48 карточек</p>
+  <div class="search">${ic('search', 20)}<span>Поиск</span></div><div class="chips" style="margin:12px 0;padding:2px 0;-webkit-mask-image:none;mask-image:none;flex-wrap:wrap"><span class="chip" aria-pressed="true">Все <small>41</small></span><span class="chip">К повторению <small>7</small></span><span class="chip">Трудные <small>7</small></span><span class="chip">Архив <small>2</small></span></div>
+  <div class="list">${WORDS.slice(0, 8).map((w, k) => rowHtml(w, k, k === 1)).join('')}</div></div>
+  <div class="rpane"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><h1 class="title1" lang="es">la ventanilla</h1><p class="title2 muted" style="font-weight:500;margin-top:4px">окошко (в учреждении)</p></div><div style="display:flex;gap:8px"><button class="btn btn-secondary">${ic('edit', 18)}Изменить</button><button class="btn btn-destructive">${ic('archive', 18)}В архив</button></div></div>
+  <div class="stack" style="max-width:640px;margin-top:22px"><div class="inset"><div class="overline">Пример</div><p class="es" lang="es">Pregunte en la ventanilla número tres.</p></div><div class="inset"><div class="overline">Моя заметка</div><p>как «вентиляция» — маленькое окно</p></div>
+  <div class="overline" style="margin-top:22px">Обучение</div><div class="list"><div class="row"><div class="main">Статус</div><span class="badge accent">К повторению</span></div><div class="row"><div class="main">Следующий показ</div><span class="val">сейчас</span></div><div class="row"><div class="main">Забыто</div><span class="val">2 раза</span></div><div class="row"><div class="main">Добавлено</div><span class="val">29 октября</span></div></div></div></div></div></div>`;
+
+/* =====================================================================
+   Device frame
+   ===================================================================== */
+const DEV = { se: [375, 667], 375: [375, 812], 390: [390, 844], 430: [430, 932] };
+let state = { mode: 'gallery', theme: 'light', dev: '390', zoom: '.74' };
+function phone(inner, id = '') {
+  const [w, h] = DEV[state.dev];
+  const se = state.dev === 'se';
+  const narrow = w < 390 ? 'w375' : '';
+  return `<div class="zoom" style="--w:${w};--h:${h}"><div class="phone ${se ? 'se' : ''}"><div class="screen ${narrow}" data-theme="${state.theme}" ${id ? `id="${id}"` : ''}>
+    <div class="island"></div><div class="sbar"><span>9:41</span><span class="sbar-r"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg><i></i></span></div>
+    <div class="screen-inner" style="position:absolute;inset:0">${inner}</div><div class="homeind"></div></div></div></div>`;
+}
+function frame(label, note, inner) {
+  const [w] = DEV[state.dev];
+  return `<figure class="frame" style="--w:${w};margin:0"><figcaption class="frame-label">${label}<span>${note || ''}</span></figcaption>${phone(inner)}</figure>`;
+}
+
+/* =====================================================================
+   Gallery
+   ===================================================================== */
+const GALLERY = [
+  { t: '1. Главная', p: 'Ответ на вопрос «что сделать сегодня»: одно крупное число, одна кнопка. Бренд — только здесь. Плитка «Мои карточки» убрана (дубль вкладки); «Трудные» ведут сразу в тренировку.', f: [
+    ['Начало дня', 'очередь 12, ответов ещё нет', S.home({ variant: 'start' })],
+    ['Очередь в процессе', 'после первых ответов — полоса и «Продолжить»', S.home({ variant: 'progress' })],
+    ['Очередь пройдена', 'полезные действия вместо тупика', S.home({ variant: 'done' })],
+    ['Пустая коллекция', 'первое открытие', S.home({ variant: 'empty' })],
+    ['Загрузка', 'скелетон той же формы, показ через 150 мс', S.home({ variant: 'loading' })],
+  ] },
+  { t: '2. Повторение (сессия FSRS)', p: 'Фокус-режим: без шапки и навигации. Действия — в нижнем доке на фиксированном месте. Слово не сдвигается при показе ответа. Три оценки «Не помню · С трудом · Помню» — решение владельца (D-06): again / hard / good, «Легко» в интерфейсе нет.', f: [
+    ['Лицо карточки', 'тап по кнопке или по слову', S.session({ phase: 'front', i: 3 })],
+    ['Ответ показан', '3 оценки с интервалами', S.session({ phase: 'revealed', i: 1 })],
+    ['Длинная фраза', '90 символов → размер word-m', S.session({ phase: 'revealed', long: true, i: 5 })],
+    ['Ошибка сохранения', 'карточка и выбор остаются', S.session({ phase: 'error', i: 0 })],
+    ['Итог', 'только числа из summary', S.session({ phase: 'finish' })],
+    ['Из push, очередь пуста', 'дружелюбно, без пустой сессии', S.session({ phase: 'empty' })],
+  ] },
+  { t: '3. Тренировка трудных слов', p: 'Тот же экран и тот же RatingBar (3 оценки), но без интервалов. Метка «расписание не меняется» всегда на виду.', f: [
+    ['Лицо', 'значок «забыто N раз»', S.session({ practice: true, phase: 'front', i: 0 })],
+    ['Ответ', '3 оценки', S.session({ practice: true, phase: 'revealed', i: 2 })],
+    ['Итог тренировки', 'повтор слов с ошибками', S.session({ practice: true, phase: 'finish' })],
+  ] },
+  { t: '4. Карточки — список', p: 'Список — основной вид раздела. Добавление — кнопка «+» (лист). Фильтры — одна прокручиваемая строка со счётчиками. Строка 64 px без кнопок; действия — в просмотре.', f: [
+    ['Все слова', '', S.cards({})],
+    ['Трудные', 'баннер тренировки с единицами', S.cards({ filter: 'difficult' })],
+    ['Ничего не найдено', 'сброс фильтров', S.cards({ filter: 'none' })],
+    ['Лист «Теги»', 'мультивыбор', S.cards({ sheet: 'tags' })],
+    ['Архивировано', 'тост с «Вернуть»', S.cards({ toast: '<b lang="es">la queja</b> в архиве' })],
+    ['Пусто', '', S.cards({ variant: 'empty' })],
+  ] },
+  { t: '5. Новое слово (лист)', p: 'Открывается из «+», Главной и пустых состояний. Обязательны только 2 поля. Кнопка закреплена над клавиатурой. После сохранения лист остаётся открытым для следующего слова.', f: [
+    ['Открыт', 'фокус в «Слово»', S.add({ variant: 'empty' })],
+    ['Заполнен', 'Enter → «Добавить»', S.add({ variant: 'filled' })],
+    ['Ошибка', 'пустые поля', S.add({ variant: 'error' })],
+    ['Дубль', '3 действия, как сейчас', S.add({ variant: 'dup' })],
+    ['Добавлено', 'тост + форма очищена', S.add({ variant: 'saved' })],
+    ['Редактирование', 'тот же лист', S.add({ variant: 'edit' })],
+  ] },
+  { t: '6. Просмотр карточки (новый экран)', p: 'Всё о слове в одном месте: контент, обучение, действия. Архив — через диалог подтверждения.', f: [
+    ['Просмотр', 'данные из NoteEntry / CardView', S.detail({ i: 1 })],
+    ['Подтверждение архива', 'фокус на «Отмена»', S.detail({ i: 1, dialog: true })],
+  ] },
+  { t: '7. Статистика', p: 'Герой «Изучено слов», три KPI. «Сегодня в очереди» — то же число, что на Главной (session.overview()).', f: [
+    ['7 дней', '', S.stats({ period: 7 })],
+    ['30 дней', '', S.stats({ period: 30 })],
+    ['Пусто', 'без фиктивных графиков', S.stats({ variant: 'empty' })],
+  ] },
+  { t: '8. Профиль и настройки', p: 'Сгруппированный список. Логика лимита, напоминаний, темы и данных — без изменений. Новых настроек нет.', f: [
+    ['Обычное', 'напоминания включены', S.profile({})],
+    ['Уведомления запрещены', 'баннер и неактивные строки', S.profile({ variant: 'denied' })],
+  ] },
+  { t: '9. Push-уведомление', p: 'Тексты — из packages/reminders. Тап открывает сессию (механика sw.js не меняется).', f: [
+    ['Экран блокировки', 'тап → сессия', S.lock()],
+  ] },
+];
+
+function renderGallery() {
+  let html = `<p class="intro">Прототип следующей версии ALSAVI (проектный материал, не рабочее приложение). Данные — пример коллекции. Переключатели вверху меняют тему и размер устройства для всех экранов. Спецификации — <code>docs/ui-ux/SCREEN_SPECIFICATIONS.md</code>.</p>`;
+  for (const sec of GALLERY) html += `<section class="sec"><h2>${sec.t}</h2><p>${sec.p}</p><div class="frames">${sec.f.map(([l, n, inner]) => frame(l, n, inner)).join('')}</div></section>`;
+  html += `<section class="sec"><h2>10. Компьютер (1280 × 800)</h2><p>Не растянутый телефон: боковая навигация, две колонки на Главной, «Карточки» — список + просмотр (мастер-деталь). Масштаб 50 %.</p>
+    <div class="frames"><figure class="frame" style="margin:0"><figcaption class="frame-label">Главная</figcaption><div style="zoom:.5"><div class="desktop" data-theme="${state.theme}">${S.dHome()}</div></div></figure>
+    <figure class="frame" style="margin:0"><figcaption class="frame-label">Карточки — мастер-деталь</figcaption><div style="zoom:.5"><div class="desktop" data-theme="${state.theme}">${S.dCards()}</div></div></figure></div></section>`;
+  return html;
+}
+
+/* =====================================================================
+   Interactive
+   ===================================================================== */
+const SCEN = [
+  ['daily', 'Ежедневное обучение', 'Главная → «Начать» → показать ответ → оценить (3 кнопки) ×4 → итог', { screen: 'home', s: { variant: 'start' } }],
+  ['add', 'Добавить слово', 'Главная → «Добавить слово» → «Добавить» → тост', { screen: 'home', s: { variant: 'start' } }],
+  ['dict', 'Словарь', 'Карточки → строка → «Изменить» / «В архив» → «Вернуть»', { screen: 'cards', s: {} }],
+  ['hard', 'Трудные слова', 'Главная → «Трудные слова» → тренировка (3 оценки)', { screen: 'home', s: { variant: 'done' } }],
+  ['stats', 'Статистика', 'Переключение 7 / 30 дней, переход к трудным', { screen: 'stats', s: {} }],
+  ['push', 'Push-уведомление', 'Экран блокировки → тап → сессия', { screen: 'lock', s: {} }],
+  ['profile', 'Настройки', 'Профиль: группы настроек', { screen: 'profile', s: {} }],
+];
+let play = { scen: 'daily', screen: 'home', s: { variant: 'start' } };
+function renderPlayScreen() { return S[play.screen](play.s); }
+function renderPlay() {
+  const cur = SCEN.find((x) => x[0] === play.scen);
+  return `<div class="play"><div id="playPhone">${phone(renderPlayScreen(), 'playScreen')}</div>
+    <aside class="panel"><h3>Интерактивный прототип</h3><p class="hint">Нажимай кнопки в телефоне — основные переходы работают. Сценарии из USER_FLOWS.md:</p>
+    <div class="scen">${SCEN.map(([k, l, d]) => `<button data-scen="${k}" aria-pressed="${k === play.scen}">${l}<small>${d}</small></button>`).join('')}</div>
+    <p class="hint">Сейчас: <b>${cur ? cur[1] : ''}</b>. На компьютере в настоящем приложении работают и клавиши: Пробел — показать ответ, 1–3 — оценка.</p></aside></div>`;
+}
+function rerenderPlay() {
+  const host = document.getElementById('playScreen');
+  if (host) host.querySelector('.screen-inner').innerHTML = renderPlayScreen();
+}
+const ACT = {
+  tab(v) { play.screen = v; play.s = v === 'home' ? { variant: play.done ? 'done' : 'start' } : {}; },
+  start() { play.screen = 'session'; play.s = { phase: 'front', i: 0, total: 4 }; },
+  reveal() { if (play.screen === 'session') play.s = { ...play.s, phase: 'revealed' }; },
+  rate(v) {
+    const total = play.s.total || 4;
+    const host = document.querySelector('#playScreen .word-zone');
+    const next = () => { const i = (play.s.i || 0) + 1; play.s = i >= total ? { ...play.s, phase: 'finish' } : { ...play.s, i, phase: 'front', pressed: null }; if (!play.s.practice && play.s.phase === 'finish') play.done = true; rerenderPlay(); };
+    play.s = { ...play.s, pressed: v }; rerenderPlay();
+    setTimeout(() => { const z = document.querySelector('#playScreen .sess-body'); if (z) z.classList.add('leaving'); setTimeout(next, 160); }, 100);
+    return 'async';
+  },
+  exit() { if (play.s.practice) { play.screen = 'cards'; play.s = { filter: 'difficult' }; } else { play.screen = 'home'; play.s = { variant: play.done ? 'done' : 'progress' }; } },
+  practice() { play.screen = 'session'; play.s = { practice: true, phase: 'front', i: 0, total: 4 }; },
+  add() { play.back = { screen: play.screen, s: play.s }; play.screen = 'add'; play.s = { variant: 'empty' }; },
+  save() { if (play.s.variant === 'edit') { play.screen = 'detail'; play.s = { i: 1 }; return; } play.s = { variant: 'saved' }; },
+  close() { if (play.screen === 'add') { const b = play.back || { screen: 'cards', s: {} }; play.screen = b.screen === 'add' ? 'cards' : b.screen; play.s = b.s; } else if (play.screen === 'detail') { play.s = { ...play.s, dialog: false }; } else { play.s = { ...play.s, sheet: null }; } },
+  open(v) { play.screen = 'detail'; play.s = { i: Number(v) }; },
+  open0() { play.screen = 'detail'; play.s = { i: 3 }; },
+  edit() { play.back = { screen: 'detail', s: { i: play.s.i } }; play.screen = 'add'; play.s = { variant: 'edit' }; },
+  archive() { play.s = { ...play.s, dialog: true }; },
+  archived() { play.screen = 'cards'; play.s = { toast: `<b lang="es">${esc(WORDS[1].es)}</b> в архиве` }; },
+  undo() { play.s = { ...play.s, toast: null }; },
+  filter(v) { play.screen = 'cards'; play.s = { filter: v }; },
+  tags() { play.s = { ...play.s, sheet: 'tags' }; },
+  period(v) { play.s = { ...play.s, period: Number(v) }; },
+  'push-open'() { play.screen = 'session'; play.s = { phase: 'front', i: 0, total: 4 }; },
+};
+
+/* =====================================================================
+   Map
+   ===================================================================== */
+function renderMap() {
+  const N = (x, y, w, t, sub, cls = '') => `<g class="n ${cls}" transform="translate(${x},${y})"><rect width="${w}" height="54" rx="14"/><text x="16" y="24">${t}</text><text class="sub" x="16" y="41">${sub}</text></g>`;
+  const E = (d, lx, ly, l) => `<path d="${d}" marker-end="url(#ah)"/>${l ? `<text class="el" x="${lx}" y="${ly}">${l}</text>` : ''}`;
+  return `<p class="intro">Сплошная рамка — существующий экран; пунктир — новый экран или лист. Фиолетовый — главный ежедневный путь. Вкладки (Главная · Карточки · Статистика · Профиль) доступны с любого экрана, кроме сессии, тренировки и листов, — эти переходы не нарисованы. Адреса — hash, без роутер-библиотеки (<code>nav.ts</code>).</p>
+  <div class="map"><svg viewBox="0 0 1100 530" role="img" aria-label="Карта переходов ALSAVI">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--page-muted)" stroke="none"/></marker></defs>
+  ${N(20, 40, 150, 'Push', 'экран блокировки')}
+  ${N(230, 40, 190, 'Главная', '/', 'main')}
+  ${N(500, 40, 200, 'Сессия FSRS', 'фокус-режим', 'main')}
+  ${N(780, 40, 190, 'Итог сессии', 'числа summary', 'main')}
+  ${N(230, 180, 190, 'Тренировка', '3 оценки, без записи')}
+  ${N(500, 180, 200, 'Карточки', '#/cards')}
+  ${N(780, 180, 200, 'Просмотр карточки', '#/cards/&lt;id&gt;', 'new')}
+  ${N(230, 320, 190, 'Статистика', '#/stats')}
+  ${N(500, 320, 200, 'Лист «Новое слово»', '#/cards/new', 'new')}
+  ${N(780, 320, 200, 'Лист «Изменить»', 'поверх просмотра', 'new')}
+  ${N(230, 460, 190, 'Профиль', '#/profile')}
+  ${N(780, 460, 200, 'Диалог «В архив»', '→ тост «Вернуть»', 'new')}
+  ${E('M170 67 H226', 178, 59, '#/review')}
+  ${E('M420 67 H496', 432, 59, '«Начать»')}
+  ${E('M700 67 H776', 714, 59, 'конец')}
+  ${E('M875 40 V22 H325 V36', 520, 16, '«На главную» · «✕» из сессии')}
+  ${E('M300 94 V176', 308, 140, 'плитка «Трудные» · итог')}
+  ${E('M420 207 H496', 426, 199, '«К трудным»')}
+  ${E('M700 207 H776', 716, 199, 'строка')}
+  ${E('M600 234 V316', 608, 280, '«＋» · «Добавить слово» (Главная, пусто)')}
+  ${E('M880 234 V316', 888, 280, '«Изменить»')}
+  ${E('M980 220 C 1070 220, 1070 487, 984 487', 1010, 360, '«В архив»')}
+  ${E('M776 487 H740 V252 H680 V238', 620, 470, '«Убрать» → список + тост')}
+  ${E('M300 320 V238', 308, 290, '«Тренировка»')}
+  ${E('M420 347 H462 V224 H496', 428, 372, '«Все трудные»')}
+  </svg></div>`;
+}
+
+/* =====================================================================
+   App shell
+   ===================================================================== */
+const root = document.getElementById('root');
+function render() {
+  document.documentElement.dataset.page = state.theme;
+  document.documentElement.style.setProperty('--z', state.zoom);
+  root.innerHTML = state.mode === 'gallery' ? renderGallery() : state.mode === 'play' ? renderPlay() : renderMap();
+}
+function setGroup(id, attr, val) { document.querySelectorAll(`#${id} button`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[attr] === val))); }
+document.querySelector('.tb').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.mode) { state.mode = b.dataset.mode; setGroup('modeG', 'mode', state.mode); }
+  if (b.dataset.theme) { state.theme = b.dataset.theme; setGroup('themeG', 'theme', state.theme); }
+  if (b.dataset.dev) { state.dev = b.dataset.dev; setGroup('devG', 'dev', state.dev); }
+  if (b.dataset.zoom) { state.zoom = b.dataset.zoom; setGroup('zoomG', 'zoom', state.zoom); }
+  render();
+});
+root.addEventListener('click', (e) => {
+  const sc = e.target.closest('[data-scen]');
+  if (sc) { const x = SCEN.find((q) => q[0] === sc.dataset.scen); play = { scen: x[0], screen: x[3].screen, s: { ...x[3].s } }; render(); return; }
+  if (state.mode !== 'play') return;
+  const el = e.target.closest('[data-act]'); if (!el || !el.closest('#playScreen')) return;
+  const fn = ACT[el.dataset.act]; if (!fn) return;
+  const r = fn(el.dataset.v); if (r !== 'async') rerenderPlay();
+});
+render();
+</script>
+</body>
+</html>
