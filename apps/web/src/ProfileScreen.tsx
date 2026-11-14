@@ -7,6 +7,7 @@ import type { Platform } from './reminder-browser';
 import type { ReminderClient } from './reminder-client';
 import { RemindersSection } from './RemindersSection';
 import { THEME_OPTIONS, type ThemePreference } from './theme';
+import { Button, SegmentedControl } from './ui';
 
 const SKIP_LABELS: Record<string, string> = {
   'cloze-note-type': 'cloze',
@@ -210,23 +211,7 @@ export function ProfileScreen({
       <RemindersSection client={reminders} platform={platform} refreshKey={refreshKey} />
 
       <ProfileSection id="profile-look" title="Оформление">
-        <fieldset className="segmented-field">
-          <legend className="field-legend">Тема</legend>
-          <div className="segmented">
-            {THEME_OPTIONS.map((option) => (
-              <label key={option.value} className="segmented-option">
-                <input
-                  type="radio"
-                  name="theme"
-                  value={option.value}
-                  checked={theme === option.value}
-                  onChange={() => onThemeChange(option.value)}
-                />
-                <span>{option.label}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <SegmentedControl legend="Тема" name="theme" options={THEME_OPTIONS} value={theme} onChange={onThemeChange} />
       </ProfileSection>
 
       <ProfileSection id="profile-data" title="Данные">
@@ -238,9 +223,9 @@ export function ProfileScreen({
             style={{ display: 'none' }}
             onChange={(e) => void onImport(e)}
           />
-          <button type="button" className="btn-secondary" onClick={() => fileInput.current?.click()}>
+          <Button variant="secondary" onClick={() => fileInput.current?.click()}>
             Импорт из Anki (.apkg)
-          </button>
+          </Button>
           {importStatus && (
             <p className="import-status" role="status">
               {importStatus}
@@ -256,12 +241,12 @@ export function ProfileScreen({
             onChange={(e) => void onRestore(e)}
           />
           <div className="data-actions">
-            <button type="button" className="btn-secondary" onClick={() => void onExport()}>
+            <Button variant="secondary" onClick={() => void onExport()}>
               Экспорт (резервная копия)
-            </button>
-            <button type="button" className="btn-secondary" onClick={() => backupInput.current?.click()}>
+            </Button>
+            <Button variant="secondary" onClick={() => backupInput.current?.click()}>
               Восстановить из копии
-            </button>
+            </Button>
           </div>
           {backupStatus && (
             <p className="import-status" role="status">

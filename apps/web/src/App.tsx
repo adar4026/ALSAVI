@@ -18,6 +18,7 @@ import { createReminderClient } from './reminder-client';
 import { snapshotFromEngine } from './reminder-snapshot';
 import { ReviewSession } from './ReviewSession';
 import { StatsScreen } from './StatsScreen';
+import { Banner, Button } from './ui';
 import { applyTheme, readThemePreference, writeThemePreference, type ThemePreference } from './theme';
 
 /**
@@ -409,12 +410,18 @@ export function App() {
       />
       {!inSession && <MainNav view={view} onNavigate={onNavigate} />}
       {updateReady && !inSession && (
-        <div className="notice notice-info update-banner" role="status">
-          <span>Доступна новая версия ALSAVI.</span>
-          <button type="button" className="btn-secondary" onClick={applyUpdate}>
-            Обновить
-          </button>
-        </div>
+        <Banner
+          tone="info"
+          role="status"
+          className="app-update"
+          actions={
+            <Button variant="secondary" onClick={applyUpdate}>
+              Обновить
+            </Button>
+          }
+        >
+          Доступна новая версия ALSAVI.
+        </Banner>
       )}
       {practicing ? (
         <PracticeSession loadCards={loadPracticeCards} onExit={() => openCards('difficult')} />
@@ -440,9 +447,7 @@ export function App() {
         ) : bootstrap === 'error' ? (
           <div className="card-panel">
             <div className="empty-state">Не удалось загрузить настройки обучения.</div>
-            <button className="btn-primary" onClick={loadSettings}>
-              Повторить
-            </button>
+            <Button onClick={loadSettings}>Повторить</Button>
           </div>
         ) : (
           // Same neutral placeholder ReviewSession itself shows while loading —

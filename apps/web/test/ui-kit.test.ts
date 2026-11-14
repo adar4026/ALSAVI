@@ -1,0 +1,123 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { canStep, clampStep, stepValue } from '../src/ui/stepper-math';
+
+const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const read = (p: string) => readFileSync(resolve(webRoot, p), 'utf8');
+
+describe('stepper arithmetic', () => {
+  const bounds = { min: 0, max: 999 };
+
+  it('steps by one and stops at the bounds', () => {
+    expect(stepValue(20, 1, bounds)).toBe(21);
+    expect(stepValue(20, -1, bounds)).toBe(19);
+    expect(stepValue(0, -1, bounds)).toBe(0);
+    expect(stepValue(999, 1, bounds)).toBe(999);
+    expect(stepValue(10, 1, { ...bounds, step: 5 })).toBe(15);
+  });
+
+  it('pulls invalid input back into range', () => {
+    expect(clampStep(-3, bounds)).toBe(0);
+    expect(clampStep(12.6, bounds)).toBe(13);
+    expect(clampStep(Number.NaN, bounds)).toBe(0);
+    expect(clampStep(5000, bounds)).toBe(999);
+  });
+
+  it('reports whether a direction is possible', () => {
+    expect(canStep(0, -1, bounds)).toBe(false);
+    expect(canStep(0, 1, bounds)).toBe(true);
+    expect(canStep(999, 1, bounds)).toBe(false);
+  });
+});
+
+/**
+ * The component stylesheet follows the token system (TASK_035/036): tokens
+ * only, every var() defined in styles.css, motion on the --dur-* tokens.
+ */
+describe('ui.css', () => {
+  const ui = read('src/ui/ui.css');
+  const tokens = read('src/styles.css');
+  const defined = new Set([...tokens.matchAll(/(--[a-z0-9-]+):/g)].map((m) => m[1]!));
+
+  it('uses no literal colours', () => {
+    expect(ui).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    expect(ui).not.toMatch(/\b(rgba?|hsla?)\(/);
+  });
+
+  it('every var() is a token of styles.css', () => {
+    for (const m of ui.matchAll(/var\((--[a-z0-9-]+)/g)) expect(defined.has(m[1]!), m[1]).toBe(true);
+  });
+
+  it('defines no tokens of its own (one token system)', () => {
+    expect(ui).not.toMatch(/^\s*--[a-z0-9-]+\s*:/m);
+  });
+
+  it('transitions use the duration tokens', () => {
+    for (const m of ui.matchAll(/transition:([^;]+);/g)) {
+      expect(m[1], m[0]).not.toMatch(/\d(\.\d+)?m?s\b/);
+    }
+  });
+
+  it('is loaded right after styles.css, before the app', () => {
+    const main = read('src/main.tsx');
+    const s = main.indexOf("import './styles.css'");
+    const u = main.indexOf("import './ui/ui.css'");
+    const app = main.indexOf("import { App }");
+    expect(s).toBeGreaterThanOrEqual(0);
+    expect(u).toBeGreaterThan(s);
+    expect(app).toBeGreaterThan(u);
+  });
+});
+
+/**
+ * Migrated primitives (TASK_036): the legacy classes replaced by Button,
+ * IconButton, SegmentedControl, ProgressBar, Banner and Switch are gone from
+ * both the components and the stylesheet — no second set of buttons.
+ */
+describe('no duplicate primitives', () => {
+  const LEGACY = [
+    'btn-primary',
+    'btn-secondary',
+    'btn-link',
+    'btn-danger',
+    'btn-quiet-danger',
+    'btn-cta',
+    'btn-icon',
+    'icon-button',
+    'notice',
+    'notice-info',
+    'notice-warning',
+    'notice-error',
+    'notice-actions',
+    'update-banner',
+    'save-error',
+    'segmented',
+    'segmented-field',
+    'segmented-option',
+    'period-toggle',
+    'period-option',
+    'progress-bar',
+    'progress-bar-fill',
+    'goal-bar',
+    'goal-bar-fill',
+    'switch',
+  ];
+  const sources = readdirSync(resolve(webRoot, 'src'))
+    .filter((f) => f.endsWith('.tsx'))
+    .map((f) => [f, read(`src/${f}`)] as const);
+  const css = read('src/styles.css');
+
+  for (const name of LEGACY) {
+    it(`.${name} is not used or styled any more`, () => {
+      const cls = new RegExp(`(^|[\\s'"\`])${name}(?=[\\s'"\`]|$)`, 'm');
+      for (const [file, src] of sources) {
+        for (const m of src.matchAll(/className=(?:"([^"]*)"|\{([^}]*)\})/g)) {
+          expect(cls.test(m[1] ?? m[2] ?? ''), `${file}: ${m[0]}`).toBe(false);
+        }
+      }
+      expect(css, `styles.css .${name}`).not.toMatch(new RegExp(`\\.${name}(?![\\w-])`));
+    });
+  }
+});

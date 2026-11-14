@@ -15,6 +15,7 @@ import {
   momentText,
   permissionLabel,
 } from './reminder-view';
+import { Banner, Button, Switch } from './ui';
 
 interface Props {
   client: ReminderClient;
@@ -168,18 +169,15 @@ export function RemindersSection({ client, platform, refreshKey }: Props) {
               Напоминать о повторении
               <span className="setting-hint">Одно уведомление в день и только если есть слова к повторению.</span>
             </label>
-            <input
+            <Switch
               id={enabledId}
-              type="checkbox"
-              role="switch"
-              className="switch"
               checked={settings.enabled}
               disabled={busy || (avail === 'denied' && !settings.enabled)}
               onChange={(e) => void onToggle(e.target.checked)}
             />
           </div>
 
-          {avail === 'denied' && <p className="notice notice-warning">{platform.ios ? DENIED_TEXT_IOS : DENIED_TEXT}</p>}
+          {avail === 'denied' && <Banner tone="warning">{platform.ios ? DENIED_TEXT_IOS : DENIED_TEXT}</Banner>}
 
           <div className="setting-row">
             <label htmlFor={timeId} className="setting-label">
@@ -202,11 +200,8 @@ export function RemindersSection({ client, platform, refreshKey }: Props) {
               Если накопилось много слов
               <span className="setting-hint">Ещё одно напоминание днём, не раньше чем через 8 часов после основного и не чаще раза в день.</span>
             </label>
-            <input
+            <Switch
               id={backlogId}
-              type="checkbox"
-              role="switch"
-              className="switch"
               checked={settings.backlog}
               disabled={controlsOff}
               onChange={(e) => void save({ ...settings, backlog: e.target.checked })}
@@ -269,9 +264,9 @@ export function RemindersSection({ client, platform, refreshKey }: Props) {
 
           {settings.enabled && status?.subscribed && (
             <div className="data-actions">
-              <button type="button" className="btn-secondary" disabled={busy} onClick={() => void onTest()}>
+              <Button variant="secondary" disabled={busy} onClick={() => void onTest()}>
                 Отправить проверочное уведомление
-              </button>
+              </Button>
             </div>
           )}
         </>

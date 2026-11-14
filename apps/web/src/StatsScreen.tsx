@@ -2,7 +2,7 @@ import type { LearningEngine, LearningStats } from '@alsavi/engine';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityChart } from './ActivityCharts';
 import { WORD_FORMS } from './home-view';
-import { Icon } from './Icon';
+import { Banner, Button, SegmentedControl } from './ui';
 import {
   ACTIVITY_PERIODS,
   activityDigest,
@@ -62,12 +62,16 @@ export function StatsScreen({ engine, onStudy, onAddWord, onShowDifficult, refre
 
   if (error) {
     return (
-      <div className="notice notice-error" role="alert">
-        {error}{' '}
-        <button type="button" className="btn-secondary" onClick={() => void load()}>
-          Повторить
-        </button>
-      </div>
+      <Banner
+        tone="error"
+        actions={
+          <Button variant="secondary" onClick={() => void load()}>
+            Повторить
+          </Button>
+        }
+      >
+        {error}
+      </Banner>
     );
   }
   if (!stats) return <div className="stats-screen stats-loading" aria-busy="true" />;
@@ -89,10 +93,9 @@ export function StatsScreen({ engine, onStudy, onAddWord, onShowDifficult, refre
             Пока нет статистики
           </h2>
           <p className="home-card-text">Добавьте первые слова и начните обучение, чтобы увидеть свой прогресс.</p>
-          <button type="button" className="btn-primary btn-cta" onClick={onAddWord}>
-            <Icon name="plus" />
+          <Button size="lg" icon="plus" className="stats-empty-cta" onClick={onAddWord}>
             Добавить слово
-          </button>
+          </Button>
         </section>
       ) : (
         <div className="stats-layout">
@@ -140,21 +143,15 @@ function ActivityCard({ activity, onStudy }: { activity: LearningStats['activity
         <h2 id="activity-title" className="home-section-title">
           Активность
         </h2>
-        <fieldset className="period-toggle">
-          <legend className="sr-only">Период</legend>
-          {ACTIVITY_PERIODS.map((p) => (
-            <label key={p} className="period-option">
-              <input
-                type="radio"
-                name="activity-period"
-                value={p}
-                checked={period === p}
-                onChange={() => setPeriod(p)}
-              />
-              {countLabel(p, DAY_FORMS)}
-            </label>
-          ))}
-        </fieldset>
+        <SegmentedControl
+          legend="Период"
+          legendHidden
+          name="activity-period"
+          fill={false}
+          options={ACTIVITY_PERIODS.map((p) => ({ value: String(p), label: countLabel(p, DAY_FORMS) }))}
+          value={String(period)}
+          onChange={(v) => setPeriod(Number(v) as ActivityPeriod)}
+        />
       </div>
 
       {digest.total === 0 ? (
@@ -162,9 +159,9 @@ function ActivityCard({ activity, onStudy }: { activity: LearningStats['activity
           <p className="empty-state">
             За последние {countLabel(digest.days, DAY_FORMS)} ответов не было.
           </p>
-          <button type="button" className="btn-secondary" onClick={onStudy}>
+          <Button variant="secondary" onClick={onStudy}>
             Перейти к обучению
-          </button>
+          </Button>
         </div>
       ) : (
         <>
@@ -296,15 +293,15 @@ function DifficultCard({
               </li>
             ))}
           </ol>
-          <button
-            type="button"
-            className="btn-secondary stats-link"
+          <Button
+            variant="secondary"
+            iconEnd="arrow-right"
+            className="stats-link"
             onClick={onShowDifficult}
             aria-label={`Посмотреть трудные слова: ${difficult.total} ${pluralRu(difficult.total, WORD_FORMS)}`}
           >
             Посмотреть слова
-            <Icon name="arrow-right" size={18} />
-          </button>
+          </Button>
         </>
       )}
     </section>

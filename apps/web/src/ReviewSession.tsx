@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { formatInterval } from './format';
 import { ReviewFlowController } from './review-flow';
 import { handleReviewKeydown } from './review-hotkeys';
+import { Banner, Button, ProgressBar } from './ui';
 
 const RATING_LABELS: Record<Rating, string> = {
   again: 'Не помню',
@@ -93,9 +94,7 @@ export function ReviewSession({ engine, session, onReviewed, onExit }: Props) {
             </>
           )}
         </div>
-        <button className="btn-primary" onClick={onExit}>
-          На главный
-        </button>
+        <Button onClick={onExit}>На главный</Button>
       </div>
     );
   }
@@ -111,9 +110,7 @@ export function ReviewSession({ engine, session, onReviewed, onExit }: Props) {
           <br />
           Из них новых: <strong>{summary.newReviewed}</strong>
         </div>
-        <button className="btn-primary" onClick={onExit}>
-          На главный
-        </button>
+        <Button onClick={onExit}>На главный</Button>
       </div>
     );
   }
@@ -123,7 +120,6 @@ export function ReviewSession({ engine, session, onReviewed, onExit }: Props) {
   const preview = state.preview!;
   const now = Date.now();
   const position = Math.min(state.progress.done + 1, state.progress.total);
-  const progressPct = state.progress.total > 0 ? (state.progress.done / state.progress.total) * 100 : 0;
   const saving = state.status === 'saving';
 
   return (
@@ -132,19 +128,17 @@ export function ReviewSession({ engine, session, onReviewed, onExit }: Props) {
         <span>
           {position} из {state.progress.total}
         </span>
-        <div
-          className="progress-bar"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={state.progress.total}
-          aria-valuenow={state.progress.done}
-        >
-          <div className="progress-bar-fill" style={{ width: `${progressPct}%` }} />
-        </div>
+        <ProgressBar
+          className="session-progress-bar"
+          size="sm"
+          value={state.progress.done}
+          max={state.progress.total}
+          aria-label="Пройдено карточек"
+        />
         {/* Disabled while an answer is being saved: leave only after it is recorded. */}
-        <button type="button" className="btn-link session-exit" onClick={onExit} disabled={saving}>
+        <Button variant="tertiary" className="session-exit" onClick={onExit} disabled={saving}>
           Завершить
-        </button>
+        </Button>
       </div>
       <div className="card-panel">
         <span className={`state-badge state-${current.card.state}`}>{STATE_LABELS[current.card.state]}</span>
@@ -175,17 +169,15 @@ export function ReviewSession({ engine, session, onReviewed, onExit }: Props) {
           </>
         ) : (
           <>
-            <button className="btn-primary" onClick={() => controller.reveal()} aria-label="Показать ответ">
-              Показать ответ
-            </button>
+            <Button onClick={() => controller.reveal()}>Показать ответ</Button>
             <span className="hotkey-hint">Пробел</span>
           </>
         )}
       </div>
       {state.error && (
-        <div className="save-error" role="alert">
+        <Banner tone="error" className="session-error">
           {state.error} Попробуй ещё раз.
-        </div>
+        </Banner>
       )}
       {state.revealed && (
         // Sticky to the bottom of the viewport: a long example/memo scrolls

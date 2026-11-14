@@ -17,7 +17,25 @@ export type IconName =
   | 'home'
   | 'chart'
   | 'user'
-  | 'play';
+  | 'play'
+  // TASK_036 (COMPONENT_LIBRARY §9)
+  | 'close'
+  | 'search'
+  | 'sort'
+  | 'tag'
+  | 'chevron-down'
+  | 'check'
+  | 'archive'
+  | 'restore'
+  | 'edit'
+  | 'bell'
+  | 'palette'
+  | 'download'
+  | 'upload'
+  | 'info'
+  | 'refresh'
+  | 'book'
+  | 'minus';
 
 const PATHS: Record<IconName, ReactElement> = {
   flame: (
@@ -56,6 +74,60 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="M4.5 20.5c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5" />
     </>
   ),
+  close: <path d="M6 6l12 12M18 6 6 18" />,
+  search: (
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4 4" />
+    </>
+  ),
+  sort: <path d="M7 5v14M4 16l3 3 3-3M17 19V5M14 8l3-3 3 3" />,
+  tag: (
+    <>
+      <path d="M4 12.6V5a1 1 0 0 1 1-1h7.6a1 1 0 0 1 .7.3l6.4 6.4a1 1 0 0 1 0 1.4l-7.6 7.6a1 1 0 0 1-1.4 0l-6.4-6.4a1 1 0 0 1-.3-.7Z" />
+      <circle cx="8.5" cy="8.5" r="1.2" />
+    </>
+  ),
+  'chevron-down': <path d="M6 9.5l6 6 6-6" />,
+  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  archive: (
+    <>
+      <rect x="3.5" y="5" width="17" height="4" rx="1" />
+      <path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4" />
+    </>
+  ),
+  restore: <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9M4.5 4.5V9H9" />,
+  edit: (
+    <>
+      <path d="M4 20h4L19 9l-4-4L4 16v4Z" />
+      <path d="m13.5 6.5 4 4" />
+    </>
+  ),
+  bell: (
+    <>
+      <path d="M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Z" />
+      <path d="M10 20.5a2 2 0 0 0 4 0" />
+    </>
+  ),
+  palette: (
+    <>
+      <path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.3 0 1.8-1 1.3-2-.6-1.2.2-2.5 1.5-2.5H17a3.5 3.5 0 0 0 3.5-3.5c0-5-3.8-9-8.5-9Z" />
+      <circle cx="7.5" cy="11" r="1" />
+      <circle cx="10" cy="7.5" r="1" />
+      <circle cx="14.5" cy="7.5" r="1" />
+    </>
+  ),
+  download: <path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14" />,
+  upload: <path d="M12 20V9M7 13.5l5-5 5 5M5 4.5h14" />,
+  info: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 11v5M12 8h.01" />
+    </>
+  ),
+  refresh: <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3L19.5 9M19.5 4.5V9H15" />,
+  book: <path d="M5 5.5A1.5 1.5 0 0 1 6.5 4H19v14H6.5A1.5 1.5 0 0 0 5 19.5v-14ZM5 19.5A1.5 1.5 0 0 0 6.5 21H19" />,
+  minus: <path d="M5 12h14" />,
 };
 
 export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {

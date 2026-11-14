@@ -1,5 +1,6 @@
 import { Icon } from './Icon';
 import { countLabel, DAY_FORMS } from './stats-view';
+import { IconButton } from './ui';
 
 interface Props {
   /** Current streak (`getStats().streakDays`); the chip is hidden at 0 or while loading. */
@@ -43,9 +44,7 @@ export function AppHeader({ streakDays, reviewedToday, onOpenSettings }: Props) 
           </span>
         )}
         {onOpenSettings && (
-          <button type="button" className="icon-button" onClick={onOpenSettings} aria-label="Настройки">
-            <Icon name="sliders" />
-          </button>
+          <IconButton icon="sliders" label="Настройки" variant="filled" onClick={onOpenSettings} />
         )}
       </div>
     </header>

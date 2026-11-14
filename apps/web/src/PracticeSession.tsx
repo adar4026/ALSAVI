@@ -7,6 +7,7 @@ import {
   PracticeController,
 } from './practice-flow';
 import { countLabel, TIME_FORMS } from './stats-view';
+import { Button, ProgressBar } from './ui';
 
 interface Props {
   /** Loads the cards to practise (`loadDifficultPractice`) — the screen's only data access. */
@@ -46,14 +47,10 @@ export function PracticeSession({ loadCards, onExit }: Props) {
           {state.status === 'error' ? state.error : 'Трудных слов нет: повторять в тренировке пока нечего.'}
         </p>
         <div className="practice-actions">
-          {state.status === 'error' && (
-            <button type="button" className="btn-primary" onClick={() => void controller.start()}>
-              Повторить попытку
-            </button>
-          )}
-          <button type="button" className="btn-secondary" onClick={onExit}>
+          {state.status === 'error' && <Button onClick={() => void controller.start()}>Повторить попытку</Button>}
+          <Button variant="secondary" onClick={onExit}>
             К трудным словам
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -106,21 +103,20 @@ export function PracticeSession({ loadCards, onExit }: Props) {
         <p className="hint">Тренировка не меняет расписание повторений и не попадает в статистику.</p>
         <div className="practice-actions">
           {s.struggled > 0 && (
-            <button type="button" className="btn-primary" onClick={() => void controller.retryStruggled()} autoFocus>
+            <Button onClick={() => void controller.retryStruggled()} autoFocus>
               Повторить слова с ошибками
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
-            className={s.struggled > 0 ? 'btn-secondary' : 'btn-primary'}
+          <Button
+            variant={s.struggled > 0 ? 'secondary' : 'primary'}
             onClick={() => void controller.start()}
             autoFocus={s.struggled === 0}
           >
             Повторить ещё раз
-          </button>
-          <button type="button" className="btn-secondary" onClick={onExit}>
+          </Button>
+          <Button variant="secondary" onClick={onExit}>
             К трудным словам
-          </button>
+          </Button>
         </div>
       </section>
     );
@@ -141,12 +137,10 @@ export function PracticeSession({ loadCards, onExit }: Props) {
         <span>
           {done + 1} из {total}
         </span>
-        <div className="progress-bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
-          <div className="progress-bar-fill" style={{ width: `${(done / total) * 100}%` }} />
-        </div>
-        <button type="button" className="btn-link session-exit" onClick={exit}>
+        <ProgressBar className="session-progress-bar" size="sm" value={done} max={total} aria-label="Пройдено карточек" />
+        <Button variant="tertiary" className="session-exit" onClick={exit}>
           Завершить
-        </button>
+        </Button>
       </div>
       <div className="card-panel">
         <span className="state-badge practice-badge">
@@ -179,9 +173,7 @@ export function PracticeSession({ loadCards, onExit }: Props) {
           </>
         ) : (
           <>
-            <button className="btn-primary" onClick={() => controller.reveal()}>
-              Показать ответ
-            </button>
+            <Button onClick={() => controller.reveal()}>Показать ответ</Button>
             <span className="hotkey-hint">Пробел</span>
           </>
         )}

@@ -151,7 +151,7 @@
   --accent-text: #5847e0;
   --accent-soft: rgba(109, 93, 246, 0.1);
   --accent-border: rgba(109, 93, 246, 0.3);
-  /* Start of the accent gradient (goal bar, brand mark). */
+  /* Start of the accent gradient of the brand mark. */
   --accent-light: #8b7cf8;
   --on-accent: #ffffff;
   /* Translucent white on accent fills (counter inside a primary button). */
@@ -185,7 +185,7 @@
   --elev-1: 0 1px 2px rgba(22, 21, 31, 0.04), 0 4px 12px rgba(30, 41, 80, 0.04);
   --elev-2: 0 1px 2px rgba(22, 21, 31, 0.04), 0 12px 32px rgba(30, 41, 80, 0.08);
   --elev-nav: 0 10px 30px rgba(15, 17, 21, 0.16);
-  /* A raised control (switch knob) and the accent glow under a CTA. */
+  /* A raised control (switch knob) and the accent glow of the brand mark. */
   --elev-control: 0 1px 3px rgba(0, 0, 0, 0.25);
   --elev-accent: 0 8px 20px rgba(109, 93, 246, 0.28);
   --nav-bg: rgba(255, 255, 255, 0.78);
@@ -485,21 +485,6 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.btn-primary {
-  background: var(--accent);
-  color: var(--on-accent);
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: var(--space-3) 28px;
-  font-size: var(--type-callout-size);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-primary:hover {
-  background: var(--accent-strong);
-}
-
 .empty-state {
   color: var(--text-secondary);
   font-size: var(--type-callout-size);
@@ -528,22 +513,6 @@ body {
   gap: var(--space-3);
   flex-wrap: wrap;
   margin: 0 0 var(--space-8);
-}
-
-.btn-secondary {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 10px;
-  padding: var(--space-2) var(--space-4);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-secondary:hover {
-  border-color: var(--accent-text);
-  color: var(--accent-text);
 }
 
 .import-status {
@@ -580,31 +549,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.progress-bar {
+.session-progress-bar {
   flex: 1;
-  height: 6px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
 }
 
-.progress-bar-fill {
-  height: 100%;
-  background: var(--accent);
-  transition: width 0.2s ease;
-}
-
-.save-error {
+.session-error {
   margin-top: var(--space-3);
-  padding: 10px 14px;
-  background: var(--danger-soft);
-  border: 1px solid var(--danger-border);
-  color: var(--danger-text);
-  border-radius: 10px;
-  font-size: var(--type-footnote-size);
-  line-height: 1.4;
-  text-align: center;
 }
 
 /* Larger, easier-to-tap rating buttons; grid degrades to 2 columns on very
@@ -726,59 +676,7 @@ body {
   align-items: center;
 }
 
-.form-actions .btn-primary,
-.form-actions .btn-secondary,
-.form-actions .btn-danger {
-  min-height: var(--tap-min);
-}
-
-.btn-link {
-  align-self: flex-start;
-  background: none;
-  border: none;
-  padding: 10px 0;
-  min-height: var(--tap-min);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--accent-text);
-  cursor: pointer;
-}
-
-.btn-danger {
-  background: var(--danger-fill);
-  color: var(--on-accent);
-  border: none;
-  border-radius: 10px;
-  padding: 10px 18px;
-  font-size: var(--type-callout-size);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-quiet-danger:hover {
-  border-color: var(--danger);
-  color: var(--danger-text);
-}
-
-.btn-icon {
-  min-width: var(--tap-min);
-  min-height: var(--tap-min);
-  background: none;
-  border: none;
-  border-radius: 10px;
-  font-size: 20px;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.btn-primary:disabled,
-.btn-secondary:disabled,
-.btn-danger:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-:is(.btn-primary, .btn-secondary, .btn-danger, .btn-link, .btn-icon, .chip, .answer-buttons button):focus-visible {
+:is(.chip, .answer-buttons button):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -820,41 +718,8 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.notice {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-3);
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-3) 14px;
-  border-radius: 10px;
-  font-size: 14px;
-  line-height: 1.45;
-  border: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.notice-warning {
-  background: var(--warning-soft);
-  border-color: var(--warning-border);
-}
-
-.notice-error {
-  background: var(--danger-soft);
-  border-color: var(--danger-border);
-  color: var(--danger-text);
-}
-
-.notice-info {
-  background: var(--accent-soft);
-  border-color: var(--accent-border);
+.archive-undo {
   margin-bottom: var(--space-3);
-}
-
-.notice-actions {
-  display: flex;
-  gap: var(--space-1);
-  align-items: center;
 }
 
 .list-controls {
@@ -992,8 +857,7 @@ body {
   gap: var(--space-2);
 }
 
-.row-actions .btn-secondary {
-  min-height: var(--tap-min);
+.row-actions .ui-button {
   min-width: 96px;
 }
 
@@ -1023,7 +887,7 @@ body {
     padding: var(--space-3) 14px;
   }
 
-  .row-actions .btn-secondary {
+  .row-actions .ui-button {
     flex: 1;
   }
 }
@@ -1054,7 +918,6 @@ body {
 
 .stats-link {
   align-self: flex-start;
-  min-height: var(--tap-min);
 }
 
 /* Bars: a light track with the filled part at the bottom. A day without
@@ -1308,26 +1171,7 @@ body {
   color: var(--text-secondary);
 }
 
-.icon-button {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-}
-
-.icon-button:hover {
-  border-color: var(--accent-border);
-  color: var(--accent-text);
-}
-
-:is(.icon-button, .quick-action, .segmented-option input):focus-visible,
-.segmented-option:has(input:focus-visible) {
+.quick-action:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -1385,10 +1229,6 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-}
-
-.home-card-head .btn-link {
-  padding: 0;
 }
 
 .home-card-title {
@@ -1449,24 +1289,8 @@ body {
   line-height: 1.45;
 }
 
-.goal-bar {
-  height: 10px;
+.goal-progress {
   margin: 10px 0 2px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  overflow: hidden;
-}
-
-.goal-bar-fill {
-  height: 100%;
-  min-width: 0;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--accent-light), var(--accent));
-  transition: width 0.5s var(--ease);
-}
-
-.goal-done .goal-bar-fill {
-  background: var(--success-text);
 }
 
 .goal-note {
@@ -1474,9 +1298,8 @@ body {
   line-height: 1.45;
 }
 
-.goal-card > .btn-secondary {
+.goal-card > .goal-recheck {
   align-self: flex-start;
-  min-height: var(--tap-min);
   margin-top: 10px;
 }
 
@@ -1508,30 +1331,6 @@ body {
   font-size: 20px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-}
-
-.btn-cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 56px;
-  margin-top: 10px;
-  padding: 14px var(--space-6);
-  border-radius: var(--radius-md);
-  font-size: var(--type-body-size);
-  box-shadow: var(--elev-accent);
-  transition: background-color 0.15s, transform 0.15s var(--ease);
-}
-
-.btn-cta:active {
-  transform: scale(0.98);
-}
-
-.btn-cta:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
 }
 
 .quick-grid {
@@ -1606,57 +1405,6 @@ body {
   line-height: 1.45;
 }
 
-.segmented-field {
-  margin: 0;
-  padding: 0;
-  border: none;
-  min-width: 0;
-}
-
-.field-legend {
-  padding: 0;
-  margin-bottom: var(--space-2);
-  font-size: var(--type-footnote-size);
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.segmented {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-1);
-  padding: var(--space-1);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-
-.segmented-option {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-height: var(--tap-min);
-  padding: var(--space-1) 6px;
-  border-radius: 9px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-align: center;
-  cursor: pointer;
-}
-
-.segmented-option input {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.segmented-option:has(input:checked) {
-  background: var(--surface-raised);
-  color: var(--accent-text);
-  box-shadow: var(--elev-2);
-}
 
 @keyframes rise {
   from {
@@ -1926,65 +1674,12 @@ body {
   gap: var(--space-2);
 }
 
-.data-group .btn-secondary {
-  min-height: var(--tap-min);
-}
-
 .data-group .hint {
   margin: 0;
   line-height: 1.45;
 }
 
 /* --- TASK_034: review reminders («Профиль») --- */
-
-/* iOS-style switch on a native checkbox: keyboard, screen readers and
-   form semantics stay the browser's own. */
-.switch {
-  appearance: none;
-  -webkit-appearance: none;
-  flex-shrink: 0;
-  position: relative;
-  width: 51px;
-  height: 31px;
-  margin: 0;
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
-}
-
-.switch::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 25px;
-  height: 25px;
-  border-radius: 50%;
-  background: var(--on-accent);
-  box-shadow: var(--elev-control);
-  transition: transform 0.2s var(--ease);
-}
-
-.switch:checked {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.switch:checked::after {
-  transform: translateX(20px);
-}
-
-.switch:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.switch:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
 
 .profile-section .time-input {
   width: 7em;
@@ -2021,14 +1716,6 @@ body {
   text-align: right;
 }
 
-.reminders .data-actions .btn-secondary {
-  min-height: var(--tap-min);
-}
-
-.reminders .notice {
-  margin: 0;
-}
-
 .reminders > .hint {
   margin: 0;
   line-height: 1.45;
@@ -2062,7 +1749,7 @@ body {
   }
 
   .data-actions,
-  .data-actions .btn-secondary {
+  .data-actions .ui-button {
     width: 100%;
   }
 }
@@ -2228,55 +1915,6 @@ body {
   gap: var(--space-2) var(--space-3);
 }
 
-.stats-empty-card .btn-cta {
-  width: auto;
-}
-
-/* 7 / 30 days: a two-option segmented control on native radio buttons. */
-.period-toggle {
-  display: flex;
-  gap: 2px;
-  min-width: 0;
-  margin: 0;
-  padding: 3px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-
-.period-option {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-height: var(--tap-min);
-  padding: 0 14px;
-  border-radius: 9px;
-  font-size: var(--type-footnote-size);
-  font-weight: 600;
-  white-space: nowrap;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.period-option input {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.period-option:has(input:checked) {
-  background: var(--surface-raised);
-  color: var(--accent-text);
-  box-shadow: var(--elev-2);
-}
-
-.period-option:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
 /* Activity chart. Both periods take the same height, so switching between
    them does not move the rest of the page. */
 .activity-bars {
@@ -2366,10 +2004,6 @@ body {
 
 .activity-empty .empty-state {
   margin: 0;
-}
-
-.activity-empty .btn-secondary {
-  min-height: var(--tap-min);
 }
 
 /* Three numbers under the chart; the number is shown above its label. */
@@ -2551,10 +2185,6 @@ body {
   .digest-item dd {
     font-size: 18px;
   }
-
-  .period-option {
-    padding: 0 10px;
-  }
 }
 
 /* Computer: one row of numbers; activity on the left, stages and difficult
@@ -2598,20 +2228,6 @@ body {
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
-}
-
-.practice-start {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 48px;
-  padding: 10px 18px;
-  border-radius: var(--radius-sm);
-}
-
-.practice-start .icon {
-  width: 18px;
-  height: 18px;
 }
 
 .practice-count {
@@ -2713,10 +2329,6 @@ body {
   .practice-start {
     width: 100%;
   }
-
-  .practice-start {
-    justify-content: center;
-  }
 }
 
 /* --- TASK_033: phone polish — navigation overlap, keyboard, tap targets ---- */
@@ -2747,12 +2359,6 @@ html {
   }
 }
 
-/* Primary and secondary buttons: at least 44px tall to tap comfortably. */
-.btn-primary,
-.btn-secondary {
-  min-height: var(--tap-min);
-}
-
 /* Touch screens: filter and tag chips get a full 44px tap height, and the
    keyboard hints ("Пробел", "1 · 2 · 3 · 4") are hidden — there is no
    keyboard to press them on. */
@@ -2776,6 +2382,17 @@ html {
 }
 
 /* "Доступна новая версия" — shown after the service worker installed an update. */
-.update-banner {
+.app-update {
   margin-bottom: var(--space-4);
+}
+
+/* Layout hooks of screens on the shared Button (TASK_036): spacing only —
+   look and states come from ui/ui.css. */
+.home-cta,
+.stats-empty-cta {
+  margin-top: 10px;
+}
+
+.form-more {
+  align-self: flex-start;
 }

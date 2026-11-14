@@ -27,6 +27,7 @@ import { draftFromNote, NoteFormController } from './note-form';
 import { NoteForm } from './NoteForm';
 import { difficultPracticeCards } from './practice-flow';
 import { countLabel } from './stats-view';
+import { Banner, Button, IconButton } from './ui';
 
 const STATUS_FILTERS: Array<[StatusFilter, string]> = [
   ['all', 'Все'],
@@ -252,16 +253,15 @@ export function CardManager({
             )}
             {filter.status === 'difficult' && onPractice && practiceCount > 0 && (
               <div className="practice-cta">
-                <button
-                  type="button"
-                  className="btn-primary practice-start"
+                <Button
+                  icon="play"
+                  className="practice-start"
                   onClick={onPractice}
                   aria-label={`Повторить трудные слова: ${countLabel(practiceCount, CARD_FORMS)}`}
                 >
-                  <Icon name="play" />
                   Повторить трудные слова
                   <span className="practice-count">{practiceCount}</span>
-                </button>
+                </Button>
                 <span className="hint">Отдельная тренировка: расписание повторений не меняется.</span>
               </div>
             )}
@@ -286,53 +286,48 @@ export function CardManager({
 
         <div aria-live="polite">
           {archiveState.lastArchived && (
-            <div className="notice notice-info">
-              <span>
-                «{archiveState.lastArchived.label}» убрана в архив. История повторений сохранена.
-              </span>
-              <span className="notice-actions">
-                <button
-                  ref={undoButton}
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => void unarchive(archiveState.lastArchived!)}
-                  disabled={archiveState.busy}
-                >
-                  Вернуть
-                </button>
-                <button
-                  type="button"
-                  className="btn-icon"
-                  aria-label="Скрыть уведомление"
-                  onClick={() => archive.dismissNotice()}
-                >
-                  ×
-                </button>
-              </span>
-            </div>
+            <Banner
+              tone="info"
+              className="archive-undo"
+              actions={
+                <>
+                  <Button
+                    ref={undoButton}
+                    variant="secondary"
+                    onClick={() => void unarchive(archiveState.lastArchived!)}
+                    disabled={archiveState.busy}
+                  >
+                    Вернуть
+                  </Button>
+                  <IconButton icon="close" label="Скрыть уведомление" onClick={() => archive.dismissNotice()} />
+                </>
+              }
+            >
+              «{archiveState.lastArchived.label}» убрана в архив. История повторений сохранена.
+            </Banner>
           )}
           {archiveState.error && !archiveState.pending && (
-            <div className="notice notice-error" role="alert">
-              {archiveState.error}
-            </div>
+            <Banner tone="error">{archiveState.error}</Banner>
           )}
         </div>
 
         {loadError && (
-          <div className="notice notice-error" role="alert">
-            {loadError}{' '}
-            <button type="button" className="btn-secondary" onClick={() => void reload()}>
-              Повторить
-            </button>
-          </div>
+          <Banner
+            tone="error"
+            actions={
+              <Button variant="secondary" onClick={() => void reload()}>
+                Повторить
+              </Button>
+            }
+          >
+            {loadError}
+          </Banner>
         )}
 
         {loaded && !loadError && entries.length === 0 && (
           <div className="list-empty">
             <div className="empty-state">Карточек пока нет. Добавьте первое слово — оно сразу появится в очереди на Главной.</div>
-            <button type="button" className="btn-primary" onClick={focusFirstCardField}>
-              Добавить первую карточку
-            </button>
+            <Button onClick={focusFirstCardField}>Добавить первую карточку</Button>
           </div>
         )}
 
@@ -353,9 +348,9 @@ export function CardManager({
                   : 'Нет карточек с такими фильтрами.'}
             </div>
             {filtersActive && (
-              <button type="button" className="btn-secondary" onClick={() => setFilter(EMPTY_FILTER)}>
+              <Button variant="secondary" onClick={() => setFilter(EMPTY_FILTER)}>
                 Сбросить фильтры
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -414,30 +409,18 @@ export function CardManager({
                       </p>
                       {archiveState.error && <div className="field-error">{archiveState.error}</div>}
                       <div className="form-actions">
-                        <button
-                          type="button"
-                          className="btn-danger"
-                          onClick={() => void confirmArchive()}
-                          disabled={archiveState.busy}
-                        >
+                        <Button variant="danger" onClick={() => void confirmArchive()} disabled={archiveState.busy}>
                           Убрать в архив
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => archive.cancel()}
-                          disabled={archiveState.busy}
-                          autoFocus
-                        >
+                        </Button>
+                        <Button variant="secondary" onClick={() => archive.cancel()} disabled={archiveState.busy} autoFocus>
                           Отмена
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   ) : (
                     <div className="row-actions">
-                      <button
-                        type="button"
-                        className="btn-secondary"
+                      <Button
+                        variant="secondary"
                         aria-label={`Редактировать «${entry.note.front}»`}
                         onClick={() => {
                           archive.cancel();
@@ -445,21 +428,19 @@ export function CardManager({
                         }}
                       >
                         Изменить
-                      </button>
+                      </Button>
                       {entry.archived ? (
-                        <button
-                          type="button"
-                          className="btn-secondary"
+                        <Button
+                          variant="secondary"
                           aria-label={`Вернуть «${entry.note.front}» из архива`}
                           onClick={() => void unarchive({ noteId: entry.note.id, label: entry.note.front })}
                           disabled={archiveState.busy}
                         >
                           Вернуть
-                        </button>
+                        </Button>
                       ) : (
-                        <button
-                          type="button"
-                          className="btn-secondary btn-quiet-danger"
+                        <Button
+                          variant="secondary"
                           aria-label={`Убрать «${entry.note.front}» в архив`}
                           onClick={() => {
                             setEditingId(null);
@@ -467,7 +448,7 @@ export function CardManager({
                           }}
                         >
                           В архив
-                        </button>
+                        </Button>
                       )}
                     </div>
                   )}

@@ -2,6 +2,7 @@ import type { Note } from '@alsavi/engine';
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type RefObject } from 'react';
 import { parseTagInput, type NoteEntry } from './card-list';
 import type { NoteFormController } from './note-form';
+import { Banner, Button } from './ui';
 
 interface Props {
   controller: NoteFormController;
@@ -143,9 +144,9 @@ export function NoteForm({ controller, tagSuggestions, onSaved, onCancel, onOpen
           </div>
         </>
       ) : (
-        <button type="button" className="btn-link" onClick={() => setShowMore(true)} aria-expanded={false}>
+        <Button variant="tertiary" className="form-more" onClick={() => setShowMore(true)} aria-expanded={false}>
           + Пример и личная заметка
-        </button>
+        </Button>
       )}
 
       <div className="field">
@@ -193,42 +194,42 @@ export function NoteForm({ controller, tagSuggestions, onSaved, onCancel, onOpen
       )}
 
       {status === 'duplicate' && duplicate && (
-        <div className="notice notice-warning" role="alert">
-          <div>
-            Похожая карточка уже есть{duplicate.archived ? ' (в архиве)' : ''}:{' '}
-            <strong>{duplicate.note.front}</strong> — {duplicate.note.back}
-          </div>
-          <div className="form-actions">
-            <button type="button" className="btn-primary" onClick={() => void controller.saveAnyway()}>
-              Всё равно добавить
-            </button>
-            {onOpenDuplicate && (
-              <button type="button" className="btn-secondary" onClick={() => onOpenDuplicate(duplicate)}>
-                Открыть существующую
-              </button>
-            )}
-            <button type="button" className="btn-link" onClick={() => controller.dismissDuplicate()}>
-              Исправить
-            </button>
-          </div>
-        </div>
+        <Banner
+          tone="warning"
+          role="alert"
+          className="duplicate-warning"
+          actions={
+            <>
+              <Button onClick={() => void controller.saveAnyway()}>Всё равно добавить</Button>
+              {onOpenDuplicate && (
+                <Button variant="secondary" onClick={() => onOpenDuplicate(duplicate)}>
+                  Открыть существующую
+                </Button>
+              )}
+              <Button variant="tertiary" onClick={() => controller.dismissDuplicate()}>
+                Исправить
+              </Button>
+            </>
+          }
+        >
+          Похожая карточка уже есть{duplicate.archived ? ' (в архиве)' : ''}:{' '}
+          <strong>{duplicate.note.front}</strong> — {duplicate.note.back}
+        </Banner>
       )}
 
       {error && (
-        <div className="notice notice-error" role="alert">
-          {error}
-        </div>
+        <Banner tone="error">{error}</Banner>
       )}
 
       {status !== 'duplicate' && (
         <div className="form-actions">
-          <button className="btn-primary" type="submit" disabled={saving}>
+          <Button type="submit" disabled={saving}>
             {saving ? 'Сохранение…' : isCreate ? (draft.alsoReverse ? 'Добавить карточки' : 'Добавить карточку') : 'Сохранить'}
-          </button>
+          </Button>
           {onCancel && (
-            <button type="button" className="btn-secondary" onClick={onCancel} disabled={saving}>
+            <Button variant="secondary" onClick={onCancel} disabled={saving}>
               Отмена
-            </button>
+            </Button>
           )}
         </div>
       )}

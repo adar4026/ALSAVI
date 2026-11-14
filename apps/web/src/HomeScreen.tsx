@@ -13,6 +13,7 @@ import {
 } from './home-view';
 import { Icon, type IconName } from './Icon';
 import { activitySummary } from './stats-view';
+import { Banner, Button, ProgressBar } from './ui';
 
 /** Where "Карточки" opens from a quick action. */
 export type CardsIntent = 'all' | 'difficult' | 'add';
@@ -67,12 +68,16 @@ export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats,
 
   if (error) {
     return (
-      <div className="notice notice-error" role="alert">
-        {error}{' '}
-        <button type="button" className="btn-secondary" onClick={() => void reload()}>
-          Повторить
-        </button>
-      </div>
+      <Banner
+        tone="error"
+        actions={
+          <Button variant="secondary" onClick={() => void reload()}>
+            Повторить
+          </Button>
+        }
+      >
+        {error}
+      </Banner>
     );
   }
 
@@ -90,10 +95,9 @@ export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats,
             {stats.cards.archived > 0 ? 'В активной коллекции пока нет карточек' : 'Пока нет ни одной карточки'}
           </h2>
           <p className="home-card-text">Добавь первое слово, чтобы начать учиться.</p>
-          <button type="button" className="btn-primary btn-cta" onClick={() => onOpenCards('add')}>
-            <Icon name="plus" />
+          <Button size="lg" block icon="plus" className="home-cta" onClick={() => onOpenCards('add')}>
             Добавить первую карточку
-          </button>
+          </Button>
         </section>
       </div>
     );
@@ -139,9 +143,9 @@ export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats,
             <h2 id="week-title" className="home-section-title">
               Неделя
             </h2>
-            <button type="button" className="btn-link" onClick={onOpenStats}>
+            <Button variant="tertiary" onClick={onOpenStats}>
               Вся статистика
-            </button>
+            </Button>
           </div>
           <WeekChart window={stats.activity.last7} />
           <p className="hint week-summary">{activitySummary(stats.activity.last7)}</p>
@@ -184,17 +188,14 @@ function GoalCard({
       <p className="goal-detail">{text.detail}</p>
 
       {fraction !== null && (
-        <div
-          className="goal-bar"
-          role="progressbar"
+        <ProgressBar
+          className="goal-progress"
+          value={fraction}
+          tone={goal.kind === 'done' ? 'success' : 'accent'}
           aria-labelledby="goal-title"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(fraction * 100)}
-          aria-valuetext={`${text.title}. ${text.detail}`}
-        >
-          <div className="goal-bar-fill" style={{ width: `${fraction * 100}%` }} />
-        </div>
+          ariaValue={{ now: Math.round(fraction * 100), min: 0, max: 100 }}
+          valueText={`${text.title}. ${text.detail}`}
+        />
       )}
 
       {note && <p className="hint goal-note">{note}</p>}
@@ -206,21 +207,22 @@ function GoalCard({
             <QueueCount label="В процессе" value={overview.learningCount} />
             <QueueCount label="Повторить" value={overview.reviewCount} />
           </dl>
-          <button
-            type="button"
-            className="btn-primary btn-cta"
+          <Button
+            size="lg"
+            block
+            iconEnd="arrow-right"
+            className="home-cta"
             onClick={onStart}
             aria-label={`Продолжить обучение, карточек в очереди: ${overview.total}`}
             autoFocus
           >
             Продолжить обучение
-            <Icon name="arrow-right" />
-          </button>
+          </Button>
         </>
       ) : (
-        <button type="button" className="btn-secondary" onClick={onRecheck}>
+        <Button variant="secondary" className="goal-recheck" onClick={onRecheck}>
           Проверить снова
-        </button>
+        </Button>
       )}
     </section>
   );
