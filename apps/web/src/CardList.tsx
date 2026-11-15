@@ -146,8 +146,14 @@ export function CardList({
             {tagLabel}
             <Icon name="chevron-down" size={16} />
           </button>
-          <label className="cards-tool cards-sort">
+          {/* The native select covers the whole pill (the tap target); the
+              pill shows the chosen order (TASK_044). */}
+          <span className="cards-tool cards-sort">
             <Icon name="sort" size={18} />
+            <span className="cards-sort-label" aria-hidden="true">
+              {SORT_ORDERS.find((o) => o.value === sort)?.label}
+            </span>
+            <Icon name="chevron-down" size={16} />
             <select value={sort} onChange={(e) => setSort(e.target.value as SortOrder)} aria-label="Порядок">
               {SORT_ORDERS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -155,8 +161,7 @@ export function CardList({
                 </option>
               ))}
             </select>
-            <Icon name="chevron-down" size={16} />
-          </label>
+          </span>
           <span className="cards-found" aria-live="polite">
             <span className="sr-only">{showingArchive ? 'В архиве: ' : 'Найдено: '}</span>
             {filtersActive && !showingArchive ? `${visible.length} из ${activeCount}` : countLabel(visible.length, WORD_FORMS)}

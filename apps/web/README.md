@@ -18,6 +18,30 @@ install test on device, use `npm run build && npm run preview`.
 
 ---
 
+## Interface (UI v2, TASK_035–044)
+
+Design: [`docs/ui-ux/`](../../docs/ui-ux/); architecture: `ARCHITECTURE.md`
+§11g.
+
+- **Screens and addresses:**
+  - `#/` — home;
+  - `#/cards` — word list;
+  - `#/cards/new` — the "Новое слово" sheet;
+  - `#/cards/<noteId>` — one word;
+  - `#/stats`, `#/profile`;
+  - `#/review` — from a reminder.
+- **Where things live:**
+  - tokens — `src/styles.css`;
+  - shared components — `src/ui/` (`npm run dev`, then `#/ui` for the
+    component showcase; dev only, not in the build);
+  - screen texts — the pure `src/*-view.ts` modules.
+- **Interface tone** is «ты» everywhere; `test/tone.test.ts` fails on «вы»
+  forms.
+- **Layouts:**
+  - phones — a floating bottom bar;
+  - ≥ 900 px — a side column;
+  - ≥ 1100 px — two columns and list + word side by side in «Карточки».
+
 ## Study session keys
 
 With a keyboard (a computer or an iPad with a keyboard):

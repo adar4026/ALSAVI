@@ -56,11 +56,11 @@ describe('create', () => {
     const form = new NoteFormController(engine, { kind: 'create' });
     form.update({ front: '  ', back: '', example: 'ejemplo' });
     expect(await form.submit()).toBe('invalid');
-    expect(form.getState().fieldErrors).toEqual({ front: 'Введите слово или фразу.', back: 'Введите перевод.' });
+    expect(form.getState().fieldErrors).toEqual({ front: 'Введи слово или фразу.', back: 'Введи перевод.' });
     expect(form.getState().draft.example).toBe('ejemplo');
     expect(await engine.listCards()).toHaveLength(0);
     form.update({ front: 'x' });
-    expect(form.getState().fieldErrors).toEqual({ back: 'Введите перевод.' });
+    expect(form.getState().fieldErrors).toEqual({ back: 'Введи перевод.' });
   });
 
   it('duplicate warning keeps the text; the user can still add it', async () => {

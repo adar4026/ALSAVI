@@ -64,14 +64,14 @@ describe('backup notices — shown only when there is history of deleted cards',
     const text = restoreConfirmText(meta({ retired: { cards: 2, reviews: 5, legacy: true } }));
     expect(text).toContain('5 ответов по карточкам, которых в ней нет');
     expect(text).toContain('удалённых до появления архива');
-    expect(text).toContain('файл может быть повреждён — тогда нажмите «Отмена»');
+    expect(text).toContain('файл может быть повреждён — тогда нажми «Отмена»');
     expect(text).toMatch(/Продолжить\?$/);
   });
 
   it('restore confirmation names what is on the device now (TASK_033)', () => {
     const text = restoreConfirmText(meta(), { notes: 4, cards: 5, reviews: 6 });
     expect(text).toContain('Сейчас на устройстве: 4 заметок, 5 карточек, 6 повторений — они будут удалены.');
-    expect(text).toContain('сначала сохраните «Экспорт»');
+    expect(text).toContain('сначала сохрани «Экспорт»');
     expect(text).not.toContain('меньше ответов');
     expect(text).toMatch(/Продолжить\?$/);
   });

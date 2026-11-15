@@ -1603,22 +1603,27 @@ html {
   flex-shrink: 1;
 }
 
-.cards-sort select {
+.cards-sort-label {
   min-width: 0;
-  max-width: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
+  overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* Invisible, over the whole pill: the full pill opens the system picker. */
+.cards-sort select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: inherit;
+  opacity: 0;
+  font-size: 16px;
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
-}
-
-.cards-sort select:focus {
-  outline: none;
 }
 
 .cards-found {

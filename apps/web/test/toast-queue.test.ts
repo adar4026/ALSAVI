@@ -118,6 +118,34 @@ describe('ToastQueue', () => {
     expect(q.getState().current?.message).toBe('next');
   });
 
+  it('replace (TASK_044): an undo shows at once instead of waiting behind an older toast', () => {
+    const t = fakeTimers();
+    const q = new ToastQueue(t.timers);
+    const open = vi.fn();
+    const undo = vi.fn();
+    q.show({ message: 'Добавлено: el pasaporte', action: { label: 'Открыть', onAction: open } });
+    q.show({ message: 'waiting' });
+    q.show({ message: '«el pasaporte» в архиве', action: { label: 'Вернуть', onAction: undo }, replace: true });
+    expect(q.getState()).toMatchObject({ current: { message: '«el pasaporte» в архиве' }, pending: 1 });
+    q.act();
+    expect(undo).toHaveBeenCalledTimes(1);
+    expect(open).not.toHaveBeenCalled();
+    // The replaced toast is gone; the waiting one keeps its turn.
+    expect(q.getState().current?.message).toBe('waiting');
+  });
+
+  it('replace restarts the countdown for the new toast; the old timer does not hide it', () => {
+    const t = fakeTimers();
+    const q = new ToastQueue(t.timers);
+    q.show({ message: 'old' });
+    t.advance(TOAST_DURATION - 100);
+    q.show({ message: 'new', replace: true });
+    t.advance(200); // the old toast's time is over
+    expect(q.getState().current?.message).toBe('new');
+    t.advance(TOAST_DURATION - 200);
+    expect(q.getState().current).toBeNull();
+  });
+
   it('dismiss by id removes a waiting toast without touching the current one', () => {
     const t = fakeTimers();
     const q = new ToastQueue(t.timers);

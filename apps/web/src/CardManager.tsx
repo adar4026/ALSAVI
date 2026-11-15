@@ -226,7 +226,11 @@ export function CardManager({
     (note: Note) => {
       setAddedHere((n) => n + 1);
       void afterWrite();
-      toasts.show({ message: `Добавлено: ${note.front}`, action: { label: 'Открыть', onAction: () => onOpenNote(note.id) } });
+      toasts.show({
+        message: `Добавлено: ${note.front}`,
+        action: { label: 'Открыть', onAction: () => onOpenNote(note.id) },
+        replace: true,
+      });
     },
     [afterWrite, onOpenNote]
   );
@@ -251,13 +255,17 @@ export function CardManager({
     archive.dismissNotice();
     if (detailId === pending.noteId) onCloseTarget();
     await afterWrite();
-    toasts.show({ message: `«${pending.label}» в архиве`, action: { label: 'Вернуть', onAction: () => undoArchive(pending) } });
+    toasts.show({
+      message: `«${pending.label}» в архиве`,
+      action: { label: 'Вернуть', onAction: () => undoArchive(pending) },
+      replace: true,
+    });
   }
 
   async function unarchive(done: ArchiveTarget) {
     if (!(await archive.unarchive(done))) return;
     await afterWrite();
-    toasts.show({ message: `«${done.label}» снова в повторениях` });
+    toasts.show({ message: `«${done.label}» снова в повторениях`, replace: true });
   }
 
   const detail = detailEntry && (

@@ -118,8 +118,8 @@ export class NoteFormController {
     if (this.state.status === 'saving') return 'busy';
     const { draft } = this.state;
     const fieldErrors: NoteFormState['fieldErrors'] = {};
-    if (!draft.front.trim()) fieldErrors.front = 'Введите слово или фразу.';
-    if (!draft.back.trim()) fieldErrors.back = 'Введите перевод.';
+    if (!draft.front.trim()) fieldErrors.front = 'Введи слово или фразу.';
+    if (!draft.back.trim()) fieldErrors.back = 'Введи перевод.';
     if (fieldErrors.front || fieldErrors.back) {
       this.setState({ fieldErrors, status: 'editing', duplicate: null });
       return 'invalid';
@@ -192,7 +192,7 @@ export class NoteFormController {
     this.setState({
       status: 'editing',
       duplicate: null,
-      error: `Не удалось сохранить карточку: ${reason}. Введённый текст сохранён — попробуйте ещё раз.`,
+      error: `Не удалось сохранить слово: ${reason}. Введённый текст сохранён — попробуй ещё раз.`,
     });
     return 'error';
   }

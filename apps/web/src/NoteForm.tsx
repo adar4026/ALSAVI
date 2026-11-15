@@ -65,7 +65,10 @@ export function NoteForm({ controller, tagSuggestions, onSaved, onOpenDuplicate,
   const formRef = useRef<HTMLFormElement>(null);
   const isDuplicate = status === 'duplicate';
   useEffect(() => {
-    if (isDuplicate) formRef.current?.querySelector('.duplicate-warning')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (!isDuplicate) return;
+    // No animated scroll under "reduce motion" (CSS cannot reach a JS scroll).
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    formRef.current?.querySelector('.duplicate-warning')?.scrollIntoView({ block: 'nearest', behavior: still ? 'auto' : 'smooth' });
   }, [isDuplicate]);
 
   function onSubmit(e: FormEvent) {
@@ -226,7 +229,7 @@ export function NoteForm({ controller, tagSuggestions, onSaved, onOpenDuplicate,
             </>
           }
         >
-          Похожая карточка уже есть{duplicate.archived ? ' (в архиве)' : ''}:{' '}
+          Похожее слово уже есть{duplicate.archived ? ' (в архиве)' : ''}:{' '}
           <strong>{duplicate.note.front}</strong> — {duplicate.note.back}
         </Banner>
       )}

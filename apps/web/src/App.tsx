@@ -368,7 +368,7 @@ export function App() {
     window.history.replaceState(null, '', `${pathname}${search}#/cards`);
     routeRef.current = { view: 'cards' };
     setCardTarget(undefined);
-    toasts.show({ message: 'Карточка не найдена' });
+    toasts.show({ message: 'Слово не найдено' });
   }, []);
 
   const onNavigate = useCallback(
@@ -471,7 +471,7 @@ export function App() {
   }, [hasUnsavedWork]);
 
   const applyUpdate = useCallback(() => {
-    if (hasUnsavedWork() && !window.confirm('Введённый текст карточки не сохранён и пропадёт. Обновить сейчас?')) return;
+    if (hasUnsavedWork() && !window.confirm('Введённое слово не сохранено и пропадёт. Обновить сейчас?')) return;
     reloading.current = true;
     window.location.reload();
   }, [hasUnsavedWork]);

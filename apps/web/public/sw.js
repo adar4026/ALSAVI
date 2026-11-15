@@ -87,6 +87,16 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+/*
+ * `ignoreVary` (TASK_044): a host may answer with `Vary: Origin` (vite
+ * preview does). The precache requests carry no Origin header, but the page's
+ * `<script type="module" crossorigin>` and stylesheet requests do — with Vary
+ * honoured, the cached bundle would never match and an offline start would
+ * be a blank screen. This cache holds only this build's own same-origin,
+ * content-hashed files, so Vary carries no meaning here.
+ */
+const MATCH_OPTIONS = { ignoreVary: true };
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   // Only ever handle same-origin GETs. Never touch POST/data or cross-origin.
@@ -102,7 +112,9 @@ self.addEventListener('fetch', (event) => {
           return await fetch(request);
         } catch {
           const cache = await caches.open(CACHE_VERSION);
-          return (await cache.match('./')) || (await cache.match(request)) || Response.error();
+          return (
+            (await cache.match('./', MATCH_OPTIONS)) || (await cache.match(request, MATCH_OPTIONS)) || Response.error()
+          );
         }
       })()
     );
@@ -113,7 +125,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE_VERSION);
-      const cached = await cache.match(request);
+      const cached = await cache.match(request, MATCH_OPTIONS);
       const network = fetch(request)
         .then((response) => {
           if (response && response.ok) cache.put(request, response.clone());

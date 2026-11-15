@@ -22,4 +22,4 @@ export function shouldStartNewSession(sessionDay: number, now: number, inSession
 }
 
 /** Asked before leaving "Карточки" while a card editor holds unsaved changes. */
-export const UNSAVED_EDIT_CONFIRM = 'Изменения в карточке не сохранены. Уйти без сохранения?';
+export const UNSAVED_EDIT_CONFIRM = 'Изменения в слове не сохранены. Уйти без сохранения?';

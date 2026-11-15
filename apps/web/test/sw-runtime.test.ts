@@ -32,8 +32,16 @@ class FakeCacheStorage {
         if (responses.some((r) => !r.ok)) throw new TypeError('addAll: bad response');
         requests.forEach((r, i) => store!.set(urlOf(r), responses[i]!));
       },
-      async match(key: string | { url: string }) {
-        return store!.get(urlOf(key))?.clone();
+      // With `Vary: Origin` a stored response matches only a request with
+      // the same Origin header — as browsers apply it. Install requests carry
+      // none; module scripts and `crossorigin` stylesheets do (TASK_044).
+      async match(key: string | { url: string; origin?: string }, options: { ignoreVary?: boolean } = {}) {
+        const hit = store!.get(urlOf(key));
+        if (!hit) return undefined;
+        const varies = (hit.headers.get('vary') ?? '').toLowerCase().includes('origin');
+        const origin = typeof key === 'string' ? undefined : key.origin;
+        if (varies && !options.ignoreVary && origin !== undefined) return undefined;
+        return hit.clone();
       },
       async put(key: string | { url: string }, response: Response) {
         store!.set(urlOf(key), response);
@@ -63,6 +71,8 @@ class FakeNetwork {
   online = true;
   files = new Map<string, string>();
   stale = new Map<string, string>();
+  /** A `Vary` header on every response (`vite preview` sends `Vary: Origin`). */
+  vary: string | null = null;
   requests: Array<{ url: string; cache: string }> = [];
 
   fetch = async (input: string | { url: string; cache?: string }): Promise<Response> => {
@@ -71,7 +81,8 @@ class FakeNetwork {
     this.requests.push({ url, cache });
     if (!this.online) throw new TypeError('Failed to fetch');
     const body = cache !== 'reload' && this.stale.has(url) ? this.stale.get(url)! : this.files.get(url);
-    return body === undefined ? new Response('not found', { status: 404 }) : new Response(body, { status: 200 });
+    const headers = this.vary ? { vary: this.vary } : undefined;
+    return body === undefined ? new Response('not found', { status: 404 }) : new Response(body, { status: 200, headers });
   };
 
   /** Publish a build: index.html and its bundle. */
@@ -112,11 +123,11 @@ function loadWorker(version: string, caches: FakeCacheStorage, net: FakeNetwork)
     await pending;
   };
 
-  const request = async (path: string, mode: 'navigate' | 'no-cors' = 'no-cors') => {
+  const request = async (path: string, mode: 'navigate' | 'no-cors' | 'cors' = 'no-cors', origin?: string) => {
     let response: Promise<Response> | undefined;
     const url = new URL(path, BASE).href;
     listeners.get('fetch')!({
-      request: { method: 'GET', url, mode },
+      request: { method: 'GET', url, mode, origin },
       respondWith: (p: Promise<Response>) => (response = p),
     });
     if (!response) return undefined; // not handled: the browser fetches it itself
@@ -157,6 +168,19 @@ describe('service worker — install and offline start', () => {
     expect(await sw.request('./', 'navigate')).toBe('<index aaaaaaaaaaaa>');
     expect(await sw.request('./#/stats', 'navigate')).toBe('<index aaaaaaaaaaaa>');
     expect(await sw.request('./assets/index-aaaaaaaaaaaa.js')).toBe('bundle aaaaaaaaaaaa');
+  });
+
+  it('offline start works when the host sends Vary: Origin — module scripts carry an Origin (TASK_044)', async () => {
+    const { net, caches } = setup();
+    net.vary = 'Origin';
+    net.deploy('aaaaaaaaaaaa');
+    const sw = loadWorker('aaaaaaaaaaaa', caches, net);
+    await sw.install();
+    await sw.activate();
+    net.online = false;
+    expect(await sw.request('./', 'navigate')).toBe('<index aaaaaaaaaaaa>');
+    // <script type="module" crossorigin>: a CORS request with an Origin header.
+    expect(await sw.request('./assets/index-aaaaaaaaaaaa.js', 'cors', new URL(BASE).origin)).toBe('bundle aaaaaaaaaaaa');
   });
 
   it('online, navigation is network-first: a new deploy is served without clearing anything', async () => {

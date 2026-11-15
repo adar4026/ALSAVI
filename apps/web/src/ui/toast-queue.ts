@@ -16,6 +16,12 @@ export interface ToastInput {
   action?: ToastAction;
   /** ms; default 4000, or 6000 with an action. */
   duration?: number;
+  /**
+   * About the action just taken ("в архиве · Вернуть"): shown at once in
+   * place of the current toast, which is dropped — an undo must not wait
+   * behind an older message (TASK_044). Waiting toasts keep their turn.
+   */
+  replace?: boolean;
 }
 
 export interface ToastItem extends ToastInput {
@@ -72,7 +78,8 @@ export class ToastQueue {
   /** Queue a toast; returns its id. */
   show(input: ToastInput): number {
     const item: ToastItem = { ...input, id: this.nextId++ };
-    if (!this.state.current) {
+    if (!this.state.current || input.replace) {
+      this.stopTimer();
       this.display(item);
     } else {
       this.waiting.push(item);
