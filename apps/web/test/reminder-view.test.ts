@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { isOpenReviewMessage, isReviewLink, viewFromHash } from '../src/nav';
-import { availability, enableErrorText, lastDeliveryText, momentText, permissionLabel } from '../src/reminder-view';
+import {
+  availability,
+  DENIED_TEXT,
+  DENIED_TEXT_IOS,
+  enableErrorText,
+  failureText,
+  IOS_INSTALL_NOTE,
+  IOS_INSTALL_STEPS,
+  lastDeliveryText,
+  momentText,
+  permissionLabel,
+  reminderStatusLine,
+} from '../src/reminder-view';
 
 const TZ = 'Europe/Madrid';
 const now = Date.parse('2026-10-27T10:00:00Z'); // 11:00 Madrid
@@ -56,5 +68,49 @@ describe('#/review link', () => {
     expect(isOpenReviewMessage({ type: 'alsavi:open-review' })).toBe(true);
     expect(isOpenReviewMessage({ type: 'other' })).toBe(false);
     expect(isOpenReviewMessage(null)).toBe(false);
+  });
+});
+
+describe('one-line status (TASK_043): every state of TASK_034 has its line', () => {
+  const base = { enabled: true, permission: 'granted' as const, server: 'ok' as const, subscribed: true, nextDailyAt: null, now, timeZone: TZ };
+  it('cannot work here', () => {
+    expect(reminderStatusLine({ ...base, availability: 'unsupported' })).toEqual({ tone: 'off', text: 'Не поддерживаются в этом браузере' });
+    expect(reminderStatusLine({ ...base, availability: 'ios_install' })).toEqual({ tone: 'warning', text: 'Нужно приложение с экрана «Домой»' });
+    expect(reminderStatusLine({ ...base, availability: 'denied', permission: 'denied' })).toEqual({ tone: 'warning', text: 'Уведомления запрещены' });
+  });
+  it('off, checking, offline', () => {
+    expect(reminderStatusLine({ ...base, availability: 'ready', enabled: false })).toEqual({ tone: 'off', text: 'Выключены' });
+    expect(reminderStatusLine({ ...base, availability: 'ready', server: 'loading' })).toEqual({ tone: 'pending', text: 'Проверяется…' });
+    expect(reminderStatusLine({ ...base, availability: 'ready', server: 'error' })).toEqual({ tone: 'warning', text: 'Нет связи с сервером' });
+  });
+  it('on: with the next reminder when the server knows it', () => {
+    expect(reminderStatusLine({ ...base, availability: 'ready' })).toEqual({ tone: 'ok', text: 'Включены на этом устройстве' });
+    expect(reminderStatusLine({ ...base, availability: 'ready', nextDailyAt: Date.parse('2026-10-28T18:30:00Z') })).toEqual({
+      tone: 'ok',
+      text: 'Включены · следующее завтра в 19:30',
+    });
+  });
+  it('subscription lost or never made', () => {
+    expect(reminderStatusLine({ ...base, availability: 'ready', subscribed: false })).toEqual({ tone: 'warning', text: 'Подписка потеряна' });
+    expect(reminderStatusLine({ ...base, availability: 'ready', server: 'idle', subscribed: undefined })).toEqual({
+      tone: 'warning',
+      text: 'Подписка не оформлена',
+    });
+  });
+});
+
+describe('«ты» in the reminder texts (Q6)', () => {
+  it('no «вы» forms left', () => {
+    const texts = [
+      ...IOS_INSTALL_STEPS,
+      IOS_INSTALL_NOTE,
+      DENIED_TEXT,
+      DENIED_TEXT_IOS,
+      ...(['offline', 'not_configured', 'rate_limited', 'subscribe_failed', 'no_subscription', 'server'] as const).map(failureText),
+      enableErrorText({ ok: false, reason: 'dismissed' }, desktop),
+    ];
+    for (const text of texts) {
+      expect(text).not.toMatch(/(?<!\p{L})(вы|вас|ваш\p{L}*|откройте|нажмите|запустите|включайте|занимаетесь|разрешите|вернитесь|попробуйте|выключите|включите|выберите)(?!\p{L})/iu);
+    }
   });
 });

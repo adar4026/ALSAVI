@@ -171,6 +171,18 @@ describe('no duplicate primitives', () => {
     'stats-link',
     'activity-empty',
     'empty-state',
+    // TASK_043: "Профиль" is GroupedList + SettingRow, results are Toast/Banner.
+    'panel',
+    'panel-title',
+    'profile-section',
+    'setting-label',
+    'setting-hint',
+    'limit-input',
+    'time-input',
+    'import-status',
+    'data-group',
+    'data-actions',
+    'hint',
   ];
   const sources = readdirSync(resolve(webRoot, 'src'))
     .filter((f) => f.endsWith('.tsx'))

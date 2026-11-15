@@ -1,5 +1,6 @@
 import { BACKLOG_THRESHOLD_MAX, BACKLOG_THRESHOLD_MIN, type ReminderSettings } from '@alsavi/reminders';
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Icon, type IconName } from './Icon';
 import type { ReminderClient, ServerStatus } from './reminder-client';
 import type { Platform } from './reminder-browser';
 import { deviceTimeZone } from './reminder-browser';
@@ -14,8 +15,11 @@ import {
   lastDeliveryText,
   momentText,
   permissionLabel,
+  reminderStatusLine,
+  type ReminderStatusTone,
 } from './reminder-view';
-import { Banner, Button, Switch } from './ui';
+import { SettingRow } from './SettingRow';
+import { Banner, GroupedList, ListRow, Stepper, Switch, toasts } from './ui';
 
 interface Props {
   client: ReminderClient;
@@ -26,12 +30,20 @@ interface Props {
 
 type ServerState = { kind: 'idle' } | { kind: 'loading' } | { kind: 'ok'; status: ServerStatus } | { kind: 'error'; text: string };
 
+/** The backlog threshold stepper: ±5 cards, saved once the value settles. */
+const THRESHOLD_STEP = 5;
+const THRESHOLD_SAVE_DELAY_MS = 600;
+
+const STATUS_ICON: Record<ReminderStatusTone, IconName> = { ok: 'check', off: 'minus', pending: 'refresh', warning: 'info' };
+
 /**
- * «Напоминания о повторении» (TASK_034) in «Профиль»: on/off, the daily
- * time, the optional backlog reminder and its threshold, the permission and
- * subscription status, a test notification, and the iPhone instructions
- * when reminders cannot work yet. Settings are saved on the device at once
- * and sent to the push server; the server does the reminding.
+ * «Напоминания» (TASK_034, laid out as a grouped list in TASK_043) in
+ * «Профиль»: on/off, the daily time, the optional backlog reminder and its
+ * threshold, a one-line status, a test notification; the permission /
+ * subscription details under «Как это работает». The iPhone instructions
+ * stay in view (a banner) when reminders cannot work yet. Settings are saved
+ * on the device at once and sent to the push server; the server does the
+ * reminding. Successes are toasts, problems are banners.
  */
 export function RemindersSection({ client, platform, refreshKey }: Props) {
   const [settings, setSettings] = useState<ReminderSettings>(() => client.settings());
@@ -39,14 +51,15 @@ export function RemindersSection({ client, platform, refreshKey }: Props) {
   const [server, setServer] = useState<ServerState>({ kind: 'idle' });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
-  const [thresholdInput, setThresholdInput] = useState(() => String(client.settings().backlogThreshold));
+  const [threshold, setThreshold] = useState(() => client.settings().backlogThreshold);
+  const thresholdCommit = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const thresholdLatest = useRef(threshold);
   const [timeInput, setTimeInput] = useState(() => client.settings().time);
   // The time picker reports every wheel step: send only the value it settles on.
   const timeCommit = useRef<ReturnType<typeof setTimeout> | null>(null);
   const repairTried = useRef(false);
   const timeId = useId();
   const backlogId = useId();
-  const thresholdId = useId();
   const enabledId = useId();
 
   const avail = availability({ supported: client.supported(), platform, permission });
@@ -84,7 +97,7 @@ export function RemindersSection({ client, platform, refreshKey }: Props) {
         setPermission(client.permission());
         if (result.ok) {
           setSettings(client.settings());
-          setMessage({ text: `Готово: напоминание придёт в ${client.settings().time}, если будет что повторить.`, error: false });
+          toasts.show({ message: `Готово: напоминание придёт в ${client.settings().time}, если будет что повторить.` });
         } else {
           setMessage({ text: enableErrorText(result, platform), error: true });
         }
@@ -117,18 +130,27 @@ export function RemindersSection({ client, platform, refreshKey }: Props) {
     }, 800);
   }
 
+  // Leaving the screen within the delay still saves what was chosen.
   useEffect(
     () => () => {
       if (timeCommit.current) clearTimeout(timeCommit.current);
+      if (thresholdCommit.current) {
+        clearTimeout(thresholdCommit.current);
+        thresholdCommit.current = null;
+        void client.update({ ...client.settings(), backlogThreshold: thresholdLatest.current });
+      }
     },
-    []
+    [client]
   );
 
-  function commitThreshold() {
-    const n = Math.round(Number(thresholdInput));
-    const value = Number.isFinite(n) ? Math.min(BACKLOG_THRESHOLD_MAX, Math.max(BACKLOG_THRESHOLD_MIN, n)) : settings.backlogThreshold;
-    setThresholdInput(String(value));
-    if (value !== settings.backlogThreshold) void save({ ...settings, backlogThreshold: value });
+  function onThresholdChange(value: number) {
+    setThreshold(value);
+    thresholdLatest.current = value;
+    if (thresholdCommit.current) clearTimeout(thresholdCommit.current);
+    thresholdCommit.current = setTimeout(() => {
+      thresholdCommit.current = null;
+      if (value !== client.settings().backlogThreshold) void save({ ...client.settings(), backlogThreshold: value });
+    }, THRESHOLD_SAVE_DELAY_MS);
   }
 
   async function onTest() {
@@ -136,11 +158,8 @@ export function RemindersSection({ client, platform, refreshKey }: Props) {
     setBusy(true);
     try {
       const r = await client.sendTest();
-      setMessage(
-        r.ok
-          ? { text: 'Проверочное уведомление отправлено. Если его нет через минуту — проверьте настройки уведомлений телефона.', error: false }
-          : { text: failureText(r.reason), error: true }
-      );
+      if (r.ok) toasts.show({ message: 'Проверочное уведомление отправлено. Нет через минуту — проверь настройки уведомлений.' });
+      else setMessage({ text: failureText(r.reason), error: true });
     } finally {
       setBusy(false);
       void loadStatus();
@@ -151,148 +170,158 @@ export function RemindersSection({ client, platform, refreshKey }: Props) {
   const now = Date.now();
   const status = server.kind === 'ok' ? server.status : null;
   const controlsOff = !settings.enabled || busy;
+  const canConfigure = avail === 'ready' || avail === 'denied';
+  const line = reminderStatusLine({
+    availability: avail,
+    enabled: settings.enabled,
+    permission,
+    server: server.kind,
+    subscribed: status?.subscribed,
+    nextDailyAt: status?.nextDailyAt,
+    now,
+    timeZone: tz,
+  });
+  const lastText = status ? lastDeliveryText(status.lastDelivery, now, tz) : null;
 
   return (
-    <section className="panel profile-section reminders" aria-labelledby="profile-reminders">
-      <h2 id="profile-reminders" className="panel-title">
-        Напоминания о повторении
-      </h2>
+    <div className="profile-group reminders">
+      {/* Not behind «Как это работает»: without the Home Screen app nothing below can work. */}
+      {avail === 'ios_install' && (
+        <Banner tone="info" className="ios-install">
+          <p>{IOS_INSTALL_NOTE}</p>
+          <ol className="ios-steps">
+            {IOS_INSTALL_STEPS.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </Banner>
+      )}
 
-      {avail === 'ios_install' ? (
-        <IosInstall />
-      ) : avail === 'unsupported' ? (
-        <p className="hint">Этот браузер не поддерживает push-уведомления. Напоминания работают в Chrome, Edge, Firefox, Safari на Mac и в приложении ALSAVI на экране «Домой» iPhone.</p>
-      ) : (
-        <>
-          <div className="setting-row">
-            <label htmlFor={enabledId} className="setting-label">
-              Напоминать о повторении
-              <span className="setting-hint">Одно уведомление в день и только если есть слова к повторению.</span>
-            </label>
-            <Switch
-              id={enabledId}
-              checked={settings.enabled}
-              disabled={busy || (avail === 'denied' && !settings.enabled)}
-              onChange={(e) => void onToggle(e.target.checked)}
+      <GroupedList
+        title="Напоминания"
+        note="На сервер напоминаний уходят только настройки, часовой пояс и сроки повторения карточек — без слов и переводов."
+      >
+        {canConfigure && (
+          <>
+            <SettingRow
+              title="Напоминать о повторении"
+              hint="Одно уведомление в день — если есть что повторить."
+              htmlFor={enabledId}
+              control={
+                <Switch
+                  id={enabledId}
+                  checked={settings.enabled}
+                  disabled={busy || (avail === 'denied' && !settings.enabled)}
+                  onChange={(e) => void onToggle(e.target.checked)}
+                />
+              }
             />
-          </div>
-
-          {avail === 'denied' && <Banner tone="warning">{platform.ios ? DENIED_TEXT_IOS : DENIED_TEXT}</Banner>}
-
-          <div className="setting-row">
-            <label htmlFor={timeId} className="setting-label">
-              Время напоминания
-              <span className="setting-hint">По времени этого устройства ({tz}).</span>
-            </label>
-            <input
-              id={timeId}
-              type="time"
-              className="limit-input time-input"
-              value={timeInput}
-              step={300}
-              disabled={controlsOff}
-              onChange={(e) => onTimeChange(e.target.value)}
+            <SettingRow
+              title="Время"
+              hint={`По часам этого устройства (${tz}).`}
+              htmlFor={timeId}
+              control={
+                <input
+                  id={timeId}
+                  type="time"
+                  className="setting-time"
+                  value={timeInput}
+                  step={300}
+                  disabled={controlsOff}
+                  onChange={(e) => onTimeChange(e.target.value)}
+                />
+              }
             />
-          </div>
-
-          <div className="setting-row">
-            <label htmlFor={backlogId} className="setting-label">
-              Если накопилось много слов
-              <span className="setting-hint">Ещё одно напоминание днём, не раньше чем через 8 часов после основного и не чаще раза в день.</span>
-            </label>
-            <Switch
-              id={backlogId}
-              checked={settings.backlog}
-              disabled={controlsOff}
-              onChange={(e) => void save({ ...settings, backlog: e.target.checked })}
+            <SettingRow
+              title="Если накопилось много слов"
+              hint="Ещё одно напоминание днём: не раньше чем через 8 часов после основного и не чаще раза в день."
+              htmlFor={backlogId}
+              control={
+                <Switch
+                  id={backlogId}
+                  checked={settings.backlog}
+                  disabled={controlsOff}
+                  onChange={(e) => void save({ ...settings, backlog: e.target.checked })}
+                />
+              }
             />
-          </div>
-
-          {settings.backlog && (
-            <div className="setting-row">
-              <label htmlFor={thresholdId} className="setting-label">
-                Порог, карточек
-                <span className="setting-hint">
-                  Сколько просроченных карточек считать «много» ({BACKLOG_THRESHOLD_MIN}–{BACKLOG_THRESHOLD_MAX}).
-                </span>
-              </label>
-              <input
-                id={thresholdId}
-                type="number"
-                inputMode="numeric"
-                className="limit-input"
-                min={BACKLOG_THRESHOLD_MIN}
-                max={BACKLOG_THRESHOLD_MAX}
-                step={1}
-                value={thresholdInput}
-                disabled={controlsOff}
-                onChange={(e) => setThresholdInput(e.target.value)}
-                onBlur={commitThreshold}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') e.currentTarget.blur();
-                }}
+            {settings.backlog && (
+              <SettingRow
+                title="Порог"
+                hint={`Сколько просроченных карточек считать «много» (${BACKLOG_THRESHOLD_MIN}–${BACKLOG_THRESHOLD_MAX}).`}
+                control={
+                  <Stepper
+                    label="Порог напоминания, карточек"
+                    value={threshold}
+                    min={BACKLOG_THRESHOLD_MIN}
+                    max={BACKLOG_THRESHOLD_MAX}
+                    step={THRESHOLD_STEP}
+                    disabled={controlsOff}
+                    onChange={onThresholdChange}
+                  />
+                }
               />
-            </div>
-          )}
-
-          <dl className="reminder-status">
-            <StatusRow label="Разрешение">{permissionLabel(permission)}</StatusRow>
-            <StatusRow label="Подписка Push">
-              {server.kind === 'loading'
-                ? 'проверяется…'
-                : server.kind === 'error'
-                  ? 'нет связи с сервером'
-                  : status
-                    ? status.subscribed
-                      ? 'активна'
-                      : 'нет'
-                    : 'не оформлена'}
-            </StatusRow>
-            {settings.enabled && status?.nextDailyAt != null && (
-              <StatusRow label="Следующее">{momentText(status.nextDailyAt, now, tz)}</StatusRow>
             )}
-          </dl>
-          {status && lastDeliveryText(status.lastDelivery, now, tz) && (
-            <p className="import-status">{lastDeliveryText(status.lastDelivery, now, tz)}</p>
-          )}
-          {server.kind === 'error' && <p className="import-status">{server.text}</p>}
-          {settings.enabled && status && !status.subscribed && permission === 'granted' && (
-            <p className="import-status" role="alert">
-              Подписка потеряна — выключите и снова включите напоминания.
-            </p>
-          )}
+          </>
+        )}
+        <SettingRow
+          title="Статус"
+          control={
+            <span className={`reminder-state reminder-state--${line.tone}`} role="status">
+              <Icon name={STATUS_ICON[line.tone]} size={16} />
+              {line.text}
+            </span>
+          }
+        />
+        {settings.enabled && status?.subscribed && (
+          <ListRow title="Проверить уведомление" chevron className="setting-row" onClick={() => {
+              if (!busy) void onTest();
+            }} />
+        )}
+      </GroupedList>
 
-          {settings.enabled && status?.subscribed && (
-            <div className="data-actions">
-              <Button variant="secondary" disabled={busy} onClick={() => void onTest()}>
-                Отправить проверочное уведомление
-              </Button>
-            </div>
-          )}
-        </>
+      {avail === 'denied' && <Banner tone="warning">{platform.ios ? DENIED_TEXT_IOS : DENIED_TEXT}</Banner>}
+      {avail === 'unsupported' && (
+        <Banner tone="info">
+          Этот браузер не поддерживает push-уведомления. Напоминания работают в Chrome, Edge, Firefox, Safari на Mac и в
+          приложении ALSAVI на экране «Домой» iPhone.
+        </Banner>
       )}
-
+      {settings.enabled && status && !status.subscribed && permission === 'granted' && (
+        <Banner tone="warning">Подписка потеряна — выключи и снова включи напоминания.</Banner>
+      )}
+      {server.kind === 'error' && <Banner tone="warning">{server.text}</Banner>}
       {message && (
-        <p className="import-status" role={message.error ? 'alert' : 'status'}>
+        <Banner tone={message.error ? 'error' : 'info'} role={message.error ? 'alert' : undefined}>
           {message.text}
-        </p>
+        </Banner>
       )}
-      <p className="hint">
-        На сервер напоминаний уходят только настройки, часовой пояс и сроки повторения карточек — без слов и переводов.
-      </p>
-    </section>
-  );
-}
 
-function IosInstall() {
-  return (
-    <div className="ios-install">
-      <p className="setting-hint">{IOS_INSTALL_NOTE}</p>
-      <ol className="ios-steps">
-        {IOS_INSTALL_STEPS.map((step) => (
-          <li key={step}>{step}</li>
-        ))}
-      </ol>
+      <details className="profile-details">
+        <summary>Как это работает</summary>
+        <p>
+          Напоминание приходит в выбранное время, только если в этот день есть карточки к повторению. Второе — «если накопилось
+          много слов» — днём, когда просроченных карточек больше порога.
+        </p>
+        <dl className="reminder-status">
+          <StatusRow label="Разрешение">{permissionLabel(permission)}</StatusRow>
+          <StatusRow label="Подписка Push">
+            {server.kind === 'loading'
+              ? 'проверяется…'
+              : server.kind === 'error'
+                ? 'нет связи с сервером'
+                : status
+                  ? status.subscribed
+                    ? 'активна'
+                    : 'нет'
+                  : 'не оформлена'}
+          </StatusRow>
+          {settings.enabled && status?.nextDailyAt != null && (
+            <StatusRow label="Следующее">{momentText(status.nextDailyAt, now, tz)}</StatusRow>
+          )}
+        </dl>
+        {lastText && <p>{lastText}</p>}
+      </details>
     </div>
   );
 }

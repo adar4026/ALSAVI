@@ -3,8 +3,8 @@ import type { ApiFailure, EnableResult, PermissionState, ServerStatus } from './
 import type { Platform } from './reminder-browser';
 
 /**
- * Wording of the «Напоминания о повторении» section (TASK_034). Pure,
- * tested in `reminder-view.test.ts`.
+ * Wording of the «Напоминания о повторении» section (TASK_034; «ты» and the
+ * one-line status since TASK_043). Pure, tested in `reminder-view.test.ts`.
  */
 
 /** Can this device receive reminders, and if not, what should the learner do? */
@@ -20,17 +20,17 @@ export function availability(input: { supported: boolean; platform: Platform; pe
 }
 
 export const IOS_INSTALL_STEPS: readonly string[] = [
-  'Откройте ALSAVI в Safari.',
-  'Нажмите «Поделиться» → «На экран „Домой“».',
-  'Запустите ALSAVI с иконки на экране «Домой» и включите напоминания здесь.',
+  'Открой ALSAVI в Safari.',
+  'Нажми «Поделиться» → «На экран „Домой“».',
+  'Запусти ALSAVI с иконки на экране «Домой» и включи напоминания здесь.',
 ];
 
 export const IOS_INSTALL_NOTE =
   'На iPhone уведомления приходят только приложению с экрана «Домой» (iOS 16.4 и новее). ' +
-  'Карточки в Safari и в приложении с экрана «Домой» хранятся отдельно — включайте напоминания там, где занимаетесь.';
+  'Карточки в Safari и в приложении с экрана «Домой» хранятся отдельно — включай напоминания там, где занимаешься.';
 
-export const DENIED_TEXT_IOS = 'Уведомления запрещены. Разрешите их: Настройки → Уведомления → ALSAVI, затем вернитесь сюда.';
-export const DENIED_TEXT = 'Уведомления для ALSAVI запрещены в настройках браузера. Разрешите их для этого сайта и вернитесь сюда.';
+export const DENIED_TEXT_IOS = 'Уведомления запрещены. Разреши их: Настройки → Уведомления → ALSAVI, затем вернись сюда.';
+export const DENIED_TEXT = 'Уведомления для ALSAVI запрещены в настройках браузера. Разреши их для этого сайта и вернись сюда.';
 
 export function permissionLabel(p: PermissionState): string {
   switch (p) {
@@ -52,16 +52,16 @@ export function failureText(reason: ApiFailure | 'subscribe_failed' | 'no_subscr
     case 'not_configured':
       return 'Сервер напоминаний ещё не настроен.';
     case 'rate_limited':
-      return 'Слишком часто. Попробуйте через минуту.';
+      return 'Слишком часто. Попробуй через минуту.';
     case 'subscribe_failed':
-      return 'Браузер не смог оформить подписку на уведомления. Попробуйте ещё раз.';
+      return 'Браузер не смог оформить подписку на уведомления. Попробуй ещё раз.';
     case 'no_subscription':
     case 'gone':
-      return 'Подписка на уведомления недействительна. Выключите и снова включите напоминания.';
+      return 'Подписка на уведомления недействительна. Выключи и снова включи напоминания.';
     case 'unauthorized':
     case 'conflict':
     case 'server':
-      return 'Сервер напоминаний не ответил. Попробуйте позже.';
+      return 'Сервер напоминаний не ответил. Попробуй позже.';
   }
 }
 
@@ -72,7 +72,7 @@ export function enableErrorText(result: Exclude<EnableResult, { ok: true }>, pla
     case 'denied':
       return platform.ios ? DENIED_TEXT_IOS : DENIED_TEXT;
     case 'dismissed':
-      return 'Разрешение на уведомления не выдано. Нажмите переключатель ещё раз и выберите «Разрешить».';
+      return 'Разрешение на уведомления не выдано. Нажми переключатель ещё раз и выбери «Разрешить».';
     default:
       return failureText(result.reason);
   }
@@ -120,4 +120,43 @@ export function lastDeliveryText(last: ServerStatus['lastDelivery'], now: number
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+export type ReminderStatusTone = 'ok' | 'off' | 'pending' | 'warning';
+
+/**
+ * The «Статус» row (TASK_043): one line instead of the permission /
+ * subscription table (which moved into «Как это работает»). Every state of
+ * TASK_034 has its own line.
+ */
+export function reminderStatusLine(input: {
+  availability: Availability;
+  enabled: boolean;
+  permission: PermissionState;
+  server: 'idle' | 'loading' | 'error' | 'ok';
+  subscribed?: boolean;
+  nextDailyAt?: number | null;
+  now: number;
+  timeZone: string;
+}): { tone: ReminderStatusTone; text: string } {
+  switch (input.availability) {
+    case 'unsupported':
+      return { tone: 'off', text: 'Не поддерживаются в этом браузере' };
+    case 'ios_install':
+      return { tone: 'warning', text: 'Нужно приложение с экрана «Домой»' };
+    case 'denied':
+      return { tone: 'warning', text: 'Уведомления запрещены' };
+    case 'ready':
+      break;
+  }
+  if (!input.enabled) return { tone: 'off', text: 'Выключены' };
+  if (input.server === 'loading') return { tone: 'pending', text: 'Проверяется…' };
+  if (input.server === 'error') return { tone: 'warning', text: 'Нет связи с сервером' };
+  if (input.server === 'ok' && input.subscribed) {
+    return input.nextDailyAt != null
+      ? { tone: 'ok', text: `Включены · следующее ${momentText(input.nextDailyAt, input.now, input.timeZone)}` }
+      : { tone: 'ok', text: 'Включены на этом устройстве' };
+  }
+  if (input.server === 'ok' && input.permission === 'granted') return { tone: 'warning', text: 'Подписка потеряна' };
+  return { tone: 'warning', text: 'Подписка не оформлена' };
 }
