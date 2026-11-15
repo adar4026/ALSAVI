@@ -3,7 +3,7 @@
 **Status: часть в среде разработки — DONE, ветка `docs/ui-ux-design`, без
 push и деплоя.** Проверка на iPhone — **за владельцем** (устройства в сессии
 нет): [`docs/ui-ux/IPHONE_CHECKLIST.md`](../docs/ui-ux/IPHONE_CHECKLIST.md).
-Исправление `CLAUDE.md` — **ждёт согласия** (см. ниже).
+Исправление `CLAUDE.md` — **применено с согласия владельца** (см. ниже).
 
 Десятый, последний этап основной серии UI v2
 (`docs/ui-ux/IMPLEMENTATION_ROADMAP.md`).
@@ -133,7 +133,7 @@ WCAG 2.5.8 (24 px) выполнен везде.
 - `docs/ui-ux/IPHONE_CHECKLIST.md` (новый) — чек-лист владельца: safe-area,
   статус-бар (I-2), клавиатура (I-3), push → сессия, офлайн, 8 сценариев.
 
-## `CLAUDE.md` — предложение (по согласию, не применено)
+## `CLAUDE.md` — исправлено с согласия владельца
 
 Сейчас там устарело:
 - «**AI Layer** (ещё не создан, Phase 2)» — `packages/ai` существует
@@ -142,8 +142,16 @@ WCAG 2.5.8 (24 px) выполнен везде.
   `packages/backup`, `apps/cli`;
 - «`npm test` — тесты ядра» — команда запускает тесты всех пакетов.
 
-Предлагаемая правка: обновить эти три места (одной строкой на пакет), правила
-работы не трогать. Применю после согласия.
+Владелец согласился («Yes, update CLAUDE.md»). Исправлены ровно эти три
+места:
+- строка об AI Layer: пакет `packages/ai` существует (read-only потребитель),
+  развитие — Phase 2;
+- «Структура» дополнена `packages/ai`, `packages/anki-import`,
+  `packages/backup`, `apps/cli` — по одной строке на пакет; у `apps/web`
+  добавлены тон «ты», PWA и ссылки на ARCHITECTURE §11g и `docs/ui-ux/`;
+- «`npm test` — тесты всех пакетов».
+
+Инвариант и правила работы не тронуты. Отдельный коммит.
 
 ## Тесты
 
@@ -171,4 +179,5 @@ push → сессия, офлайн-старт на устройстве.
 - **Тесты:** `sw-runtime`, `toast-queue`, `note-form`, `backup-history`;
   новый `tone`.
 - **Документы:** `ARCHITECTURE.md`, `apps/web/README.md`,
-  `docs/ui-ux/IPHONE_CHECKLIST.md`, `tasks/TASK_044.md`, `PROGRESS.md`.
+  `docs/ui-ux/IPHONE_CHECKLIST.md`, `tasks/TASK_044.md`, `PROGRESS.md`;
+  `CLAUDE.md` — отдельным коммитом.
