@@ -160,6 +160,17 @@ describe('no duplicate primitives', () => {
     'confirm',
     'practice-cta',
     'archive-undo',
+    // TASK_042: "Статистика" uses Surface, Stat, ProgressRing, Badge, ListRow.
+    'kpi',
+    'kpi-grid',
+    'digest',
+    'digest-item',
+    'home-card',
+    'home-section-title',
+    'count-badge',
+    'stats-link',
+    'activity-empty',
+    'empty-state',
   ];
   const sources = readdirSync(resolve(webRoot, 'src'))
     .filter((f) => f.endsWith('.tsx'))

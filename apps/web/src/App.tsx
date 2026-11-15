@@ -399,7 +399,7 @@ export function App() {
 
   // Leaving the practice returns where it was started (TASK_039): from
   // "Карточки" to the "Трудные" list (TASK_032), from "Главная" (its tile, the
-  // session's end screen) back home.
+  // session's end screen) back home, from "Статистика" (TASK_042) back there.
   const exitPractice = useCallback(() => {
     if (viewRef.current === 'cards') {
       openCards('difficult');
@@ -553,7 +553,7 @@ export function App() {
         <PracticeSession
           loadCards={loadPracticeCards}
           onExit={exitPractice}
-          exitLabel={view === 'cards' ? 'К трудным словам' : 'На главную'}
+          exitLabel={view === 'cards' ? 'К трудным словам' : view === 'stats' ? 'К статистике' : 'На главную'}
         />
       ) : view === 'home' ? (
         settingsReady ? (
@@ -590,9 +590,12 @@ export function App() {
       ) : view === 'stats' ? (
         <StatsScreen
           engine={engine}
+          session={session}
+          queueReady={settingsReady}
           onStudy={() => navigate('home')}
           onAddWord={() => openCards('all', 'add')}
           onShowDifficult={() => openCards('difficult')}
+          onPractice={startPractice}
           refreshKey={resumeTick}
         />
       ) : view === 'profile' ? (

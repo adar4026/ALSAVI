@@ -86,16 +86,19 @@ export function ProgressRing({
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle className="ui-ring-track" cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} fill="none" />
-        <circle
-          className="ui-ring-fill"
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          strokeWidth={stroke}
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={`${c * fraction} ${c}`}
-        />
+        {/* Nothing to fill: no round cap drawn as a dot at the top. */}
+        {fraction > 0 && (
+          <circle
+            className="ui-ring-fill"
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            strokeWidth={stroke}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={`${c * fraction} ${c}`}
+          />
+        )}
       </svg>
       {children !== undefined && <span className="ui-ring-label">{children}</span>}
     </div>

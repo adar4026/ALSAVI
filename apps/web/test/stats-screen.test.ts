@@ -1,16 +1,22 @@
-import { LearningEngine, MemoryStore, type LearningStats } from '@alsavi/engine';
+import { LearningEngine, MemoryStore, StudySession, type LearningStats } from '@alsavi/engine';
 import { describe, expect, it } from 'vitest';
 import { buildNoteEntries, EMPTY_FILTER, filterEntries } from '../src/card-list';
 import {
   activityDigest,
   activityFor,
   formatDecimal,
+  activityLine,
   isStatsEmpty,
+  learnedHero,
   percentOf,
-  progressHeadline,
   progressSegments,
+  queueDetail,
+  STAT_DEFINITIONS,
+  stagesTotal,
   statsKpis,
+  todayLine,
   type Kpi,
+  type QueueOverview,
 } from '../src/stats-view';
 
 /**
@@ -34,8 +40,8 @@ function makeEngine(clock: { t: number }) {
   });
 }
 
-function kpi(stats: LearningStats, id: Kpi['id']): Kpi {
-  return statsKpis(stats).find((k) => k.id === id)!;
+function kpi(stats: LearningStats, id: Kpi['id'], queue: QueueOverview | null = null): Kpi {
+  return statsKpis(stats, queue).find((k) => k.id === id)!;
 }
 
 /** A tiny but complete history: learned, forgotten, new, archived, three study days. */
@@ -66,11 +72,12 @@ describe('empty collection', () => {
   it('is recognised as empty and shows zeros, not invented numbers', async () => {
     const stats = await makeEngine({ t: NOW }).getLearningStats();
     expect(isStatsEmpty(stats)).toBe(true);
-    expect(statsKpis(stats).map((k) => [k.id, k.value, k.detail])).toEqual([
-      ['learned', '0', 'из 0 слов'],
+    const queue = { newCount: 0, learningCount: 0, reviewCount: 0, total: 0 };
+    expect(learnedHero(stats)).toEqual({ learned: 0, percent: null, title: 'Слов пока нет' });
+    expect(statsKpis(stats, queue).map((k) => [k.id, k.value, k.detail])).toEqual([
       ['accuracy', '—', 'пока нет ответов'],
       ['streak', '0', 'начнётся с первого ответа'],
-      ['due', '0', 'новых 0 · позже 0'],
+      ['queue', '0', 'на сегодня всё'],
     ]);
     expect(progressSegments(stats.cards).map((s) => s.percent)).toEqual([0, 0, 0]);
     expect(activityDigest(stats.activity.last7)).toEqual({ total: 0, activeDays: 0, days: 7, perActiveDay: null });
@@ -81,7 +88,7 @@ describe('empty collection', () => {
     await engine.addNote({ front: 'uno', back: 'один' });
     const stats = await engine.getLearningStats();
     expect(isStatsEmpty(stats)).toBe(false);
-    expect(kpi(stats, 'due').detail).toBe('новых 1 · позже 0');
+    expect(stagesTotal(stats.cards)).toBe('1 карточка');
   });
 });
 
@@ -93,14 +100,14 @@ describe('headline numbers over a real history', () => {
     // forgotten and is relearning or back in review — check against the card.
     const gato = (await engine.listCardViews()).find((v) => v.front === 'el gato')!.card;
     const learned = 2 + (gato.state === 'review' ? 1 : 0);
-    expect(kpi(stats, 'learned')).toMatchObject({ label: 'Изучено слов', value: String(learned), detail: 'из 4 слов' });
+    expect(learnedHero(stats)).toEqual({ learned, percent: Math.round((learned / 4) * 100), title: `Изучено ${learned} из 4 слов` });
   });
 
   it('accuracy: correct answers over every answer, archived history included', async () => {
     const { engine } = await sampleCollection();
     const stats = await engine.getLearningStats();
     // 7 answers, one "again": 6 / 7 = 85.7 % → 86 %.
-    expect(kpi(stats, 'accuracy')).toMatchObject({ value: '86%', detail: 'правильных из 7 ответов' });
+    expect(kpi(stats, 'accuracy')).toMatchObject({ label: 'Точность', value: '86%', detail: 'верных из 7 ответов' });
     expect((await engine.getStats()).accuracy).toBeCloseTo(6 / 7);
   });
 
@@ -125,21 +132,25 @@ describe('headline numbers over a real history', () => {
     expect(k).toMatchObject({ value: '1', unit: 'день', detail: 'сегодня ещё нет ответов · рекорд 2' });
   });
 
-  it('due: started cards whose time has come; new and later ones are named apart', async () => {
+  it('queue: exactly the study session\'s overview — the number on "Главная" (S-1)', async () => {
     const { engine, clock } = await sampleCollection();
     const stats = await engine.getLearningStats();
-    // Independent count over the raw active cards.
-    const active = (await engine.listCardViews()).filter((v) => v.note.archivedAt === undefined).map((v) => v.card);
-    const started = active.filter((c) => c.state !== 'new');
-    const dueNow = started.filter((c) => c.due <= NOW).length;
-    expect(dueNow).toBeGreaterThan(0);
-    expect(kpi(stats, 'due')).toMatchObject({
-      value: String(dueNow),
-      detail: `новых 1 · позже ${started.length - dueNow}`,
-    });
-    clock.t = NOW + 400 * DAY; // everything started is overdue by then
-    const later = await engine.getLearningStats();
-    expect(kpi(later, 'due')).toMatchObject({ value: '4', unit: 'карточки', detail: 'новых 1 · позже 0' });
+    for (const limit of [null, 0]) {
+      const session = new StudySession(engine, { now: () => clock.t, newCardsPerDay: limit });
+      const overview = await session.overview();
+      const k = kpi(stats, 'queue', overview);
+      expect(k.value).toBe(String(overview.total));
+      expect(k.value).toBe(String(await session.dueCount()));
+      expect(k.detail).toBe(queueDetail(overview));
+    }
+    // The daily limit holds back the new card: the queue says so, like "Главная".
+    const limited = await new StudySession(engine, { now: () => clock.t, newCardsPerDay: 0 }).overview();
+    expect(limited.newCount).toBe(0);
+  });
+
+  it('queue: shown as pending until the session\'s daily limit is applied', async () => {
+    const { engine } = await sampleCollection();
+    expect(kpi(await engine.getLearningStats(), 'queue', null)).toMatchObject({ value: '…', detail: 'считается' });
   });
 });
 
@@ -178,7 +189,7 @@ describe('progress by stage', () => {
     expect(count.new).toBe(1);
     expect(count.new! + count.learning! + count.learned!).toBe(5); // viejo is archived
     expect(stats.cards.archived).toBe(1);
-    expect(progressHeadline(stats.cards)).toBe(`Изучено ${count.learned} из 5 карточек`);
+    expect(stagesTotal(stats.cards)).toBe('5 карточек · в архиве 1');
   });
 
   it('percentages always add up to exactly 100', () => {
@@ -190,11 +201,11 @@ describe('progress by stage', () => {
     expect(p.reduce((a, b) => a + b)).toBe(100);
   });
 
-  it('headline agrees in number: 1 карточки / 5 карточек / 21 карточки', () => {
-    const c = (active: number, waiting: number) => ({ active, new: active - waiting, learning: 0, dueReview: 0, waiting, archived: 0 });
-    expect(progressHeadline(c(1, 1))).toBe('Изучено 1 из 1 карточки');
-    expect(progressHeadline(c(5, 2))).toBe('Изучено 2 из 5 карточек');
-    expect(progressHeadline(c(21, 0))).toBe('Изучено 0 из 21 карточки');
+  it('the total under the stages never says "изучено" (S-2: only words are "изучены")', () => {
+    const c = (active: number, archived = 0) => ({ active, new: active, learning: 0, dueReview: 0, waiting: 0, archived });
+    expect(stagesTotal(c(1))).toBe('1 карточка');
+    expect(stagesTotal(c(5, 2))).toBe('5 карточек · в архиве 2');
+    expect(stagesTotal(c(21))).toBe('21 карточка');
   });
 });
 
@@ -225,8 +236,53 @@ describe('formatting', () => {
   it('words after "из" agree in number', () => {
     const stats = (active: number) =>
       ({ notes: { active, learned: 0 }, answers: { total: 0, successful: 0 }, streak: { current: 0, longest: 0, reviewedToday: false }, due: { now: 0, later: 0 }, cards: { new: 0 } }) as unknown as LearningStats;
-    expect(statsKpis(stats(1))[0]!.detail).toBe('из 1 слова');
-    expect(statsKpis(stats(3))[0]!.detail).toBe('из 3 слов');
-    expect(statsKpis(stats(21))[0]!.detail).toBe('из 21 слова');
+    expect(learnedHero(stats(1)).title).toBe('Изучено 0 из 1 слова');
+    expect(learnedHero(stats(3)).title).toBe('Изучено 0 из 3 слов');
+    expect(learnedHero(stats(21)).title).toBe('Изучено 0 из 21 слова');
+  });
+});
+
+describe('TASK_042: lines and definitions', () => {
+  it('queue detail names the parts, leaves empty ones out', () => {
+    expect(queueDetail({ newCount: 5, learningCount: 4, reviewCount: 3, total: 12 })).toBe('5 новых · 4 изучаются · 3 повторить');
+    expect(queueDetail({ newCount: 1, learningCount: 0, reviewCount: 2, total: 3 })).toBe('1 новая · 2 повторить');
+    expect(queueDetail({ newCount: 0, learningCount: 0, reviewCount: 0, total: 0 })).toBe('на сегодня всё');
+  });
+
+  it('activity line: answers, study days, average per study day', () => {
+    expect(activityLine({ total: 40, activeDays: 6, days: 7, perActiveDay: 40 / 6 })).toBe('40 ответов · 6 из 7 дней · 6,7 в день занятий');
+    expect(activityLine({ total: 1, activeDays: 1, days: 30, perActiveDay: 1 })).toBe('1 ответ · 1 из 30 дней · 1 в день занятий');
+  });
+
+  it('today line only after the first answer of the day', () => {
+    expect(todayLine({ reviews: 0, successful: 0, again: 0 })).toBeNull();
+    expect(todayLine({ reviews: 23, successful: 20, again: 3 })).toBe('Сегодня 23 ответа · 87% верно');
+  });
+
+  it('streak record and today line over the sample history', async () => {
+    const { engine } = await sampleCollection();
+    const stats = await engine.getLearningStats();
+    expect(kpi(stats, 'streak')).toMatchObject({ label: 'Серия' });
+    expect(todayLine(stats.today)).toBe('Сегодня 1 ответ · 100% верно');
+  });
+
+  it('"Как считается": one definition for every number on the screen, "ты" and no gendered verbs', () => {
+    expect(STAT_DEFINITIONS.map((d) => d.term)).toEqual([
+      'Изучено слов',
+      'Точность',
+      'Серия',
+      'В очереди',
+      'Активность',
+      'Карточки по стадиям',
+      'Трудные слова',
+    ]);
+    for (const d of STAT_DEFINITIONS) {
+      expect(d.text.length, d.term).toBeGreaterThan(40);
+      expect(d.text, d.term).not.toMatch(/(?<!\p{L})(вы|вас|ваш\p{L}*|забыл|забыла|выучил|выучила)(?!\p{L})/iu);
+    }
+    expect(STAT_DEFINITIONS.find((d) => d.id === 'queue')!.text).toContain('то же число, что на Главной');
+    // The check itself catches what it is meant to catch.
+    expect('Слова, которые ты забыл').toMatch(/(?<!\p{L})(забыл)(?!\p{L})/iu);
+    expect('Слова, которые забылись').not.toMatch(/(?<!\p{L})(забыл)(?!\p{L})/iu);
   });
 });
