@@ -9,6 +9,7 @@ import {
   type Review,
 } from '@alsavi/engine';
 import Dexie, { type EntityTable } from 'dexie';
+import type { BackupMark, BackupMarkStore, BackupReminderState } from './backup-reminder';
 
 /** Shape of a v1 card, before content moved to notes. Used only by migration. */
 interface CardV1 {
@@ -30,6 +31,9 @@ interface SettingRow {
 
 /** Key for the daily new-card limit setting (TASK_020). `null` = unlimited. */
 const NEW_CARDS_PER_DAY_KEY = 'newCardsPerDay';
+/** Backup reminder (TASK_048): the last copy and «Позже». */
+const BACKUP_MARK_KEY = 'backupMark';
+const BACKUP_SNOOZE_KEY = 'backupSnoozedUntil';
 
 class AlsaviDB extends Dexie {
   notes!: EntityTable<Note, 'id'>;
@@ -76,7 +80,7 @@ class AlsaviDB extends Dexie {
 }
 
 /** IndexedDB adapter for the Engine's storage port. */
-export class DexieStore implements EngineStore {
+export class DexieStore implements EngineStore, BackupMarkStore {
   private db = new AlsaviDB();
 
   getNote(id: NoteId): Promise<Note | undefined> {
@@ -170,5 +174,37 @@ export class DexieStore implements EngineStore {
   /** Persists the daily new-card limit. Never touched by `replaceAll`/restore. */
   async setNewCardsPerDay(value: number | null): Promise<void> {
     await this.db.settings.put({ key: NEW_CARDS_PER_DAY_KEY, value });
+  }
+
+  /**
+   * Backup reminder state (TASK_048) — a local preference like the limit, in
+   * the same `settings` table: no schema change, not part of backups, not
+   * touched by `replaceAll`. A malformed row reads as absent.
+   */
+  async getBackupReminder(): Promise<BackupReminderState> {
+    const [mark, snooze] = await Promise.all([
+      this.db.settings.get(BACKUP_MARK_KEY),
+      this.db.settings.get(BACKUP_SNOOZE_KEY),
+    ]);
+    const m = mark?.value as Partial<BackupMark> | null | undefined;
+    const validMark = m && typeof m.at === 'number' && Number.isFinite(m.at) && typeof m.fingerprint === 'string';
+    const until = snooze?.value;
+    return {
+      mark: validMark ? { at: m.at as number, fingerprint: m.fingerprint as string } : null,
+      snoozedUntil: typeof until === 'number' && Number.isFinite(until) ? until : null,
+    };
+  }
+
+  /** Records a copy; a new copy also ends «Позже». */
+  async setBackupMark(mark: BackupMark): Promise<void> {
+    await this.db.transaction('rw', this.db.settings, async () => {
+      await this.db.settings.put({ key: BACKUP_MARK_KEY, value: { at: mark.at, fingerprint: mark.fingerprint } });
+      await this.db.settings.delete(BACKUP_SNOOZE_KEY);
+    });
+  }
+
+  async setBackupSnooze(until: number | null): Promise<void> {
+    if (until === null) await this.db.settings.delete(BACKUP_SNOOZE_KEY);
+    else await this.db.settings.put({ key: BACKUP_SNOOZE_KEY, value: until });
   }
 }

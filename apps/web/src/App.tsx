@@ -4,6 +4,7 @@ import { HomeHeader } from './HomeHeader';
 import { localDayStart, shouldStartNewSession, UNSAVED_EDIT_CONFIRM } from './app-lifecycle';
 import type { StatusFilter } from './card-list';
 import { CardManager } from './CardManager';
+import { requestPersistentStorage } from './backup-export';
 import { DexieStore } from './dexie-store';
 import { HomeScreen, type CardsIntent } from './HomeScreen';
 import { MainNav } from './MainNav';
@@ -112,6 +113,12 @@ export function App() {
     [engine, store]
   );
   const platform = useMemo(() => detectPlatform(), []);
+  // TASK_048: ask the browser to keep the data under storage pressure. Only
+  // for the installed app — there no browser shows a prompt (Firefox would
+  // in a plain tab); Safari and Chrome decide silently.
+  useEffect(() => {
+    if (platform.standalone) void requestPersistentStorage();
+  }, [platform]);
   // A tap on a reminder asks for the study session (`#/review` on a cold
   // start, a service-worker message in an open window); it starts once the
   // daily limit has been applied to the session.
@@ -561,6 +568,7 @@ export function App() {
             <HomeScreen
               engine={engine}
               session={session}
+              backupStore={store}
               onStart={() => setReviewPhase('session')}
               onOpenCards={onHomeOpenCards}
               onOpenStats={() => navigate('stats')}

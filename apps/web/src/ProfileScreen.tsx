@@ -1,7 +1,9 @@
-import type { EngineStore, LearningEngine } from '@alsavi/engine';
-import { backupFilename, createBackup, restoreBackup } from '@alsavi/backup';
-import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
+import type { LearningEngine } from '@alsavi/engine';
+import { restoreBackup } from '@alsavi/backup';
+import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
+import { exportBackup, recordRestore, type BackupStore } from './backup-export';
 import { exportedStatus, restoreConfirmText, restoredStatus } from './backup-messages';
+import { lastBackupLine, type BackupMark } from './backup-reminder';
 import { Icon } from './Icon';
 import {
   describeImport,
@@ -20,7 +22,8 @@ import { Banner, GroupedList, ListRow, ScreenHeader, SegmentedControl, Stepper, 
 
 interface Props {
   engine: LearningEngine;
-  store: EngineStore;
+  /** Engine storage + the backup reminder's marks (`DexieStore`). */
+  store: BackupStore;
   /** After an import or a restore changed the collection. */
   onChanged: () => void;
   /** Current daily new-card limit (`null` = unlimited). Owned by `App`. */
@@ -102,7 +105,7 @@ export function ProfileScreen({
               }
             />
           </GroupedList>
-          <DataGroup engine={engine} store={store} onChanged={onChanged} />
+          <DataGroup engine={engine} store={store} onChanged={onChanged} refreshKey={refreshKey} />
           <GroupedList title="О приложении">
             <SettingRow title="ALSAVI" hint="Изучение испанского с интервальными повторениями" />
             <SettingRow title="Данные" control={<span className="setting-value">на этом устройстве</span>} />
@@ -237,12 +240,37 @@ function LimitGroup({
 /** A finished data operation: a short success is a toast, the rest a banner. */
 type DataResult = { tone: BannerTone; text: string } | null;
 
-/** «Данные»: backup export, restore from a copy, Anki import — logic and texts as before (TASK_011/027/033). */
-function DataGroup({ engine, store, onChanged }: { engine: LearningEngine; store: EngineStore; onChanged: () => void }) {
+/**
+ * «Данные»: backup export, restore from a copy, Anki import — logic and texts
+ * as before (TASK_011/027/033). Since TASK_048 the export row shows when the
+ * last copy was made, and an export or a restore records it.
+ */
+function DataGroup({
+  engine,
+  store,
+  onChanged,
+  refreshKey,
+}: {
+  engine: LearningEngine;
+  store: BackupStore;
+  onChanged: () => void;
+  refreshKey: number;
+}) {
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<DataResult>(null);
+  // `undefined` — not read yet (no line rather than a wrong «Копий ещё не было»).
+  const [mark, setMark] = useState<BackupMark | null | undefined>(undefined);
   const fileInput = useRef<HTMLInputElement>(null);
   const backupInput = useRef<HTMLInputElement>(null);
+
+  const loadMark = useCallback(() => {
+    store.getBackupReminder().then(
+      (state) => setMark(state.mark),
+      () => setMark(undefined)
+    );
+  }, [store]);
+
+  useEffect(loadMark, [loadMark, refreshKey]);
 
   function finish(tone: BannerTone, text: string, short = false) {
     setBusy(null);
@@ -278,13 +306,8 @@ function DataGroup({ engine, store, onChanged }: { engine: LearningEngine; store
     setResult(null);
     setBusy('Формирую резервную копию…');
     try {
-      const { json, retired } = await createBackup(store);
-      const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = backupFilename();
-      a.click();
-      URL.revokeObjectURL(url);
+      const { retired } = await exportBackup(store, engine);
+      loadMark();
       finish('success', exportedStatus(retired), !retired);
     } catch (err) {
       finish('error', `Не удалось экспортировать: ${err instanceof Error ? err.message : String(err)}`);
@@ -314,6 +337,8 @@ function DataGroup({ engine, store, onChanged }: { engine: LearningEngine; store
           finish('info', 'Восстановление отменено. Данные не изменены.');
           return;
         case 'restored':
+          await recordRestore(store, engine, outcome.exportedAt);
+          loadMark();
           finish('success', restoredStatus(outcome), !outcome.retired);
           onChanged();
           return;
@@ -335,6 +360,7 @@ function DataGroup({ engine, store, onChanged }: { engine: LearningEngine; store
         <ListRow
           leading={<Icon name="download" size={22} />}
           title="Экспорт резервной копии"
+          subtitle={mark === undefined ? undefined : lastBackupLine(mark, Date.now())}
           chevron
           className="setting-row"
           onClick={run(() => void onExport())}

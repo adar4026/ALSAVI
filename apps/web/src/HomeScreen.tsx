@@ -1,6 +1,9 @@
 import type { LearningEngine, LearningStats, StudySession, StudySessionOverview } from '@alsavi/engine';
 import { useCallback, useEffect, useState } from 'react';
 import { WeekChart } from './ActivityCharts';
+import { BackupBanner } from './BackupBanner';
+import type { BackupStore } from './backup-export';
+import { backupSuggestion, type BackupReminderState } from './backup-reminder';
 import {
   dailyGoal,
   difficultTile,
@@ -23,6 +26,8 @@ export type CardsIntent = 'all' | 'difficult' | 'add' | 'archived';
 interface Props {
   engine: LearningEngine;
   session: StudySession;
+  /** For the backup suggestion (TASK_048): its marks and the export. */
+  backupStore: BackupStore;
   /** Starts the existing review session (`ReviewSession`). */
   onStart: () => void;
   onOpenCards: (intent: CardsIntent) => void;
@@ -40,6 +45,8 @@ interface Props {
 interface HomeData {
   overview: StudySessionOverview;
   stats: LearningStats;
+  /** `null` when it could not be read — then no suggestion, the screen still works. */
+  backup: BackupReminderState | null;
 }
 
 /**
@@ -52,19 +59,34 @@ interface HomeData {
  * other number from `engine.getLearningStats()`. Words and states live in
  * `home-view.ts`.
  */
-export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats, onPractice, refreshKey = 0 }: Props) {
+export function HomeScreen({
+  engine,
+  session,
+  backupStore,
+  onStart,
+  onOpenCards,
+  onOpenStats,
+  onPractice,
+  refreshKey = 0,
+}: Props) {
   const [data, setData] = useState<HomeData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Hidden for this visit after «Сохранить копию» / «Позже».
+  const [backupDone, setBackupDone] = useState(false);
 
   const reload = useCallback(async () => {
     try {
-      const [overview, stats] = await Promise.all([session.overview(), engine.getLearningStats()]);
-      setData({ overview, stats });
+      const [overview, stats, backup] = await Promise.all([
+        session.overview(),
+        engine.getLearningStats(),
+        backupStore.getBackupReminder().catch(() => null),
+      ]);
+      setData({ overview, stats, backup });
       setError(null);
     } catch (err) {
       setError(`Не удалось загрузить план на сегодня: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }, [engine, session]);
+  }, [engine, session, backupStore]);
 
   useEffect(() => {
     void reload();
@@ -87,7 +109,7 @@ export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats,
 
   if (!data) return <Skeleton variant="home" />;
 
-  const { overview, stats } = data;
+  const { overview, stats, backup } = data;
 
   if (stats.cards.active === 0) {
     const archivedOnly = stats.cards.archived > 0;
@@ -122,6 +144,7 @@ export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats,
     newWithheld: overview.newWithheld,
   });
   const tile = difficultTile(stats.difficult.total);
+  const suggestion = backup && !backupDone ? backupSuggestion(backup, stats, Date.now()) : { show: false as const };
 
   return (
     <div className="home home-grid">
@@ -133,6 +156,9 @@ export function HomeScreen({ engine, session, onStart, onOpenCards, onOpenStats,
           onStart={onStart}
           onRecheck={() => void reload()}
         />
+        {suggestion.show && (
+          <BackupBanner engine={engine} store={backupStore} text={suggestion.text} onDone={() => setBackupDone(true)} />
+        )}
       </div>
 
       <div className="home-side">
