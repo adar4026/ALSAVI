@@ -30,6 +30,20 @@ skipped. Браузер: 320 / 375 / 390 / 430 px — бар во всю шир�
 px выше края, фон под индикатором; 1280 px — колонка как прежде; консоль
 без ошибок. **На iPhone не проверялось.**
 
+**Выпуск** (по команде владельца, без проверки на iPhone): превью-деплоев
+в репозитории нет (только GitHub Pages из `main`); локальный HTTPS на
+iPhone не сработал — сертификат mkcert выписан на
+`MacBook-Pro-Alex-T.local`, а имя Mac теперь `MacBook-Pro-14-Alex.local`
+(не исправлялось). `main` перемотана `9fd45bb..99afdb0`, перед push `npm
+test` 760 + 1 skipped, `npm run build` без предупреждений. Деплой GitHub
+Actions run `44944466907` — build и deploy успешны. На
+https://adar4026.github.io/ALSAVI/: `CACHE_VERSION`
+`alsavi-shell-99afdb0cefa6`, бандл `index-DX5Z8ujZ.js` /
+`index-qvxmw8Mg.css` = локальная сборка; при 390 px бар во всю ширину,
+серый, без тени; 4 вкладки переключаются; лавандовая подложка у активной;
+тёмная тема; колонка на 1280 px; консоль без ошибок. **Осталось:**
+проверить на iPhone (safe area, home indicator) — прямо на production.
+
 ---
 ## 2026-11-21 — TASK_048: напоминание о резервной копии
 
