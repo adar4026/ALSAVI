@@ -12,7 +12,7 @@ interface Props {
 
 /**
  * Main navigation: four sections in one element, placed by CSS (TASK_030,
- * TASK_037). On phones a floating bar at the bottom of the screen (above the
+ * TASK_037). On phones a full-width tab bar at the bottom of the screen (above the
  * iPhone home indicator); from 900 px a side column with the brand on top and
  * the streak at the bottom — the brand and the footer are hidden on phones,
  * where the home header shows them. Hidden by `App` during a study session,

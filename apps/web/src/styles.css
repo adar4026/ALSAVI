@@ -117,6 +117,7 @@
   --button-h-lg: 52px;
   --rating-h: 64px;
   --row-h: 64px;
+  /* Height of the phone tab bar's tabs row; the safe-area inset is added below it. */
   --nav-h: 64px;
   /* Side navigation column on a computer (≥ 900 px, TASK_037). */
   --sidebar-w: 240px;
@@ -190,6 +191,11 @@
   /* A raised control (switch knob). */
   --elev-control: 0 1px 3px rgba(0, 0, 0, 0.25);
   --nav-bg: rgba(255, 255, 255, 0.92);
+  /* The phone tab bar (TASK_050): a light-gray strip, a hairline on top and a
+     lavender plate under the active tab. */
+  --tabbar-bg: #e4e4e9;
+  --tabbar-border: #cfcfd6;
+  --tabbar-active: rgba(109, 93, 246, 0.16);
 }
 
 /* 3. Dark palette ----------------------------------------------------------- */
@@ -243,6 +249,9 @@
   --elev-nav: 0 10px 30px rgba(0, 0, 0, 0.5);
   --elev-control: 0 1px 3px rgba(0, 0, 0, 0.25);
   --nav-bg: rgba(23, 26, 34, 0.92);
+  --tabbar-bg: #1b1e26;
+  --tabbar-border: #2a2e3a;
+  --tabbar-active: rgba(139, 124, 248, 0.2);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -296,6 +305,9 @@
     --elev-nav: 0 10px 30px rgba(0, 0, 0, 0.5);
     --elev-control: 0 1px 3px rgba(0, 0, 0, 0.25);
       --nav-bg: rgba(23, 26, 34, 0.92);
+    --tabbar-bg: #1b1e26;
+    --tabbar-border: #2a2e3a;
+    --tabbar-active: rgba(139, 124, 248, 0.2);
   }
 }
 
@@ -313,9 +325,10 @@ body {
 .app {
   max-width: 640px;
   margin: 0 auto;
-  /* Bottom: room for the floating navigation bar and the home indicator. */
+  /* Bottom: room for the tab bar (its row plus the home-indicator area) and
+     some air above it, so the last block never ends up under the bar. */
   padding: calc(var(--space-5) + env(safe-area-inset-top, 0px)) var(--space-5)
-    calc(var(--nav-h) + var(--space-10) + env(safe-area-inset-bottom, 0px));
+    calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + var(--space-6));
 }
 
 /* A study session is a focus mode without the navigation bar. */
@@ -888,35 +901,26 @@ body {
 
 /* --- TASK_030: main navigation, profile, session exit --------------------- */
 
-/* Phones: a floating glass bar above the home indicator (LexCar style).
-   Without backdrop-filter support the bar is simply opaque. */
+/* Phones (TASK_050): a full-width iOS-style tab bar fixed to the bottom edge.
+   The tabs row sits above the home indicator; the bar's background continues
+   under it through the safe-area padding. No shadow, no blur. */
 .main-nav {
   position: fixed;
-  left: 50%;
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 10;
-  width: min(440px, calc(100% - 24px));
-  transform: translateX(-50%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--elev-nav);
-}
-
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .main-nav {
-    background: var(--nav-bg);
-    -webkit-backdrop-filter: blur(16px) saturate(160%);
-    backdrop-filter: blur(16px) saturate(160%);
-  }
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid var(--tabbar-border);
+  background: var(--tabbar-bg);
 }
 
 .main-nav-list {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 2px;
+  gap: var(--space-1);
   margin: 0;
-  padding: 6px;
+  padding: 6px var(--space-2);
   list-style: none;
 }
 
@@ -928,9 +932,9 @@ body {
   gap: 2px;
   width: 100%;
   min-height: calc(var(--nav-h) - 12px);
-  padding: var(--space-1) 2px;
+  padding: 3px 2px;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
   font: inherit;
@@ -965,19 +969,49 @@ body {
   display: none;
 }
 
-/* Phones (TASK_037, I-1): content fades out above the bar instead of showing
-   through the glass. Not in a study session (no bar there). */
+/* Phones: thin outline icons and large labels; the active tab gets a
+   lavender plate with softly rounded corners (TASK_050). */
 @media (max-width: 899px) {
-  .app:not(.in-session)::after {
-    content: '';
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 9;
-    height: calc(var(--nav-h) + var(--space-8) + env(safe-area-inset-bottom, 0px));
-    background: linear-gradient(to bottom, transparent, var(--bg) 55%);
-    pointer-events: none;
+  .main-nav-item .icon {
+    width: 28px;
+    height: 28px;
+    stroke-width: 1.5;
+  }
+
+  .main-nav-label {
+    font-size: 13px;
+  }
+
+  .main-nav-item[aria-current='page'] {
+    background: var(--tabbar-active);
+  }
+}
+
+/* Narrow phones: smaller icons and labels so all tabs fit without clipping. */
+@media (max-width: 389px) {
+  .main-nav-item .icon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .main-nav-label {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 359px) {
+  .main-nav-list {
+    gap: 2px;
+    padding-inline: var(--space-1);
+  }
+
+  .main-nav-item .icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .main-nav-label {
+    font-size: 11px;
   }
 }
 
@@ -1023,12 +1057,6 @@ body {
   line-height: 1.5;
 }
 
-@media (max-width: 380px) {
-  .main-nav-label {
-    font-size: 10px;
-  }
-}
-
 /* Computer (TASK_037): a side column — the brand on top, the four sections,
    the streak at the bottom. One element with the phone bar, placed by CSS. */
 @media (min-width: 900px) {
@@ -1036,6 +1064,7 @@ body {
     top: 0;
     bottom: 0;
     left: 0;
+    right: auto;
     display: flex;
     flex-direction: column;
     gap: var(--space-6);
@@ -1275,12 +1304,12 @@ body {
 
 /* --- TASK_033: phone polish — navigation overlap, keyboard, tap targets ---- */
 
-/* The floating navigation bar covers the bottom of the viewport on phones.
+/* The bottom tab bar covers the bottom of the viewport on phones.
    Scroll padding makes focus and scrollIntoView stop above it, so an inline
    confirmation (e.g. "Убрать в архив?") or a focused field never ends up
    hidden under the bar. Above 900px the navigation is in the header. */
 html {
-  scroll-padding-bottom: calc(var(--nav-h) + 24px + env(safe-area-inset-bottom, 0px));
+  scroll-padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + var(--space-4));
 }
 
 @media (min-width: 900px) {
@@ -1290,14 +1319,13 @@ html {
 }
 
 /* While typing on a touch screen the on-screen keyboard takes the bottom of
-   the screen: the floating bar would cover the field being edited or the
+   the screen: the tab bar would cover the field being edited or the
    save button (iOS keeps fixed elements in the layout viewport). Hide it
    until the field loses focus. Phones only — on a computer the navigation
    sits in the header and stays. */
 @media (max-width: 899px) and (pointer: coarse) {
   .app:has(input:not([type='checkbox'], [type='radio'], [type='file']):focus, textarea:focus, select:focus)
-    .main-nav,
-  .app:has(input:not([type='checkbox'], [type='radio'], [type='file']):focus, textarea:focus, select:focus)::after {
+    .main-nav {
     display: none;
   }
 }
